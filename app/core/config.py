@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     upload_dir: str = "./data/uploads"
     max_upload_mb: int = Field(default=30, ge=1, le=200)
     worker_poll_seconds: float = Field(default=2.0, ge=0.2, le=60)
+    anthropic_api_key: str | None = None
+    anthropic_base_url: str = "https://api.anthropic.com"
+    anthropic_model: str = "claude-3-5-sonnet-20241022"
+    llm_timeout_seconds: float = Field(default=45, ge=5, le=180)
     development_user_id: str = "00000000-0000-0000-0000-000000000001"
 
 

@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import courses, documents, system
+from app.api.v1.routes import courses, documents, system, tutor
 
 api_router = APIRouter()
 api_router.include_router(system.router, tags=["system"])
 api_router.include_router(courses.router, prefix="/courses", tags=["courses"])
 api_router.include_router(documents.router, tags=["documents"])
+api_router.include_router(tutor.router, prefix="/courses", tags=["tutor"])

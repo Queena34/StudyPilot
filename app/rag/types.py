@@ -20,3 +20,13 @@ class TextChunk:
     text: str
     section_title: str | None = None
 
+
+@dataclass(frozen=True)
+class RetrievedEvidence:
+    chunk_id: str
+    document_id: str
+    filename: str
+    page_number: int
+    section_title: str | None
+    text: str
+    score: float

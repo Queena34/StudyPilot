@@ -14,7 +14,7 @@ class HashEmbedding:
 
     def _embed_one(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
-        tokens = re.findall(r"[\w-]+", text.lower(), flags=re.UNICODE)
+        tokens = _tokens(text)
         for token in tokens:
             digest = hashlib.sha256(token.encode("utf-8")).digest()
             index = int.from_bytes(digest[:4], "big") % self.dimensions
@@ -24,3 +24,14 @@ class HashEmbedding:
         if norm:
             vector = [value / norm for value in vector]
         return vector
+
+
+def _tokens(text: str) -> list[str]:
+    normalized = text.lower()
+    latin = re.findall(r"[a-z0-9_-]+", normalized)
+    cjk_runs = re.findall(r"[\u3400-\u9fff]+", normalized)
+    cjk: list[str] = []
+    for run in cjk_runs:
+        cjk.extend(run)
+        cjk.extend(run[index : index + 2] for index in range(len(run) - 1))
+    return latin + cjk

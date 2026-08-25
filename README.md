@@ -6,7 +6,33 @@ StudyPilot 正在从 EchoMind Python 框架迁移为面向国际研究生的双�
 - [技术设计文档](docs/TECHNICAL_DESIGN.md)
 - [迁移说明](MIGRATION.md)
 
-当前已进入 Milestone 1，旧 EchoMind 客服代码暂时保留为迁移参考。以下旧版指南中的客服接口与命名不代表 StudyPilot 最终行为。
+当前已完成课程管理、资料异步入库和首版课程级 RAG 问答。旧 EchoMind 客服代码暂时保留为迁移参考，以下旧版指南中的客服接口与命名不代表 StudyPilot 最终行为。
+
+## 当前可体验功能
+
+- 创建、查看、修改和删除课程。
+- 上传 PDF、Markdown、TXT 课程资料并查看处理状态。
+- 后台 Worker 解析、分段并将资料写入 ChromaDB。
+- 根据课程、资料类型、指定文档和页码范围进行隔离检索。
+- `POST /api/v1/courses/{course_id}/tutor/messages` 返回证据状态和文件、页码引用。
+- 未配置模型密钥时返回可验证的检索结果；配置密钥后生成带 `[c1]` 引用的导师回答。
+
+启动完整开发环境：
+
+```bash
+docker compose up -d --build
+```
+
+Swagger 地址：`http://localhost:8000/docs`。
+
+如需大模型生成回答，在 `.env` 中配置：
+
+```env
+STUDYPILOT_ANTHROPIC_API_KEY=your_api_key
+STUDYPILOT_ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+```
+
+不配置密钥也可以完成上传、检索和引用链路验证。
 
 ## 旧 EchoMind 使用指南（迁移参考）
 

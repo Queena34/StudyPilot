@@ -102,6 +102,9 @@ services:
       - STUDYPILOT_CHROMA_HOST=chromadb
       - STUDYPILOT_CHROMA_PORT=8000
       - STUDYPILOT_UPLOAD_DIR=/app/data/uploads
+      - STUDYPILOT_ANTHROPIC_API_KEY=${STUDYPILOT_ANTHROPIC_API_KEY:-}
+      - STUDYPILOT_ANTHROPIC_BASE_URL=${STUDYPILOT_ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      - STUDYPILOT_ANTHROPIC_MODEL=${STUDYPILOT_ANTHROPIC_MODEL:-claude-3-5-sonnet-20241022}
     volumes:
       - ./data/chroma:/app/data/chroma
       - uploads-data:/app/data/uploads
