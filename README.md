@@ -20,6 +20,7 @@ StudyPilot 正在从 EchoMind Python 框架迁移为面向国际研究生的双�
 - 提交练习答案后按不可变 rubric 自动批改，并保存历史成绩与反馈。
 - 汇总作答记录生成课程掌握度、薄弱知识点和下一步复习建议。
 - 根据考试日期、薄弱知识点和每日时间生成可勾选的学习计划。
+- 提供面向学习者的响应式 Web 工作台，串联课程、资料、问答、练习、进度和计划。
 - 未配置模型密钥时返回可验证的检索结果；配置密钥后生成带 `[c1]` 引用的导师回答。
 
 启动完整开发环境：
@@ -27,6 +28,8 @@ StudyPilot 正在从 EchoMind Python 框架迁移为面向国际研究生的双�
 ```bash
 docker compose up -d --build
 ```
+
+Web 工作台：`http://localhost:8000/`。
 
 Swagger 地址：`http://localhost:8000/docs`。
 

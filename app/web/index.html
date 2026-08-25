@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StudyPilot — 把课程资料变成个性化学习路径">
+  <title>StudyPilot · AI 学习教练</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="StudyPilot 首页">
+        <span class="brand-mark">S</span>
+        <span>StudyPilot</span>
+      </a>
+      <div class="side-label">我的课程</div>
+      <nav id="course-list" class="course-list" aria-label="课程列表"></nav>
+      <button id="new-course-button" class="new-course" type="button">+  添加课程</button>
+      <div class="sidebar-foot">
+        <span class="status-dot"></span>
+        <span>AI 学习空间已就绪</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="menu-button" class="icon-button menu-button" aria-label="打开课程列表">☰</button>
+        <div>
+          <p class="eyebrow">AI STUDY COACH</p>
+          <h1 id="page-title">今天想学什么？</h1>
+        </div>
+        <div class="top-actions">
+          <span class="date-pill" id="today"></span>
+          <div class="avatar">Q</div>
+        </div>
+      </header>
+
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-icon">✦</div>
+        <h2>建立你的第一门课程</h2>
+        <p>添加课程后，上传讲义或笔记，StudyPilot 就能陪你答疑、出题和安排复习。</p>
+        <button class="primary-button" data-action="new-course">添加第一门课</button>
+      </div>
+
+      <div id="workspace" class="workspace hidden">
+        <section class="hero-card">
+          <div>
+            <div class="hero-meta"><span id="course-code"></span><span id="semester"></span></div>
+            <h2 id="course-name"></h2>
+            <p id="course-description">上传课程资料，开始你的个性化学习。</p>
+          </div>
+          <div class="exam-card">
+            <span>距离考试</span>
+            <strong id="exam-days">--</strong>
+            <small id="exam-date">未设置考试日期</small>
+          </div>
+        </section>
+
+        <section class="metrics" aria-label="学习概览">
+          <article class="metric"><span class="metric-icon coral">◔</span><div><small>总体掌握度</small><strong id="mastery">0%</strong></div></article>
+          <article class="metric"><span class="metric-icon blue">✓</span><div><small>已完成练习</small><strong id="attempts">0</strong></div></article>
+          <article class="metric"><span class="metric-icon amber">!</span><div><small>需要加强</small><strong id="weak-topics">0 个知识点</strong></div></article>
+          <article class="metric"><span class="metric-icon green">↗</span><div><small>学习计划</small><strong id="plan-progress">待创建</strong></div></article>
+        </section>
+
+        <nav class="tabs" aria-label="课程工具">
+          <button class="tab active" data-tab="coach">AI 教练</button>
+          <button class="tab" data-tab="materials">课程资料</button>
+          <button class="tab" data-tab="practice">练习自测</button>
+          <button class="tab" data-tab="progress">学习进度</button>
+          <button class="tab" data-tab="plan">学习计划</button>
+        </nav>
+
+        <section id="panel-coach" class="panel tab-panel">
+          <div class="section-heading"><div><p class="eyebrow">基于你的课程资料</p><h3>问 StudyPilot</h3></div><button id="new-chat" class="text-button">新对话</button></div>
+          <div id="chat" class="chat"><div class="coach-message"><span class="bot-avatar">✦</span><div><strong>你好，我是你的学习教练。</strong><p>你可以让我解释课程概念、梳理笔记，或用苏格拉底式提问帮你想清楚。</p></div></div></div>
+          <form id="chat-form" class="composer">
+            <textarea id="chat-input" rows="2" minlength="2" maxlength="4000" placeholder="例如：用简单的例子解释这门课的核心概念…" required></textarea>
+            <div class="composer-bottom"><select id="answer-mode"><option value="deep">深入解释</option><option value="concise">简洁回答</option><option value="socratic">启发式引导</option></select><button class="send-button" type="submit">发送 ↑</button></div>
+          </form>
+        </section>
+
+        <section id="panel-materials" class="panel tab-panel hidden">
+          <div class="section-heading"><div><p class="eyebrow">KNOWLEDGE BASE</p><h3>课程资料</h3></div></div>
+          <form id="upload-form" class="upload-box">
+            <input id="document-file" name="file" type="file" accept=".pdf,.md,.txt" required>
+            <label for="document-file"><span class="upload-icon">↑</span><strong>选择讲义、笔记或阅读材料</strong><small>PDF、Markdown 或 TXT，最大 25 MB</small></label>
+            <select id="document-type" name="document_type"><option value="lecture">课堂讲义</option><option value="reading">阅读材料</option><option value="notes">学习笔记</option><option value="assignment">作业</option><option value="past_exam">往年试题</option><option value="other">其他</option></select>
+            <button class="primary-button" type="submit">上传资料</button>
+          </form>
+          <div id="document-list" class="stack-list"></div>
+        </section>
+
+        <section id="panel-practice" class="panel tab-panel hidden">
+          <div class="section-heading"><div><p class="eyebrow">ACTIVE RECALL</p><h3>生成一组针对性练习</h3></div></div>
+          <form id="practice-form" class="form-grid compact-form">
+            <label><span>练习主题</span><input id="practice-topic" placeholder="留空则根据课程资料生成"></label>
+            <label><span>题型</span><select id="question-type"><option value="short_answer">简答题</option><option value="single_choice">单选题</option><option value="concept">概念解释</option></select></label>
+            <label><span>难度</span><select id="difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
+            <label><span>题目数</span><input id="question-count" type="number" min="1" max="10" value="3"></label>
+            <label class="check-label"><input id="weak-first" type="checkbox"><span>优先针对薄弱点</span></label>
+            <button class="primary-button" type="submit">生成练习</button>
+          </form>
+          <div id="practice-result" class="question-list"></div>
+        </section>
+
+        <section id="panel-progress" class="panel tab-panel hidden">
+          <div class="section-heading"><div><p class="eyebrow">LEARNING INSIGHTS</p><h3>知识点掌握情况</h3></div></div>
+          <div id="recommendations" class="recommendations"></div>
+          <div id="topic-list" class="topic-list"></div>
+        </section>
+
+        <section id="panel-plan" class="panel tab-panel hidden">
+          <div class="section-heading"><div><p class="eyebrow">PERSONAL ROADMAP</p><h3>个性化学习计划</h3></div></div>
+          <form id="plan-form" class="form-grid compact-form">
+            <label><span>计划天数</span><input id="duration-days" type="number" min="1" max="28" value="7"></label>
+            <label><span>每日时间（分钟）</span><input id="daily-minutes" type="number" min="15" max="480" value="60"></label>
+            <label class="check-label"><input id="include-weekends" type="checkbox" checked><span>包含周末</span></label>
+            <button class="primary-button" type="submit">生成新计划</button>
+          </form>
+          <div id="plan-list" class="plan-list"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="course-dialog">
+    <form id="course-form" class="dialog-form">
+      <div class="dialog-head"><div><p class="eyebrow">NEW COURSE</p><h2>添加课程</h2></div><button class="icon-button" type="button" data-action="close-dialog">×</button></div>
+      <div class="form-grid">
+        <label class="full"><span>课程名称 *</span><input id="new-name" required maxlength="200" placeholder="例如：Machine Learning"></label>
+        <label><span>课程代码</span><input id="new-code" maxlength="80" placeholder="H02A5A"></label>
+        <label><span>学期</span><input id="new-semester" maxlength="80" placeholder="2026–2027 Semester 1"></label>
+        <label><span>学校</span><input id="new-institution" maxlength="200" value="KU Leuven"></label>
+        <label><span>考试日期</span><input id="new-exam-date" type="date"></label>
+        <label><span>目标成绩</span><input id="new-target" maxlength="40" placeholder="16/20"></label>
+        <label class="full"><span>课程说明</span><textarea id="new-description" maxlength="5000" rows="3" placeholder="这门课的重点和你的学习目标"></textarea></label>
+      </div>
+      <button class="primary-button full-button" type="submit">创建课程</button>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

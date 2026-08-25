@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
@@ -25,8 +28,14 @@ def create_app() -> FastAPI:
     )
     register_exception_handlers(application)
     application.include_router(api_router, prefix=settings.api_prefix)
+    web_dir = Path(__file__).parent / "web"
+    application.mount("/static", StaticFiles(directory=web_dir / "static"), name="static")
+
+    @application.get("/", include_in_schema=False)
+    async def web_app() -> FileResponse:
+        return FileResponse(web_dir / "index.html")
+
     return application
 
 
 app = create_app()
-
