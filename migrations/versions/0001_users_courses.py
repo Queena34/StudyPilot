@@ -48,7 +48,7 @@ def upgrade() -> None:
     op.create_index("ix_courses_deleted_at", "courses", ["deleted_at"])
     op.execute(
         sa.text(
-            "INSERT INTO users (id, display_name) VALUES (:id, :name)"
+            "INSERT INTO users (id, display_name) VALUES (CAST(:id AS uuid), :name)"
         ).bindparams(id=DEVELOPMENT_USER_ID, name="Local Student")
     )
 
@@ -56,4 +56,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("courses")
     op.drop_table("users")
-

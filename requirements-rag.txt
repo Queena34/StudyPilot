@@ -1,0 +1,6 @@
+# Milestone 2 启用课程资料解析与 RAG 时安装
+-r requirements.txt
+
+anthropic==0.40.0
+chromadb==0.5.23
+PyMuPDF==1.25.1
