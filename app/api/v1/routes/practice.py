@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, status
 from app.api.dependencies import CurrentUserId, DbSession
 from app.infrastructure.repositories.course_repository import CourseRepository
 from app.infrastructure.repositories.practice_repository import PracticeRepository
+from app.infrastructure.repositories.progress_repository import ProgressRepository
 from app.schemas.attempt import AttemptCreate, AttemptList, AttemptRead
 from app.schemas.practice import PracticeSetCreate, PracticeSetRead
 from app.services.attempt_service import AttemptService
@@ -51,7 +52,9 @@ async def submit_attempt(
     session: DbSession,
     user_id: CurrentUserId,
 ) -> AttemptRead:
-    return await AttemptService(PracticeRepository(session)).submit(user_id, question_id, body)
+    return await AttemptService(
+        PracticeRepository(session), ProgressRepository(session)
+    ).submit(user_id, question_id, body)
 
 
 @router.get("/questions/{question_id}/attempts", response_model=AttemptList)
@@ -62,7 +65,9 @@ async def list_attempts(
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
 ) -> AttemptList:
-    items = await AttemptService(PracticeRepository(session)).list(
+    items = await AttemptService(
+        PracticeRepository(session), ProgressRepository(session)
+    ).list(
         user_id, question_id, page=page, size=size
     )
     return AttemptList(items=items, page=page, size=size)

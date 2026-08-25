@@ -56,6 +56,7 @@ class Course(Base):
     documents: Mapped[list["Document"]] = relationship(back_populates="course")
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="course")
     practice_sets: Mapped[list["PracticeSet"]] = relationship(back_populates="course")
+    topic_mastery: Mapped[list["TopicMastery"]] = relationship(back_populates="course")
 
 
 class DocumentStatus(str, Enum):
@@ -257,3 +258,31 @@ class Attempt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     question: Mapped[Question] = relationship(back_populates="attempts")
+
+
+class TopicMastery(Base):
+    __tablename__ = "topic_mastery"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("courses.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    normalized_topic: Mapped[str] = mapped_column(String(200), primary_key=True)
+    display_topic: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(32), default="unpracticed")
+    mastery_score: Mapped[float] = mapped_column(Float, default=0)
+    average_score: Mapped[float] = mapped_column(Float, default=0)
+    recent_score: Mapped[float] = mapped_column(Float, default=0)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    common_errors_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    last_practiced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    course: Mapped[Course] = relationship(back_populates="topic_mastery")

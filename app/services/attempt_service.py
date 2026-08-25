@@ -3,6 +3,7 @@ from uuid import UUID
 from app.core.exceptions import AppError, ResourceNotFoundError
 from app.domain.models import Attempt, Question
 from app.infrastructure.repositories.practice_repository import PracticeRepository
+from app.infrastructure.repositories.progress_repository import ProgressRepository
 from app.llm.evaluation_gateway import (
     AnswerEvaluationGateway,
     EvaluationOutput,
@@ -22,9 +23,11 @@ class AttemptService:
     def __init__(
         self,
         repository: PracticeRepository,
+        progress_repository: ProgressRepository,
         gateway: AnswerEvaluationGateway | None = None,
     ) -> None:
         self.repository = repository
+        self.progress_repository = progress_repository
         self.gateway = gateway or AnswerEvaluationGateway()
 
     async def submit(
@@ -63,12 +66,18 @@ class AttemptService:
                 "difficulty": question.difficulty,
                 "options": question.options_json,
                 "reference_answer": question.reference_answer,
+                "knowledge_points": question.knowledge_points_json,
             },
             rubric_snapshot_json=question.rubric_json,
             source_refs_json=question.source_refs_json,
             evaluation_model=model_name,
         )
-        await self.repository.create_attempt(attempt)
+        await self.progress_repository.record_attempt(
+            attempt,
+            course_id=question.course_id,
+            topics=question.knowledge_points_json,
+            errors=evaluation.feedback.knowledge_errors,
+        )
         return _to_read(attempt)
 
     async def list(
