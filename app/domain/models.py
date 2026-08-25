@@ -57,6 +57,7 @@ class Course(Base):
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="course")
     practice_sets: Mapped[list["PracticeSet"]] = relationship(back_populates="course")
     topic_mastery: Mapped[list["TopicMastery"]] = relationship(back_populates="course")
+    study_plans: Mapped[list["StudyPlan"]] = relationship(back_populates="course")
 
 
 class DocumentStatus(str, Enum):
@@ -286,3 +287,55 @@ class TopicMastery(Base):
     )
 
     course: Mapped[Course] = relationship(back_populates="topic_mastery")
+
+
+class StudyPlan(Base):
+    __tablename__ = "study_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(32), default="active")
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    daily_minutes: Mapped[int] = mapped_column(Integer)
+    configuration_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    course: Mapped[Course] = relationship(back_populates="study_plans")
+    tasks: Mapped[list["StudyTask"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan"
+    )
+
+
+class StudyTask(Base):
+    __tablename__ = "study_tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("study_plans.id", ondelete="CASCADE"), index=True
+    )
+    scheduled_date: Mapped[date] = mapped_column(Date, index=True)
+    sequence: Mapped[int] = mapped_column(Integer)
+    task_type: Mapped[str] = mapped_column(String(32))
+    topic: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(300))
+    description: Mapped[str] = mapped_column(Text)
+    estimated_minutes: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    plan: Mapped[StudyPlan] = relationship(back_populates="tasks")
