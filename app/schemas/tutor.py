@@ -65,6 +65,9 @@ class TutorMessageRead(BaseModel):
     evidence_status: str
     suggested_followups: list[str]
     usage: TokenUsage
+    intent: str = "course_qa"
+    route: str = "rag"
+    query_plan: dict = Field(default_factory=dict)
 
 
 class ConversationRead(BaseModel):

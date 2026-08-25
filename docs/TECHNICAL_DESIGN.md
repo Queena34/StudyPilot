@@ -575,6 +575,19 @@ class LearningIntent(str, Enum):
 
 API 路径已经明确的请求不需要再做意图识别。例如 `/practice-sets` 直接进入 Quiz 工作流。统一聊天入口才需要 Orchestrator。
 
+MVP 统一聊天入口使用 `LearningIntentRouter` 执行高精度确定性路由，输出 `IntentDecision` 和不可覆盖用户显式范围的 `QueryPlan`。路由目标包括：
+
+| RouteTarget | 数据源/工作流 | 是否执行 RAG |
+|---|---|---|
+| `course_catalog` | PostgreSQL documents | 否 |
+| `progress` | ProgressRepository | 否 |
+| `study_plan` | StudyPlanRepository | 否 |
+| `practice` | Practice 工作流入口 | 否 |
+| `general` | 产品能力回答 | 否 |
+| `rag` | CourseRetriever + Tutor Agent | 是 |
+
+规则路由无法高置信度匹配时，默认进入无副作用的 `COURSE_QA` RAG 路径。后续可增加结构化 LLM 分类作为低置信度补充，但不允许模型覆盖 `course_id`、`document_ids`或页码范围。
+
 ### 13.2 Tutor Agent
 
 输入：用户问题、语言和讲解模式、对话摘要、检索证据。
@@ -1136,4 +1149,3 @@ PostgreSQL 与上传文件是主要恢复对象。向量索引应可以从原始
 8. 增加必要日志和指标，且不泄露敏感内容。
 9. Docker 环境能够启动并验证该功能。
 10. README 或相关设计文档已同步更新。
-

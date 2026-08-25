@@ -1,5 +1,5 @@
-from uuid import UUID
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -12,7 +12,6 @@ from app.services.tutor_service import (
     _conversation_title,
     _document_inventory_answer,
     _evidence_status,
-    _is_document_inventory_question,
     _remove_unknown_citations,
     _standalone_query,
 )
@@ -88,12 +87,6 @@ def test_new_short_question_is_not_forced_into_previous_topic() -> None:
 def test_conversation_title_is_single_line_and_bounded() -> None:
     assert _conversation_title("  First line\nsecond line  ") == "First line second line"
     assert len(_conversation_title("a" * 200)) == 80
-
-
-def test_document_inventory_intent_is_distinguished_from_content_question() -> None:
-    assert _is_document_inventory_question("我现在有什么课程资料？")
-    assert _is_document_inventory_question("List my uploaded documents")
-    assert not _is_document_inventory_question("请总结这份课程资料")
 
 
 def test_document_inventory_answer_includes_every_document() -> None:
