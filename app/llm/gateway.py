@@ -23,6 +23,7 @@ class TutorAnswerGateway:
         language: str,
         mode: str,
         evidence: list[RetrievedEvidence],
+        history: list[tuple[str, str]] | None = None,
     ) -> GeneratedAnswer:
         settings = get_settings()
         if not settings.anthropic_api_key:
@@ -41,6 +42,7 @@ class TutorAnswerGateway:
         )
         prompt = (
             f"Requested language: {language}\nExplanation mode: {mode}\n"
+            f"Recent conversation:\n{_history_text(history or [])}\n\n"
             f"Student question: {question}\n\nCourse sources:\n{evidence_text}"
         )
         headers = {
@@ -95,3 +97,9 @@ def _extractive_answer(evidence: list[RetrievedEvidence]) -> GeneratedAnswer:
         snippet = item.text[:500].strip()
         paragraphs.append(f"{snippet} [c{index}]")
     return GeneratedAnswer(answer="\n\n".join(paragraphs), model_name="retrieval-fallback")
+
+
+def _history_text(history: list[tuple[str, str]]) -> str:
+    if not history:
+        return "(none)"
+    return "\n".join(f"{role}: {escape(content[:1000])}" for role, content in history[-8:])

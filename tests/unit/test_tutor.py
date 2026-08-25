@@ -4,9 +4,15 @@ import pytest
 from pydantic import ValidationError
 
 from app.llm.gateway import _extractive_answer
+from app.domain.models import Message
 from app.rag.types import RetrievedEvidence
 from app.schemas.tutor import TutorScope
-from app.services.tutor_service import _evidence_status, _remove_unknown_citations
+from app.services.tutor_service import (
+    _conversation_title,
+    _evidence_status,
+    _remove_unknown_citations,
+    _standalone_query,
+)
 
 
 def _evidence(score: float = 0.8) -> RetrievedEvidence:
@@ -43,3 +49,39 @@ def test_extractive_fallback_keeps_real_citation() -> None:
 
     assert result.model_name == "retrieval-fallback"
     assert "[c1]" in result.answer
+
+
+def test_followup_query_includes_previous_question() -> None:
+    history = [
+        Message(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            conversation_id=UUID("00000000-0000-0000-0000-000000000002"),
+            role="user",
+            content="L1 和 L2 正则化有什么区别？",
+            citations_json=[],
+        )
+    ]
+
+    query = _standalone_query("能举个例子吗？", history)
+
+    assert "L1 和 L2" in query
+    assert "能举个例子吗" in query
+
+
+def test_new_short_question_is_not_forced_into_previous_topic() -> None:
+    history = [
+        Message(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            conversation_id=UUID("00000000-0000-0000-0000-000000000002"),
+            role="user",
+            content="解释正则化",
+            citations_json=[],
+        )
+    ]
+
+    assert _standalone_query("什么是 PCA？", history) == "什么是 PCA？"
+
+
+def test_conversation_title_is_single_line_and_bounded() -> None:
+    assert _conversation_title("  First line\nsecond line  ") == "First line second line"
+    assert len(_conversation_title("a" * 200)) == 80

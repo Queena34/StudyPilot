@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models import Course
+from app.domain.models import Conversation, Course
 
 
 class CourseRepository:
@@ -47,6 +47,8 @@ class CourseRepository:
         return course
 
     async def soft_delete(self, course: Course) -> None:
+        await self.session.execute(
+            delete(Conversation).where(Conversation.course_id == course.id)
+        )
         course.deleted_at = datetime.now(timezone.utc)
         await self.session.commit()
-

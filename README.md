@@ -15,6 +15,7 @@ StudyPilot 正在从 EchoMind Python 框架迁移为面向国际研究生的双�
 - 后台 Worker 解析、分段并将资料写入 ChromaDB。
 - 根据课程、资料类型、指定文档和页码范围进行隔离检索。
 - `POST /api/v1/courses/{course_id}/tutor/messages` 返回证据状态和文件、页码引用。
+- 支持复用 `conversation_id` 进行多轮追问，并查询课程会话与消息历史。
 - 未配置模型密钥时返回可验证的检索结果；配置密钥后生成带 `[c1]` 引用的导师回答。
 
 启动完整开发环境：

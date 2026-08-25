@@ -1,4 +1,5 @@
 from enum import Enum
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -64,3 +65,34 @@ class TutorMessageRead(BaseModel):
     evidence_status: str
     suggested_followups: list[str]
     usage: TokenUsage
+
+
+class ConversationRead(BaseModel):
+    id: UUID
+    course_id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationList(BaseModel):
+    items: list[ConversationRead]
+    page: int
+    size: int
+
+
+class StoredMessageRead(BaseModel):
+    id: UUID
+    conversation_id: UUID
+    role: str
+    content: str
+    citations: list[Citation]
+    model_name: str | None
+    latency_ms: int | None
+    created_at: datetime
+
+
+class MessageList(BaseModel):
+    items: list[StoredMessageRead]
+    page: int
+    size: int
