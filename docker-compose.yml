@@ -125,6 +125,36 @@ services:
       retries: 3
       start_period: 90s
 
+  # ── 课程资料解析与向量入库 Worker ───────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: studypilot-worker
+    environment:
+      - STUDYPILOT_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-studypilot}:${POSTGRES_PASSWORD:-studypilot}@postgres:5432/${POSTGRES_DB:-studypilot}
+      - STUDYPILOT_REDIS_URL=redis://:${REDIS_PASSWORD:-studypilot}@redis:6379/0
+      - STUDYPILOT_CHROMA_HOST=chromadb
+      - STUDYPILOT_CHROMA_PORT=8000
+      - STUDYPILOT_CHROMA_COLLECTION=${STUDYPILOT_CHROMA_COLLECTION:-course_materials_v1}
+      - STUDYPILOT_UPLOAD_DIR=/app/data/uploads
+      - STUDYPILOT_WORKER_POLL_SECONDS=${STUDYPILOT_WORKER_POLL_SECONDS:-2}
+      - ANONYMIZED_TELEMETRY=FALSE
+    volumes:
+      - uploads-data:/app/data/uploads
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+
   # ── Nginx 反向代理 ──────────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine

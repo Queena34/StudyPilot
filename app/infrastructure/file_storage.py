@@ -29,6 +29,10 @@ class LocalFileStorage:
             raise AppError("INVALID_STORAGE_KEY", "文件存储路径不合法", status_code=400)
         return path
 
+    def resolve(self, storage_key: str) -> Path:
+        """Resolve a persisted key without allowing access outside the upload root."""
+        return self._safe_path(storage_key)
+
     async def save_upload(
         self,
         upload: UploadFile,

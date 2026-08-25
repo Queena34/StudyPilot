@@ -84,5 +84,12 @@ class DocumentRepository:
             )
             .values(status=JobStatus.CANCELLED.value, finished_at=now)
         )
+        self.session.add(
+            Job(
+                user_id=document.user_id,
+                document_id=document.id,
+                job_type="vector_cleanup",
+                status=JobStatus.QUEUED.value,
+            )
+        )
         await self.session.commit()
-

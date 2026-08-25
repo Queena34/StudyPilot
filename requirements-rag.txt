@@ -3,4 +3,6 @@
 
 anthropic==0.40.0
 chromadb==0.5.23
+# Chroma 0.5.x still calls the positional capture API removed by newer PostHog clients.
+posthog==3.7.5
 PyMuPDF==1.25.1

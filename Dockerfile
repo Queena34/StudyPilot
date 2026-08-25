@@ -24,6 +24,13 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
+# 文档解析与向量入库依赖仅安装在后台 Worker 镜像中。
+FROM base AS rag-dependencies
+
+COPY requirements.txt requirements-rag.txt ./
+RUN pip install --upgrade pip && \
+    pip install -r requirements-rag.txt
+
 # ── 阶段 3：生产镜像 ──────────────────────────────────────────────────────────
 FROM base AS production
 
@@ -48,7 +55,22 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# ── 阶段 4：开发镜像 ──────────────────────────────────────────────────────────
+# ── 阶段 4：文档入库 Worker ───────────────────────────────────────────────────
+FROM base AS worker
+
+RUN useradd -m -u 1000 studypilot
+
+COPY --from=rag-dependencies /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=rag-dependencies /usr/local/bin /usr/local/bin
+COPY --chown=studypilot:studypilot . .
+
+RUN mkdir -p /app/data/uploads /app/logs && \
+    chown studypilot:studypilot /app/data /app/data/uploads /app/logs
+USER studypilot
+
+CMD ["python", "-m", "app.tasks.worker"]
+
+# ── 阶段 5：开发镜像 ──────────────────────────────────────────────────────────
 FROM dependencies AS development
 
 COPY . .
