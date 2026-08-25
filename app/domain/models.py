@@ -55,6 +55,7 @@ class Course(Base):
     user: Mapped[User] = relationship(back_populates="courses")
     documents: Mapped[list["Document"]] = relationship(back_populates="course")
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="course")
+    practice_sets: Mapped[list["PracticeSet"]] = relationship(back_populates="course")
 
 
 class DocumentStatus(str, Enum):
@@ -176,3 +177,55 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+class PracticeSet(Base):
+    __tablename__ = "practice_sets"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(32), default="ready")
+    configuration_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    model_name: Mapped[str] = mapped_column(String(120))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    course: Mapped[Course] = relationship(back_populates="practice_sets")
+    questions: Mapped[list["Question"]] = relationship(
+        back_populates="practice_set", cascade="all, delete-orphan"
+    )
+
+
+class Question(Base):
+    __tablename__ = "questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    practice_set_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("practice_sets.id", ondelete="CASCADE"), index=True
+    )
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), index=True
+    )
+    question_type: Mapped[str] = mapped_column(String(32))
+    difficulty: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    options_json: Mapped[list | None] = mapped_column(JSONB)
+    knowledge_points_json: Mapped[list] = mapped_column(JSONB, default=list)
+    reference_answer: Mapped[str] = mapped_column(Text)
+    rubric_json: Mapped[list] = mapped_column(JSONB, default=list)
+    source_refs_json: Mapped[list] = mapped_column(JSONB, default=list)
+    generation_metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    practice_set: Mapped[PracticeSet] = relationship(back_populates="questions")

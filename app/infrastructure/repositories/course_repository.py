@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models import Conversation, Course
+from app.domain.models import Conversation, Course, PracticeSet
 
 
 class CourseRepository:
@@ -47,6 +47,9 @@ class CourseRepository:
         return course
 
     async def soft_delete(self, course: Course) -> None:
+        await self.session.execute(
+            delete(PracticeSet).where(PracticeSet.course_id == course.id)
+        )
         await self.session.execute(
             delete(Conversation).where(Conversation.course_id == course.id)
         )
