@@ -96,6 +96,50 @@ async function loadDocuments() {
   const data = await request(`/courses/${state.course.id}/documents?size=100`);
   const labels = { lecture:"课堂讲义", reading:"阅读材料", assignment:"作业", past_exam:"往年试题", notes:"学习笔记", other:"其他" };
   $("#document-list").innerHTML = data.items.length ? data.items.map((doc) => `<div class="list-card"><div><strong>${escapeHtml(doc.filename)}</strong><p>${labels[doc.document_type] || doc.document_type} · ${(doc.size_bytes / 1024).toFixed(1)} KB${doc.chunk_count ? ` · ${doc.chunk_count} 个知识片段` : ""}</p></div><span class="badge ${doc.status === "failed" ? "failed" : ""}">${doc.status === "ready" ? "已就绪" : doc.status === "failed" ? "处理失败" : "处理中"}</span></div>`).join("") : `<div class="empty-inline">还没有课程资料。上传后，AI 教练会优先依据资料回答。</div>`;
+  return data.items;
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(0.1, bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function setUploadStatus(message = "", type = "") {
+  const status = $("#upload-status");
+  status.textContent = message;
+  status.className = `upload-status${type ? ` ${type}` : ""}`;
+}
+
+function resetUploadPicker() {
+  $("#document-file").value = "";
+  $("#file-picker-title").textContent = "选择讲义、笔记或阅读材料";
+  $("#file-picker-detail").textContent = "PDF、Markdown 或 TXT，最大 30 MB";
+  const button = $("#upload-button");
+  button.disabled = true;
+  button.textContent = "请先选择文件";
+  button.dataset.label = "上传资料";
+}
+
+async function followDocument(documentId, filename) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const document = await request(`/documents/${documentId}`);
+    await loadDocuments();
+    if (document.status === "ready") {
+      setUploadStatus(`“${filename}”已整理完成，现在可以用它向 AI 教练提问。`, "success");
+      toast("资料已就绪");
+      return;
+    }
+    if (document.status === "failed") {
+      const reason = document.error_message || "资料解析失败";
+      setUploadStatus(`“${filename}”处理失败：${reason}`, "error");
+      toast(reason, true);
+      return;
+    }
+    const progress = document.job?.progress || 0;
+    setUploadStatus(`“${filename}”已上传，正在整理知识内容… ${progress}%`);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  setUploadStatus(`“${filename}”已上传，后台仍在处理。稍后刷新即可查看状态。`);
 }
 
 async function loadPlans() {
@@ -147,9 +191,28 @@ $("#course-form").addEventListener("submit", async (event) => {
 });
 
 $("#upload-form").addEventListener("submit", async (event) => {
-  event.preventDefault(); const button = event.submitter; const file = $("#document-file").files[0]; if (!file) return;
+  event.preventDefault(); const button = event.submitter; const file = $("#document-file").files[0];
+  if (!file) { setUploadStatus("请先选择一个 PDF、Markdown 或 TXT 文件。", "error"); toast("请先选择文件", true); return; }
   setLoading(button, true, "正在上传…");
-  try { const data = new FormData(); data.append("file", file); data.append("document_type", $("#document-type").value); await request(`/courses/${state.course.id}/documents`, {method:"POST", body:data}); event.target.reset(); toast("资料已上传，正在整理知识内容"); await loadDocuments(); setTimeout(() => loadDocuments().catch(() => {}), 3000); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+  setUploadStatus(`正在上传“${file.name}”…`);
+  try {
+    const data = new FormData(); data.append("file", file); data.append("document_type", $("#document-type").value);
+    const document = await request(`/courses/${state.course.id}/documents`, {method:"POST", body:data});
+    toast("资料上传成功，开始整理内容"); await loadDocuments(); resetUploadPicker();
+    await followDocument(document.id, document.filename);
+  } catch (error) { setUploadStatus(`上传失败：${error.message}`, "error"); toast(error.message, true); }
+  finally { if (!button.disabled) setLoading(button, false); }
+});
+
+$("#document-file").addEventListener("change", (event) => {
+  const file = event.target.files[0]; const button = $("#upload-button");
+  if (!file) { resetUploadPicker(); setUploadStatus(""); return; }
+  const allowed = ["pdf", "md", "txt"].includes(file.name.split(".").pop().toLowerCase());
+  const withinLimit = file.size <= 30 * 1024 * 1024;
+  $("#file-picker-title").textContent = file.name;
+  $("#file-picker-detail").textContent = `${formatFileSize(file.size)} · ${allowed && withinLimit ? "已选择，可以上传" : "文件不符合要求"}`;
+  button.dataset.label = "上传资料"; button.textContent = "上传资料"; button.disabled = !(allowed && withinLimit);
+  setUploadStatus(!allowed ? "仅支持 PDF、Markdown 和 TXT 文件。" : !withinLimit ? "文件大小不能超过 30 MB。" : "", allowed && withinLimit ? "" : "error");
 });
 
 $("#chat-form").addEventListener("submit", async (event) => {

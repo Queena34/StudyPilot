@@ -85,10 +85,11 @@
           <div class="section-heading"><div><p class="eyebrow">KNOWLEDGE BASE</p><h3>课程资料</h3></div></div>
           <form id="upload-form" class="upload-box">
             <input id="document-file" name="file" type="file" accept=".pdf,.md,.txt" required>
-            <label for="document-file"><span class="upload-icon">↑</span><strong>选择讲义、笔记或阅读材料</strong><small>PDF、Markdown 或 TXT，最大 25 MB</small></label>
+            <label for="document-file" class="file-picker"><span class="upload-icon">↑</span><span><strong id="file-picker-title">选择讲义、笔记或阅读材料</strong><small id="file-picker-detail">PDF、Markdown 或 TXT，最大 30 MB</small></span></label>
             <select id="document-type" name="document_type"><option value="lecture">课堂讲义</option><option value="reading">阅读材料</option><option value="notes">学习笔记</option><option value="assignment">作业</option><option value="past_exam">往年试题</option><option value="other">其他</option></select>
-            <button class="primary-button" type="submit">上传资料</button>
+            <button id="upload-button" class="primary-button" type="submit" disabled>请先选择文件</button>
           </form>
+          <p id="upload-status" class="upload-status" role="status" aria-live="polite"></p>
           <div id="document-list" class="stack-list"></div>
         </section>
 
