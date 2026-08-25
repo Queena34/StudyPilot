@@ -1,0 +1,26 @@
+# Prometheus 配置文件 — StudyPilot
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'studypilot'
+    environment: 'production'
+
+rule_files:
+  - "alerts/*.yml"
+
+scrape_configs:
+  # StudyPilot API 指标
+  - job_name: 'studypilot-api'
+    static_configs:
+      - targets: ['api:8000']
+        labels:
+          service: 'studypilot'
+    scrape_interval: 10s
+    metrics_path: '/api/v1/metrics'
+
+  # Prometheus 自监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

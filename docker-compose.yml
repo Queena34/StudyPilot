@@ -1,0 +1,164 @@
+# StudyPilot — Docker Compose 服务编排
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: studypilot-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-studypilot}
+      POSTGRES_USER: ${POSTGRES_USER:-studypilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studypilot}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-studypilot} -d ${POSTGRES_DB:-studypilot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 缓存（工作记忆）────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: studypilot-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-studypilot}
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-studypilot}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── ChromaDB 向量数据库（情景记忆 + 用户画像）────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: studypilot-chromadb
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    volumes:
+      - chromadb-data:/chroma/chroma
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/heartbeat || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── Prometheus 监控 ─────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: studypilot-prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── StudyPilot API ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: studypilot-api
+    ports:
+      - "8000:8000"
+    environment:
+      # 容器内固定值，覆盖 .env 中的本地路径
+      - STUDYPILOT_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-studypilot}:${POSTGRES_PASSWORD:-studypilot}@postgres:5432/${POSTGRES_DB:-studypilot}
+      - STUDYPILOT_REDIS_URL=redis://:${REDIS_PASSWORD:-studypilot}@redis:6379/0
+      - STUDYPILOT_CHROMA_HOST=chromadb
+      - STUDYPILOT_CHROMA_PORT=8000
+      - STUDYPILOT_UPLOAD_DIR=/app/data/uploads
+    volumes:
+      - ./data/chroma:/app/data/chroma
+      - ./data/uploads:/app/data/uploads
+      - ./data/eval:/app/data/eval
+      - ./skills:/app/skills
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # ── Nginx 反向代理 ──────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: studypilot-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - studypilot-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ── 网络 ────────────────────────────────────────────────────────────────────
+networks:
+  studypilot-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ── 数据卷 ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres-data:
+  redis-data:
+  chromadb-data:
+  prometheus-data:
+  nginx-logs:

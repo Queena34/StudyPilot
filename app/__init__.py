@@ -1,0 +1,2 @@
+"""StudyPilot application package."""
+
