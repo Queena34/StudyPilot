@@ -1,11 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.dependencies import CurrentUserId, DbSession
 from app.infrastructure.repositories.course_repository import CourseRepository
 from app.infrastructure.repositories.practice_repository import PracticeRepository
+from app.schemas.attempt import AttemptCreate, AttemptList, AttemptRead
 from app.schemas.practice import PracticeSetCreate, PracticeSetRead
+from app.services.attempt_service import AttemptService
 from app.services.practice_service import PracticeService
 
 router = APIRouter()
@@ -36,3 +38,31 @@ async def get_practice_set(
     user_id: CurrentUserId,
 ) -> PracticeSetRead:
     return await _service(session).get(user_id, practice_set_id)
+
+
+@router.post(
+    "/questions/{question_id}/attempts",
+    response_model=AttemptRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_attempt(
+    question_id: UUID,
+    body: AttemptCreate,
+    session: DbSession,
+    user_id: CurrentUserId,
+) -> AttemptRead:
+    return await AttemptService(PracticeRepository(session)).submit(user_id, question_id, body)
+
+
+@router.get("/questions/{question_id}/attempts", response_model=AttemptList)
+async def list_attempts(
+    question_id: UUID,
+    session: DbSession,
+    user_id: CurrentUserId,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+) -> AttemptList:
+    items = await AttemptService(PracticeRepository(session)).list(
+        user_id, question_id, page=page, size=size
+    )
+    return AttemptList(items=items, page=page, size=size)

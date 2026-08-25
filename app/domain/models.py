@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -229,3 +229,31 @@ class Question(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     practice_set: Mapped[PracticeSet] = relationship(back_populates="questions")
+    attempts: Mapped[list["Attempt"]] = relationship(
+        back_populates="question", cascade="all, delete-orphan"
+    )
+
+
+class Attempt(Base):
+    __tablename__ = "attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    question_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), index=True
+    )
+    answer: Mapped[str] = mapped_column(Text)
+    score: Mapped[float] = mapped_column(Float)
+    criterion_results_json: Mapped[list] = mapped_column(JSONB, default=list)
+    feedback_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    question_snapshot_json: Mapped[dict] = mapped_column(JSONB)
+    rubric_snapshot_json: Mapped[list] = mapped_column(JSONB)
+    source_refs_json: Mapped[list] = mapped_column(JSONB)
+    evaluation_model: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    question: Mapped[Question] = relationship(back_populates="attempts")
