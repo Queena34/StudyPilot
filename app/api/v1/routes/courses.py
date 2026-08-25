@@ -3,7 +3,10 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Response, status
 
 from app.api.dependencies import CurrentUserId, DbSession
+from app.core.config import get_settings
+from app.infrastructure.file_storage import LocalFileStorage
 from app.infrastructure.repositories.course_repository import CourseRepository
+from app.infrastructure.repositories.document_repository import DocumentRepository
 from app.schemas.course import CourseCreate, CourseList, CourseRead, CourseUpdate
 from app.services.course_service import CourseService
 
@@ -11,7 +14,11 @@ router = APIRouter()
 
 
 def _service(session: DbSession) -> CourseService:
-    return CourseService(CourseRepository(session))
+    return CourseService(
+        CourseRepository(session),
+        DocumentRepository(session),
+        LocalFileStorage(get_settings().upload_dir),
+    )
 
 
 @router.post("", response_model=CourseRead, status_code=status.HTTP_201_CREATED)
@@ -62,4 +69,3 @@ async def delete_course(
 ) -> Response:
     await _service(session).delete(user_id, course_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
