@@ -1,4 +1,5 @@
 from uuid import UUID
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -9,7 +10,9 @@ from app.rag.types import RetrievedEvidence
 from app.schemas.tutor import TutorScope
 from app.services.tutor_service import (
     _conversation_title,
+    _document_inventory_answer,
     _evidence_status,
+    _is_document_inventory_question,
     _remove_unknown_citations,
     _standalone_query,
 )
@@ -85,3 +88,27 @@ def test_new_short_question_is_not_forced_into_previous_topic() -> None:
 def test_conversation_title_is_single_line_and_bounded() -> None:
     assert _conversation_title("  First line\nsecond line  ") == "First line second line"
     assert len(_conversation_title("a" * 200)) == 80
+
+
+def test_document_inventory_intent_is_distinguished_from_content_question() -> None:
+    assert _is_document_inventory_question("我现在有什么课程资料？")
+    assert _is_document_inventory_question("List my uploaded documents")
+    assert not _is_document_inventory_question("请总结这份课程资料")
+
+
+def test_document_inventory_answer_includes_every_document() -> None:
+    documents = [
+        SimpleNamespace(
+            filename="second.pdf", status="ready", page_count=6, chunk_count=70
+        ),
+        SimpleNamespace(
+            filename="first.pdf", status="ready", page_count=6, chunk_count=146
+        ),
+    ]
+
+    answer = _document_inventory_answer(documents, "zh")
+
+    assert "2 份课程资料" in answer
+    assert "first.pdf" in answer
+    assert "second.pdf" in answer
+    assert "146 个知识片段" in answer

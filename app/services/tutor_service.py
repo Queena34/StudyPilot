@@ -3,10 +3,11 @@ from time import monotonic
 from uuid import UUID, uuid4
 
 from app.core.exceptions import AppError, ResourceNotFoundError
-from app.domain.models import Conversation, Message
+from app.domain.models import Conversation, Document, Message
 from app.infrastructure.repositories.conversation_repository import ConversationRepository
 from app.infrastructure.repositories.course_repository import CourseRepository
-from app.llm.gateway import TutorAnswerGateway, _extractive_answer
+from app.infrastructure.repositories.document_repository import DocumentRepository
+from app.llm.gateway import GeneratedAnswer, TutorAnswerGateway, _extractive_answer
 from app.rag.retrieval import CourseRetriever
 from app.schemas.tutor import Citation, TokenUsage, TutorMessageCreate, TutorMessageRead
 
@@ -16,11 +17,13 @@ class TutorService:
         self,
         course_repository: CourseRepository,
         conversation_repository: ConversationRepository,
+        document_repository: DocumentRepository,
         retriever: CourseRetriever | None = None,
         gateway: TutorAnswerGateway | None = None,
     ) -> None:
         self.course_repository = course_repository
         self.conversation_repository = conversation_repository
+        self.document_repository = document_repository
         self.retriever = retriever or CourseRetriever()
         self.gateway = gateway or TutorAnswerGateway()
 
@@ -48,27 +51,38 @@ class TutorService:
                 user_id, conversation.id
             )
 
-        scope = data.scope
-        retrieval_query = _standalone_query(data.message, history)
         started = monotonic()
-        evidence = await self.retriever.retrieve(
-            user_id=user_id,
-            course_id=course_id,
-            query=retrieval_query,
-            top_k=8,
-            document_types=[item.value for item in scope.document_types] or None,
-            document_ids=scope.document_ids or None,
-            page_from=scope.page_from,
-            page_to=scope.page_to,
-        )
-        status = _evidence_status(evidence)
-        generated = await self.gateway.answer(
-            question=data.message,
-            language=data.response_language.value,
-            mode=data.mode.value,
-            evidence=evidence,
-            history=[(item.role, item.content) for item in history],
-        )
+        if _is_document_inventory_question(data.message):
+            documents = await self.document_repository.list_for_course(
+                user_id, course_id, offset=0, limit=100
+            )
+            evidence = []
+            status = "catalog"
+            generated = GeneratedAnswer(
+                answer=_document_inventory_answer(documents, data.response_language.value),
+                model_name="course-catalog",
+            )
+        else:
+            scope = data.scope
+            retrieval_query = _standalone_query(data.message, history)
+            evidence = await self.retriever.retrieve(
+                user_id=user_id,
+                course_id=course_id,
+                query=retrieval_query,
+                top_k=8,
+                document_types=[item.value for item in scope.document_types] or None,
+                document_ids=scope.document_ids or None,
+                page_from=scope.page_from,
+                page_to=scope.page_to,
+            )
+            status = _evidence_status(evidence)
+            generated = await self.gateway.answer(
+                question=data.message,
+                language=data.response_language.value,
+                mode=data.mode.value,
+                evidence=evidence,
+                history=[(item.role, item.content) for item in history],
+            )
         answer = _remove_unknown_citations(generated.answer, len(evidence))
         cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         if evidence and not cited:
@@ -149,6 +163,8 @@ def _remove_unknown_citations(answer: str, evidence_count: int) -> str:
 
 
 def _followups(status: str) -> list[str]:
+    if status == "catalog":
+        return ["请概括这些资料的主题。", "这些资料有哪些共同知识点？"]
     if status == "insufficient":
         return ["要不要换一个关键词提问？", "是否需要上传更多课程资料？"]
     return ["能否用一个具体例子说明？", "请根据这些内容出一道练习题。"]
@@ -156,6 +172,64 @@ def _followups(status: str) -> list[str]:
 
 def _conversation_title(message: str) -> str:
     return " ".join(message.split())[:80]
+
+
+def _is_document_inventory_question(message: str) -> bool:
+    normalized = " ".join(message.lower().split())
+    document_terms = (
+        "课程资料", "资料", "文件", "文档", "讲义", "课件",
+        "course material", "document", "file", "lecture note",
+    )
+    inventory_terms = (
+        "有什么", "有哪些", "哪几", "几份", "上传了什么", "上传过",
+        "清单", "列表", "what do i have", "what materials", "which document",
+        "list", "uploaded",
+    )
+    return any(term in normalized for term in document_terms) and any(
+        term in normalized for term in inventory_terms
+    )
+
+
+def _document_inventory_answer(documents: list[Document], language: str) -> str:
+    if not documents:
+        if language == "en":
+            return "There are no course materials in this course yet."
+        return "这门课目前还没有上传课程资料。"
+
+    status_zh = {
+        "ready": "已就绪",
+        "queued": "等待处理",
+        "processing": "正在处理",
+        "failed": "处理失败",
+        "uploaded": "已上传",
+    }
+    status_en = {
+        "ready": "ready",
+        "queued": "queued",
+        "processing": "processing",
+        "failed": "failed",
+        "uploaded": "uploaded",
+    }
+    if language == "en":
+        lines = [f"This course currently has {len(documents)} material(s):"]
+        for index, document in enumerate(reversed(documents), start=1):
+            details = [status_en.get(document.status, document.status)]
+            if document.page_count:
+                details.append(f"{document.page_count} pages")
+            if document.chunk_count:
+                details.append(f"{document.chunk_count} knowledge chunks")
+            lines.append(f"{index}. {document.filename} ({', '.join(details)})")
+        return "\n".join(lines)
+
+    lines = [f"这门课目前共有 {len(documents)} 份课程资料："]
+    for index, document in enumerate(reversed(documents), start=1):
+        details = [status_zh.get(document.status, document.status)]
+        if document.page_count:
+            details.append(f"{document.page_count} 页")
+        if document.chunk_count:
+            details.append(f"{document.chunk_count} 个知识片段")
+        lines.append(f"{index}. {document.filename}（{'、'.join(details)}）")
+    return "\n".join(lines)
 
 
 def _standalone_query(message: str, history: list[Message]) -> str:

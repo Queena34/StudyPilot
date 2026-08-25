@@ -6,6 +6,7 @@ from app.api.dependencies import CurrentUserId, DbSession
 from app.core.exceptions import ResourceNotFoundError
 from app.infrastructure.repositories.conversation_repository import ConversationRepository
 from app.infrastructure.repositories.course_repository import CourseRepository
+from app.infrastructure.repositories.document_repository import DocumentRepository
 from app.schemas.tutor import (
     Citation,
     ConversationList,
@@ -28,7 +29,7 @@ async def create_tutor_message(
     user_id: CurrentUserId,
 ) -> TutorMessageRead:
     return await TutorService(
-        CourseRepository(session), ConversationRepository(session)
+        CourseRepository(session), ConversationRepository(session), DocumentRepository(session)
     ).answer(user_id, course_id, body)
 
 
