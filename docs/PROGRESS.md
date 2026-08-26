@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `af2e441` |
-| 当前阶段 | 路线图第 1–5 步已完成；第 6 步（TeachingToolManager）未开始 |
+| 当前基线 commit | `f350924` |
+| 当前阶段 | 路线图第 1–6 步已完成；第 7 步（Redis 短期学习状态）未开始 |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -28,10 +28,10 @@
 | 3 | 统一 Agent 协议（`AgentTask`/`LearningContext`/`AgentResult`/`AgentTrace`） | 已完成 | `app/agents/protocol.py`、`routing.py` | `tests/unit/test_orchestrator.py` | 四个契约 + `ToolCall`/`AgentStep`/`AgentStatus` 均已定义并被实际使用 |
 | 4 | 封装 Tutor / Quiz / Evaluator / Planner Agent | 已完成 | `app/agents/learning_agents.py` | `tests/unit/test_evaluator_planner_agents.py`（16 例） | 八个适配器：Tutor/Quiz/Evaluator/Planner/Catalog/Progress/General/Clarify |
 | 5 | 串行工作流 `Tutor→Quiz`、`Evaluator→Planner` | 已完成 | `app/agents/orchestrator.py` | HTTP 端到端均已验证 | 两个工作流都跑通；Planner 已具备真正的计划生成能力 |
-| 6 | `TeachingToolManager` | 未开始 | — | — | 8 个教学工具，统一做用户/课程/范围校验 |
+| 6 | `TeachingToolManager` | 已完成 | `app/agents/tools.py` | `tests/unit/test_teaching_tools.py`（9 例） | 9 个教学工具；课程归属与资料范围统一校验，越权返回 403；调用结果、耗时、失败原因统一记录 |
 | 7 | Redis 短期学习状态 | 未开始 | `app/infrastructure/` | — | Redis 当前在 compose 中已启动但主链路未使用 |
 | 8 | 教学 Skills + 学术诚信 Guard | 未开始 | `skills/`（仍为旧客服 Skill） | 待建 Guard 评测集 | PRD 8.7 整块空白，四级判定未实现 |
-| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v2.json` | Router v2（57 例）已完成；Orchestrator 由 24 个单元测试覆盖但**仍无版本化评测集**；端到端闭环评测未开始 |
+| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v2.json` | Router v2（57 例）已完成；Orchestrator 与工具层由 33 个单元测试覆盖但**仍无版本化评测集**；端到端闭环评测未开始 |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 未开始 | `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`skills/`、`README.md` | 全仓库无客服语义引用 | 这些顶层目录均未接入 `app/` 主链路 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
@@ -71,6 +71,7 @@
 | K-10 | 澄清判定准确率 88.9%：`rt-ambig-004`「再来一点」被判为可执行意图而非请求澄清 | 低 | 未修复 |
 | K-11 | 串行工作流中若引用校验失败，`_extractive_answer` 会整体替换答案，导致 Quiz 的提示文案丢失（练习集本身仍在 `practice_set` 字段中正常返回） | 低 | 未修复 |
 | K-12 | `EvaluatorAgent` 尚未封装，批改仍只能走独立的 Attempt API，无法进入编排流程，因此 `Evaluator→Planner` 工作流暂时做不了 | 中 | **已修复** |
+| K-15 | Agent 通过工具层调用大模型网关（Tutor 生成回答）时不算工具调用，因此 `AgentTrace` 里不再出现 `generate_tutor_answer` 记录；模型名与降级原因仍在 `AgentStep` 上可见 | 低 | 未修复 |
 | K-13 | 高置信度显式规则（如答案提交 0.96）会直接返回、跳过复合意图检测，导致 `rt-comp-008`「我的答案是…帮我改一下并安排后续复习」的 planner 辅助 Agent 被漏掉 | 中 | 未修复 |
 | K-14 | `_practice_configuration` 的主题抽取会把「关于残差的简答题」整体当成主题，导致题目支持性判断失败并返回 `INSUFFICIENT_EVIDENCE`（既有问题，非本轮引入） | 中 | 未修复 |
 
@@ -80,6 +81,26 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成路线图第 6 步 `TeachingToolManager`。
+  1. 新增 `app/agents/tools.py`，提供 9 个教学工具：`search_course_material`、`list_course_documents`、`get_learning_progress`、`get_recent_learning_context`、`list_study_plans`、`create_study_plan`、`create_practice_set`、`find_pending_question`、`grade_answer`（`update_topic_mastery` 由 `AttemptService` 在批改内部完成，未单独暴露）。
+  2. 统一权限与范围校验：`authorize()` 确认课程归属调用者，`assert_documents_in_course()` 确认请求的资料确实属于该课程，越权抛 `ToolPermissionError`（HTTP 403）。两项检查结果按 manager 缓存，避免重复查询。
+  3. 统一调用记录：`ToolSession._invoke()` 包裹每次调用，成功与失败都写入 `ToolCall`（名称、成败、耗时、失败原因），失败后再抛出。每个 Agent 步骤持有独立 session，互不污染。
+  4. 七个 Agent 全部改为只经工具层访问数据，**不再持有任何 Repository 或 Service**。`TutorAgent` 只保留 LLM 网关，`QuizAgent`/`CatalogAgent`/`ProgressAgent`/`PlannerAgent`/`EvaluatorAgent` 构造函数已无参数。
+- **为什么**：路线图第 6 节第 6 项，实现依据为 4.4 节。上一轮虽然已有 `AgentTrace.tool_calls`，但记录由各 Agent 手写、**没有任何统一的权限与范围校验层** —— 这正是本步要补的缺口。路线图第 5 节也明确要求「结构化数据库查询和文档检索必须通过受控工具完成」。
+- **改了哪些文件**：
+  - 新增：`app/agents/tools.py`、`tests/unit/test_teaching_tools.py`
+  - 修改：`app/agents/learning_agents.py`（七个 Agent 改为经工具层访问）、`app/agents/protocol.py`（`LearningContext` 新增 `tools`）、`app/services/tutor_service.py`（构造并注入 `TeachingToolManager`）、`tests/unit/test_tutor.py`、`tests/unit/test_evaluator_planner_agents.py`（改为经工具层构造）
+- **怎么验证的**：
+  - 单元测试 `135 passed`（改动前 126，新增 9 个工具层测试，覆盖越权拒绝、授权缓存、成功/失败记录、session 隔离、未配置工具的拒绝）。
+  - **越权拦截端到端验证**：携带不属于该课程的 `document_ids` 请求，返回 `HTTP 403 TOOL_SCOPE_DENIED`，且单元测试确认检索器在校验失败后**根本没有被调用**。
+  - Router 两套基线均逐位复现：v2 rules-only 意图准确率 73.1%、规则解决率 63.2%；v1 历史基线 70.0%、55.6%；范围保持均为 100%。
+  - 端到端回归：目录查询 `list_course_documents (2 documents)`、概念讲解 `search_course_material (8 chunks)`、`Evaluator→Planner` 串行工作流的三次工具调用全部正常记录。
+- **下一步建议**：路线图第 7 步 Redis 短期学习状态。当前每轮对话都要从 PostgreSQL 重建上下文，当前课程、资料范围、最近讲解主题和待批改练习集都没有短期缓存。另外第 9 步的 Orchestrator/端到端版本化评测集仍然缺失，是目前唯一一处「有实现但无可比较基线」的地方。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

@@ -235,7 +235,11 @@ async def test_practice_agent_receives_recent_learned_scope_and_selected_options
     service = TutorService(
         course_repository=course_repository,
         conversation_repository=conversation_repository,
-        document_repository=SimpleNamespace(),
+        document_repository=SimpleNamespace(
+            list_for_course=AsyncMock(
+                return_value=[SimpleNamespace(id=document_id, filename="first.pdf")]
+            )
+        ),
         progress_repository=SimpleNamespace(),
         study_plan_repository=SimpleNamespace(),
         practice_service=practice_service,

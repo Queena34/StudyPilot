@@ -16,6 +16,7 @@ from app.agents.learning_agents import (
 from app.agents.orchestrator import LearningAgentOrchestrator
 from app.agents.presenters import _followups, _remove_unknown_citations
 from app.agents.protocol import LearningContext
+from app.agents.tools import TeachingToolManager
 from app.agents.routing import AgentName
 from app.core.exceptions import AppError, ResourceNotFoundError
 from app.domain.models import Conversation, Document, Message
@@ -47,6 +48,7 @@ class TutorService:
         gateway: TutorAnswerGateway | None = None,
         intent_router: LearningIntentRouter | None = None,
         orchestrator: LearningAgentOrchestrator | None = None,
+        tools: TeachingToolManager | None = None,
     ) -> None:
         self.course_repository = course_repository
         self.conversation_repository = conversation_repository
@@ -57,22 +59,27 @@ class TutorService:
         self.retriever = retriever or CourseRetriever()
         self.gateway = gateway or TutorAnswerGateway()
         self.intent_router = intent_router or LearningIntentRouter()
-        registry = {
-            AgentName.TUTOR: TutorAgent(self.retriever, self.gateway),
-            AgentName.QUIZ: QuizAgent(practice_service),
-            AgentName.CATALOG: CatalogAgent(document_repository),
-            AgentName.PROGRESS: ProgressAgent(progress_repository),
-            AgentName.PLANNER: PlannerAgent(study_plan_repository, study_plan_service),
-            AgentName.GENERAL: GeneralAgent(),
-        }
-        if attempt_service is not None and practice_repository is not None:
-            # Grading needs both, so an unwired deployment falls back to the
-            # tutor rather than registering an agent that cannot run.
-            registry[AgentName.EVALUATOR] = EvaluatorAgent(
-                attempt_service, practice_repository
-            )
+        self.tools = tools or TeachingToolManager(
+            course_repository=course_repository,
+            document_repository=document_repository,
+            progress_repository=progress_repository,
+            study_plan_repository=study_plan_repository,
+            retriever=self.retriever,
+            practice_service=practice_service,
+            practice_repository=practice_repository,
+            attempt_service=attempt_service,
+            study_plan_service=study_plan_service,
+        )
         self.orchestrator = orchestrator or LearningAgentOrchestrator(
-            registry=registry,
+            registry={
+                AgentName.TUTOR: TutorAgent(self.gateway),
+                AgentName.QUIZ: QuizAgent(),
+                AgentName.CATALOG: CatalogAgent(),
+                AgentName.PROGRESS: ProgressAgent(),
+                AgentName.PLANNER: PlannerAgent(),
+                AgentName.EVALUATOR: EvaluatorAgent(),
+                AgentName.GENERAL: GeneralAgent(),
+            },
             clarify_agent=ClarifyAgent(),
         )
 
@@ -143,6 +150,7 @@ class TutorService:
             history=history,
             practice_options=data.practice_options,
             learned_topic=learned_topic,
+            tools=self.tools,
         )
         result, trace = await self.orchestrator.run(context)
         evidence = result.evidence

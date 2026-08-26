@@ -10,6 +10,7 @@ from app.agents.presenters import (
     _study_plan_configuration,
 )
 from app.agents.protocol import AgentStatus, AgentTask, LearningContext
+from app.agents.tools import TeachingToolManager
 from app.agents.routing import AgentName, LearningIntent, QueryPlan, decision_for
 from app.core.exceptions import AppError
 from app.schemas.practice import QuestionType
@@ -20,7 +21,27 @@ COURSE_ID = UUID("00000000-0000-0000-0000-000000000010")
 USER_ID = UUID("00000000-0000-0000-0000-000000000011")
 
 
-def _context(message: str) -> LearningContext:
+def _tools(**overrides) -> TeachingToolManager:
+    defaults = dict(
+        course_repository=SimpleNamespace(get=_async(object())),
+        document_repository=SimpleNamespace(list_for_course=_async([])),
+        progress_repository=SimpleNamespace(),
+        study_plan_repository=_PlanRepo(),
+        retriever=SimpleNamespace(),
+        practice_service=SimpleNamespace(),
+    )
+    defaults.update(overrides)
+    return TeachingToolManager(**defaults)
+
+
+def _async(value):
+    async def call(*args, **kwargs):
+        return value
+
+    return call
+
+
+def _context(message: str, tools: TeachingToolManager | None = None) -> LearningContext:
     plan = QueryPlan(
         standalone_query=message,
         course_id=COURSE_ID,
@@ -42,6 +63,7 @@ def _context(message: str) -> LearningContext:
         decision=decision_for(
             LearningIntent.ANSWER_EVALUATION, confidence=0.96, reason="t", query_plan=plan
         ),
+        tools=tools or _tools(),
     )
 
 
@@ -92,10 +114,11 @@ class _AttemptService:
 
 async def test_evaluator_grades_the_latest_pending_question() -> None:
     service = _AttemptService(_attempt())
-    agent = EvaluatorAgent(service, _Repo(_question()))
+    tools = _tools(attempt_service=service, practice_repository=_Repo(_question()))
 
-    result = await agent.run(
-        AgentTask(AgentName.EVALUATOR, "grade"), _context("我的答案是：残差是观测值减去拟合值")
+    result = await EvaluatorAgent().run(
+        AgentTask(AgentName.EVALUATOR, "grade"),
+        _context("我的答案是：残差是观测值减去拟合值", tools),
     )
 
     assert service.submitted == ["残差是观测值减去拟合值"]
@@ -104,18 +127,24 @@ async def test_evaluator_grades_the_latest_pending_question() -> None:
 
 
 async def test_evaluator_passes_topics_not_error_prose_to_the_planner() -> None:
-    agent = EvaluatorAgent(_AttemptService(_attempt()), _Repo(_question()))
+    tools = _tools(
+        attempt_service=_AttemptService(_attempt()), practice_repository=_Repo(_question())
+    )
 
-    result = await agent.run(AgentTask(AgentName.EVALUATOR, "grade"), _context("我选 A"))
+    result = await EvaluatorAgent().run(
+        AgentTask(AgentName.EVALUATOR, "grade"), _context("我选 A", tools)
+    )
 
     # knowledge_errors describes the mistake; the planner needs schedulable topics.
     assert result.shared["weak_topics"] == ["残差定义", "误差与残差的区别"]
 
 
 async def test_evaluator_reports_when_nothing_is_waiting_to_be_graded() -> None:
-    agent = EvaluatorAgent(_AttemptService(_attempt()), _Repo(None))
+    tools = _tools(attempt_service=_AttemptService(_attempt()), practice_repository=_Repo(None))
 
-    result = await agent.run(AgentTask(AgentName.EVALUATOR, "grade"), _context("我选 A"))
+    result = await EvaluatorAgent().run(
+        AgentTask(AgentName.EVALUATOR, "grade"), _context("我选 A", tools)
+    )
 
     assert result.status == AgentStatus.SKIPPED
     assert "没有待作答" in result.answer
@@ -123,10 +152,14 @@ async def test_evaluator_reports_when_nothing_is_waiting_to_be_graded() -> None:
 
 async def test_evaluator_explains_the_expected_format_instead_of_failing() -> None:
     service = _AttemptService(error=AppError("INVALID_OPTION", "答案必须是题目中的选项编号"))
-    agent = EvaluatorAgent(service, _Repo(_question(QuestionType.SINGLE_CHOICE.value)))
+    tools = _tools(
+        attempt_service=service,
+        practice_repository=_Repo(_question(QuestionType.SINGLE_CHOICE.value)),
+    )
 
-    result = await agent.run(
-        AgentTask(AgentName.EVALUATOR, "grade"), _context("我的答案是：中心化就是把数据变成0")
+    result = await EvaluatorAgent().run(
+        AgentTask(AgentName.EVALUATOR, "grade"),
+        _context("我的答案是：中心化就是把数据变成0", tools),
     )
 
     assert result.status == AgentStatus.SKIPPED
@@ -135,10 +168,12 @@ async def test_evaluator_explains_the_expected_format_instead_of_failing() -> No
 
 async def test_evaluator_reraises_unexpected_errors() -> None:
     service = _AttemptService(error=AppError("QUESTION_DATA_INVALID", "题目缺少正确答案"))
-    agent = EvaluatorAgent(service, _Repo(_question()))
+    tools = _tools(attempt_service=service, practice_repository=_Repo(_question()))
 
     with pytest.raises(AppError):
-        await agent.run(AgentTask(AgentName.EVALUATOR, "grade"), _context("我选 A"))
+        await EvaluatorAgent().run(
+            AgentTask(AgentName.EVALUATOR, "grade"), _context("我选 A", tools)
+        )
 
 
 class _PlanRepo:
@@ -164,11 +199,11 @@ class _PlanService:
 
 async def test_planner_creates_a_plan_when_the_workflow_asks_for_one() -> None:
     service = _PlanService()
-    agent = PlannerAgent(_PlanRepo(), service)
+    tools = _tools(study_plan_service=service)
 
-    result = await agent.run(
+    result = await PlannerAgent().run(
         AgentTask(AgentName.PLANNER, "plan", inputs={"create": True, "weak_topics": ["残差"]}),
-        _context("批改完帮我安排复习"),
+        _context("批改完帮我安排复习", tools),
     )
 
     assert service.created
@@ -178,9 +213,11 @@ async def test_planner_creates_a_plan_when_the_workflow_asks_for_one() -> None:
 
 async def test_planner_only_reads_when_the_learner_asks_to_see_a_plan() -> None:
     service = _PlanService()
-    agent = PlannerAgent(_PlanRepo(), service)
+    tools = _tools(study_plan_service=service)
 
-    await agent.run(AgentTask(AgentName.PLANNER, "plan"), _context("查看我的学习计划"))
+    await PlannerAgent().run(
+        AgentTask(AgentName.PLANNER, "plan"), _context("查看我的学习计划", tools)
+    )
 
     assert service.created == []
 

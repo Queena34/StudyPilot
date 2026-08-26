@@ -38,6 +38,8 @@ class LearningContext:
     decision: RoutingDecision
     history: list[Message] = field(default_factory=list)
     practice_options: Any = None
+    #: The only route agents have to course data, practice, grading and planning.
+    tools: Any = None
     #: Topic recovered from earlier turns, when the learner referred back to it.
     learned_topic: str | None = None
     #: Filled by the primary agent so supporting agents can build on its output.
