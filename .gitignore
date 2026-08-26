@@ -30,6 +30,9 @@ build-image*.sh
 # ChromaDB 本地数据
 *.sqlite3
 
+# 本地离线评测运行结果（baseline 文件单独提交）
+artifacts/evals/
+
 # 备份文件
 *~
 *.bak
