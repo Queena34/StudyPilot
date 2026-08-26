@@ -1,8 +1,108 @@
 {
   "dataset_version": "grading-v1",
-  "status": "not_run",
-  "model_name": null,
-  "generated_at": null,
-  "metrics": null,
-  "note": "Run all 10 questions, three answer levels, and at least three repeats before promoting a baseline."
+  "status": "recorded",
+  "model_name": "deepseek-v4-flash",
+  "recorded_at": "2026-08-26T15:18:06.822585+00:00",
+  "configuration": {
+    "questions": 10,
+    "answer_levels": 3,
+    "repeats": 3,
+    "total_runs": 90,
+    "score_bands": {
+      "correct": [
+        80,
+        100
+      ],
+      "partial": [
+        30,
+        79.99
+      ],
+      "incorrect": [
+        0,
+        29.99
+      ]
+    }
+  },
+  "metrics": {
+    "run_count": 90,
+    "successful_run_count": 90,
+    "run_success_rate": 1.0,
+    "score_band_accuracy": 0.9,
+    "ordering_accuracy": 1,
+    "repeatability_within_10_points": 1,
+    "criterion_completeness": 1.0,
+    "evidence_validity": 1.0,
+    "feedback_completeness": 1.0,
+    "fallback_rate": 0.0,
+    "average_correct_score": 100.0,
+    "average_partial_score": 47.6,
+    "average_incorrect_score": 0.0,
+    "average_latency_ms": 2393.83
+  },
+  "out_of_band_runs": [
+    {
+      "question_id": "grade-003",
+      "level": "partial",
+      "repeat": 1,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-003",
+      "level": "partial",
+      "repeat": 2,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-003",
+      "level": "partial",
+      "repeat": 3,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-004",
+      "level": "partial",
+      "repeat": 1,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-004",
+      "level": "partial",
+      "repeat": 2,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-004",
+      "level": "partial",
+      "repeat": 3,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-005",
+      "level": "partial",
+      "repeat": 1,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-005",
+      "level": "partial",
+      "repeat": 2,
+      "score": 25.0
+    },
+    {
+      "question_id": "grade-005",
+      "level": "partial",
+      "repeat": 3,
+      "score": 25.0
+    }
+  ],
+  "diagnosis": "9 次越界全部集中在 grade-003/004/005 的 partial 档，三次重复精确一致（均为 25.0），因此不是模型抖动而是确定性行为。这三题都是 2 条 rubric、各 0.5 权重，partial 答案各自完整覆盖其中一条，理论应得 50，实测 25，落入 incorrect 区间。 受控实验（去掉答案中「但我没有说明…」这类元评论后重新批改）区分出两个原因： grade-003 由 25 升至 50，说明该题的越界源于数据集人为杂质 —— 真实学生不会在答案里自述缺了什么，这句话把「已覆盖条目」的得分也拉了下去； grade-004 与 grade-005 去杂后仍为 25，说明是批改器本身偏保守，对答案明确表述但措辞简短的rubric 条目只给 0.5。例如 grade-005 的答案「误差项是不可直接观测的」与 rubric 条目「说明误差不可直接观测」直接对应，仍只得 0.5。",
+  "interpretation": "本基线如实记录当前系统行为，未通过修改数据集来抬高数值。排序一致性与重复稳定性均为满分，说明批改稳定且可预期；偏差在于绝对分数偏低而非判断混乱，对学习者的影响是被低估而非被误导。grade-003 的元评论杂质应在 grading-v2 中移除；批改器保守倾向记为 K-17，三个样本不足以支撑放宽评分标准，需要更多样本才能判断是否调整 prompt。",
+  "regression_rules": [
+    "run_success_rate 必须为 1.0，fallback_rate 必须为 0.0。",
+    "ordering_accuracy 必须为 1.0：正确答案得分必须高于部分正确，部分正确必须高于错误。这是批改可用性的底线。",
+    "repeatability_within_10_points 必须为 1.0：同一答案三次批改的分差不得超过 10 分。",
+    "criterion_completeness、evidence_validity、feedback_completeness 必须为 1.0。",
+    "score_band_accuracy 不得低于 0.90。低于该值须先判断是模型变化还是数据集问题，再决定动哪一边。",
+    "比较必须使用相同 dataset_version、相同分数区间定义和相同 repeats。"
+  ]
 }

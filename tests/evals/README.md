@@ -67,6 +67,31 @@ python -m tests.evals.run_grading_eval --repeats 3
 
 该运行器直接评测 Evaluator Gateway，不创建 Attempt、不更新学习进度，也不污染课程数据库。原始批改反馈保存在忽略提交的 `artifacts/evals/grading_latest.json`。
 
+### 完整基线（90 次）
+
+`baselines/grading_v1.json` 已记录 10 题 × 三档 × 3 次重复的完整基线，模型 `deepseek-v4-flash`，总耗时约 3 分 37 秒：
+
+| 指标 | 结果 |
+|---|---:|
+| run_success_rate | 100% |
+| ordering_accuracy | 100% |
+| repeatability_within_10_points | 100% |
+| criterion_completeness / evidence_validity / feedback_completeness | 100% |
+| fallback_rate | 0% |
+| **score_band_accuracy** | **90%** |
+| average_latency_ms | 2394 |
+
+90% 的成因已完整诊断。9 次越界全部集中在 `grade-003/004/005` 的 partial 档，三次重复精确一致（均为 25.0），因此是确定性行为而非模型抖动。这三题都是 2 条 rubric、各 0.5 权重，partial 答案各自完整覆盖其中一条，理论应得 50。
+
+受控实验（去掉答案中"但我没有说明…"这类元评论后重新批改）区分出两个原因：
+
+- `grade-003` 由 25 升至 50 —— **数据集人为杂质**。真实学生不会在答案里自述缺了什么，这句话把已覆盖条目的得分也拉了下去。
+- `grade-004`、`grade-005` 去杂后仍为 25 —— **批改器偏保守**，对答案明确表述但措辞简短的 rubric 条目只给 0.5。例如 `grade-005` 的答案"误差项是不可直接观测的"与 rubric 条目"说明误差不可直接观测"直接对应，仍只得 0.5。
+
+基线**如实记录当前行为，未通过修改数据集抬高数值**。排序一致性和重复稳定性满分说明批改稳定且可预期；偏差是绝对分数偏低而非判断混乱，对学习者的影响是被低估而非被误导。元评论杂质将在 `grading-v2` 中移除；保守倾向记为 K-17，三个样本不足以支撑放宽评分标准。
+
+六条合入门槛见基线文件，其中 `ordering_accuracy` 必须为 1.0 —— 正确高于部分正确、部分正确高于错误，这是批改可用性的底线。
+
 ## Router v1 / v2
 
 `datasets/router_intents_v1.jsonl` 包含 45 条路由用例，覆盖路线图要求的四类场景：单意图（23）、模糊意图（8）、复合意图（6）、上下文追问（5），另加 3 条显式范围保持用例。

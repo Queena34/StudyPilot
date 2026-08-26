@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `c8c3ac3` |
-| 当前阶段 | 路线图第 1–6、8、9、11 步已完成；剩 7（Redis）、10（监控）、12（前端） |
+| 当前基线 commit | `91de768` |
+| 当前阶段 | 路线图第 1–6、8、9、11 步全部完成；剩 7（Redis）、10（监控）、12（前端） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -31,7 +31,7 @@
 | 6 | `TeachingToolManager` | 已完成 | `app/agents/tools.py` | `tests/unit/test_teaching_tools.py`（9 例） | 9 个教学工具；课程归属与资料范围统一校验，越权返回 403；调用结果、耗时、失败原因统一记录 |
 | 7 | Redis 短期学习状态 | 未开始 | `app/infrastructure/` | — | Redis 当前在 compose 中已启动但主链路未使用 |
 | 8 | 教学 Skills + 学术诚信 Guard | 已完成 | `app/agents/integrity.py`、`app/agents/skills.py`、`skills/*/SKILL.md` | `tests/evals/run_integrity_eval.py`（61 例，假阳性率 0%）+ 32 个单元测试 | 四级 Guard 已接入编排层；7 个教学 Skill 替换旧客服 Skill |
-| 9 | Router / Orchestrator / 端到端评测 | 已完成 | `run_router_eval.py`、`run_integrity_eval.py`、`run_orchestrator_eval.py`、`run_loop_eval.py` | 六套版本化基线 | Router v2（57）、Integrity v1（61）、Orchestrator v1（30）、Loop v1（5 阶段）；Grading v1 的 90 次完整基线仍缺（K-4） |
+| 9 | Router / Orchestrator / 端到端评测 | 已完成 | `run_router_eval.py`、`run_integrity_eval.py`、`run_orchestrator_eval.py`、`run_loop_eval.py`、`run_grading_eval.py` | 七套版本化基线全部记录 | Router v2（57）、Integrity v1（61）、Orchestrator v1（30）、Loop v1（5 阶段）、Grading v1（90 次） |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 已完成 | 已删除全部旧目录；`README.md`、`MIGRATION.md` 已重写 | 159 测试通过 + 应用冒烟 + 评测基线复现 | 约 4100 行 Python、3 个部署脚本、1 个旧 env 模板已移除 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
@@ -62,7 +62,10 @@
 | K-1 | PDF 页数统计存在异常样本，需单独校验 Parser 并对真实资料做页码/引用抽检 | 高 | 未修复 |
 | K-2 | 引用校验失败时无修复重试；「未配置密钥」「Provider 失败」「引用校验失败」三种情形未区分暴露 | 高 | 未修复 |
 | K-3 | 学术诚信 Guard 完全未实现（PRD 8.7） | 高 | 未修复 |
-| K-4 | Grading v1 仅冒烟通过，缺 90 次完整基线与人工忠实度报告。这是第 9 步唯一遗留项 | 中 | 未修复 |
+| K-4 | Grading v1 仅冒烟通过，缺 90 次完整基线与人工忠实度报告 | 中 | **已修复**（90 次基线已记录；人工忠实度报告仍缺，另记为 K-18） |
+| K-17 | 批改器偏保守：对答案已明确表述但措辞简短的 rubric 条目只给 0.5，导致 partial 答案绝对分数偏低。三个样本不足以支撑放宽评分标准，需更多样本 | 中 | 未修复 |
+| K-18 | Grading v1 数据集的 partial 答案含"但我没有说明…"这类元评论，是真实学生不会写的人为杂质，会压低已覆盖条目的得分。应在 grading-v2 中移除 | 低 | 未修复 |
+| K-19 | 全部评测集仍缺人工忠实度抽检，当前指标都是可自动判定的代理指标 | 中 | 未修复 |
 | K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | **已修复**（1438 行重写为 131 行 StudyPilot 文档） |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
 | K-7 | 无流式输出；无跨 Agent trace ID | 中 | 未修复 |
@@ -82,6 +85,28 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成 K-4，记录 Grading v1 的 90 次完整基线，并诊断了其中 9 次越界的成因。
+  1. 跑完 10 题 × 三档 × 3 次重复共 90 次真实模型调用，耗时 3 分 37 秒。
+  2. `score_band_accuracy` 为 90%，其余全部指标满分。**诊断了这 10% 的确切成因**，而不是记个数字了事。
+  3. 9 次越界全部集中在 `grade-003/004/005` 的 partial 档，且三次重复精确一致（均为 25.0）—— 这说明是确定性行为，不是模型抖动。这三题都是 2 条 rubric、各 0.5 权重，partial 答案各自完整覆盖其中一条，理论应得 50。
+  4. 做了受控实验区分成因：把答案里"但我没有说明…"这类元评论去掉后重新批改。`grade-003` 由 25 升至 50（**数据集人为杂质**，真实学生不会自述缺了什么，这句话把已覆盖条目的得分也拉了下去）；`grade-004`、`grade-005` 去杂后仍为 25（**批改器偏保守**，对措辞简短但表述明确的条目只给 0.5）。
+- **为什么**：K-4 是路线图第 9 步的唯一遗留项，也是审计文档中「有实现但无完整基线」的最后一处。
+- **改了哪些文件**：
+  - 修改：`tests/evals/baselines/grading_v1.json`（从 `status: not_run` 变为完整基线 + 诊断 + 六条合入门槛）、`tests/evals/README.md`、`README.md`、`docs/PROGRESS.md`
+  - **未改动任何 `app/` 代码，也未修改评测数据集。**
+- **怎么验证的**：
+  - 90/90 次调用全部成功，`fallback_rate` 0%。
+  - `ordering_accuracy` 100%：正确答案得分始终高于部分正确，部分正确始终高于错误。这是批改可用性的底线。
+  - `repeatability_within_10_points` 100%：同一答案三次批改分差不超过 10 分。
+  - `criterion_completeness`、`evidence_validity`、`feedback_completeness` 均 100%，`average_latency_ms` 2394。
+  - 三档平均分 100 / 47.6 / 0，区分度清晰。
+- **重要判断**：基线**如实记录 90%，没有通过修改数据集把数字抬到 100%**。理由是基线的职责是记录现实 —— 一个诊断清楚的 90% 比一个靠改数据集得来的 100% 更有价值。偏差性质也已判明：排序和稳定性满分说明批改稳定可预期，问题是绝对分数偏低而非判断混乱，对学习者的影响是**被低估而非被误导**。
+- **下一步建议**：路线图第 12 步前端。后端能力已远超前端可操作范围 —— 练习历史、错题重练、学习趋势、用户设置都还没有界面。K-17（批改保守）需要更多样本才能判断是否调 prompt，不宜凭三个样本动评分标准；K-19（人工忠实度抽检）需要人来做，不是代码任务。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 
