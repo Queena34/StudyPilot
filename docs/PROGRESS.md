@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `b54cb51` |
-| 当前阶段 | 路线图第 1 步已完成；第 2 步（Orchestrator）未开始 |
+| 当前基线 commit | `664839e` |
+| 当前阶段 | 路线图第 1、2、3 步已完成；第 4、5 步部分完成（Evaluator 未封装，见 K-12） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -24,14 +24,14 @@
 | # | 阶段 | 状态 | 关键文件 | 验证方式 | 备注 |
 |---|---|---|---|---|---|
 | 1 | 混合 `LearningIntentRouter` | 已完成 | `app/agents/routing.py`、`intent_router.py`、`llm_router.py` | `tests/evals/run_router_eval.py`（45 例，混合模式意图准确率 92.5%） | 规则优先 + 低置信度 LLM 兜底 + 澄清；范围保持 100% |
-| 2 | `LearningAgentOrchestrator` | 未开始 | — | — | 编排逻辑仍在 `app/services/tutor_service.py` 条件分支中；**路由已能识别串行工作流但无人执行**，见 K-8 |
-| 3 | 统一 Agent 协议（`AgentTask`/`LearningContext`/`AgentResult`/`AgentTrace`） | 进行中 | `app/agents/routing.py` | `tests/unit/test_intent_router.py` | `RoutingDecision` 已落地；`AgentTask`/`LearningContext`/`AgentResult`/`AgentTrace` 仍未定义 |
-| 4 | 封装 Tutor / Quiz / Evaluator / Planner Agent | 未开始 | `app/services/*.py` | — | 以适配器包装现有 Service，不推倒重写 |
-| 5 | 串行工作流 `Tutor→Quiz`、`Evaluator→Planner` | 未开始 | — | — | Planner 目前只读取计划，不具备生成能力 |
+| 2 | `LearningAgentOrchestrator` | 已完成 | `app/agents/orchestrator.py` | `tests/unit/test_orchestrator.py`（8 例） | 按 `execution_mode` 分派、传递上下文、失败降级、全程 Trace |
+| 3 | 统一 Agent 协议（`AgentTask`/`LearningContext`/`AgentResult`/`AgentTrace`） | 已完成 | `app/agents/protocol.py`、`routing.py` | `tests/unit/test_orchestrator.py` | 四个契约 + `ToolCall`/`AgentStep`/`AgentStatus` 均已定义并被实际使用 |
+| 4 | 封装 Tutor / Quiz / Evaluator / Planner Agent | 进行中 | `app/agents/learning_agents.py` | `tests/unit/test_orchestrator.py` | Tutor/Quiz/Catalog/Progress/Planner/General/Clarify 七个适配器；**Evaluator 尚未封装**，批改仍走独立 Attempt API |
+| 5 | 串行工作流 `Tutor→Quiz`、`Evaluator→Planner` | 进行中 | `app/agents/orchestrator.py` | HTTP 端到端已验证 `tutor→quiz` | `Tutor→Quiz` 已跑通；`Evaluator→Planner` 未做，Planner 仍只读取计划不会生成 |
 | 6 | `TeachingToolManager` | 未开始 | — | — | 8 个教学工具，统一做用户/课程/范围校验 |
 | 7 | Redis 短期学习状态 | 未开始 | `app/infrastructure/` | — | Redis 当前在 compose 中已启动但主链路未使用 |
 | 8 | 教学 Skills + 学术诚信 Guard | 未开始 | `skills/`（仍为旧客服 Skill） | 待建 Guard 评测集 | PRD 8.7 整块空白，四级判定未实现 |
-| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v1.json` | Router v1 已完成；Orchestrator 与端到端闭环评测未开始 |
+| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v1.json` | Router v1 已完成；Orchestrator 的四项要求由 8 个单元测试覆盖，**尚无版本化评测集**；端到端闭环评测未开始 |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 未开始 | `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`skills/`、`README.md` | 全仓库无客服语义引用 | 这些顶层目录均未接入 `app/` 主链路 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
@@ -66,9 +66,11 @@
 | K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | 未修复 |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
 | K-7 | 无流式输出；无跨 Agent trace ID | 中 | 未修复 |
-| K-8 | 路由已能输出 `supporting_agents` 与 `execution_mode=sequential`，但 `TutorService` 只执行 primary agent，串行工作流被识别却未执行 | 高 | 待路线图第 2/5 步解决 |
+| K-8 | 路由已能输出 `supporting_agents` 与 `execution_mode=sequential`，但 `TutorService` 只执行 primary agent，串行工作流被识别却未执行 | 高 | **已修复**（Orchestrator 落地，`tutor→quiz` 端到端跑通） |
 | K-9 | 复合意图的辅助 Agent 识别准确率仅 57.1%（4/7），模型常漏报 `supporting_agents` | 中 | 未修复 |
 | K-10 | 澄清判定准确率 88.9%：`rt-ambig-004`「再来一点」被判为可执行意图而非请求澄清 | 低 | 未修复 |
+| K-11 | 串行工作流中若引用校验失败，`_extractive_answer` 会整体替换答案，导致 Quiz 的提示文案丢失（练习集本身仍在 `practice_set` 字段中正常返回） | 低 | 未修复 |
+| K-12 | `EvaluatorAgent` 尚未封装，批改仍只能走独立的 Attempt API，无法进入编排流程，因此 `Evaluator→Planner` 工作流暂时做不了 | 中 | 未修复 |
 
 ---
 
@@ -76,6 +78,27 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成路线图第 2 步（Orchestrator）和第 3 步（统一 Agent 协议），第 4 步封装了 7 个 Agent 中的 6 类（Evaluator 除外，见 K-12），并跑通第 5 步的第一个串行工作流 `Tutor→Quiz`。
+  1. 新增 `app/agents/protocol.py`，定义路线图 4.3 要求的四个契约：`AgentTask`、`LearningContext`、`AgentResult`、`AgentTrace`，并补充 `ToolCall`、`AgentStep`、`AgentStatus` 和 `LearningAgent` Protocol。
+  2. 新增 `app/agents/presenters.py`，把 9 个纯展示/配置函数从 `TutorService` 抽出，使 Agent 层不必反向依赖 Service，避免循环导入。
+  3. 新增 `app/agents/learning_agents.py`，七个 Agent 全部是现有 Service 的**薄适配器**（Tutor/Quiz/Catalog/Progress/Planner/General/Clarify），检索、生成、出题逻辑一行未改。
+  4. 新增 `app/agents/orchestrator.py`：按 `execution_mode` 分派，串行时把主 Agent 的产出经 `shared` 传给辅助 Agent，辅助 Agent 缺少依赖则跳过、抛异常则降级，全过程写入 `AgentTrace`。
+  5. `TutorService.answer()` 的 6 分支 `if/elif` 派发（约 60 行）替换为构造 `LearningContext` + `orchestrator.run()`；`TutorMessageRead` 新增 `trace` 字段。
+- **为什么**：路线图第 6 节第 2–4 项，实现依据为 4.2 与 4.3 节。第 2、3、4 步合并做是因为三者互为前提：没有统一协议就无法定义 Agent 接口，没有 Agent 就没有东西可编排。**直接动机是解决 K-8** —— 上一轮路由已能正确识别串行工作流，但没有任何组件会去执行它。
+- **改了哪些文件**：
+  - 新增：`app/agents/protocol.py`、`app/agents/presenters.py`、`app/agents/learning_agents.py`、`app/agents/orchestrator.py`、`tests/unit/test_orchestrator.py`
+  - 修改：`app/services/tutor_service.py`（派发逻辑替换为编排调用，9 个函数迁出）、`app/schemas/tutor.py`（新增 `trace` 字段）、`tests/unit/test_tutor.py`（改从 `presenters` 导入迁移后的函数）
+- **怎么验证的**：
+  - 单元测试 `110 passed`（改动前 102，新增 8 个 Orchestrator 测试，覆盖路线图第 9 节对编排层的四项要求：Agent 选择、执行顺序、上下文传递、失败降级）。
+  - Router 规则层基线**逐位复现**（意图准确率 70.0%、规则解决率 55.6%、范围保持 100%），符合 `baselines/router_v1.json` 中的回归门槛，确认路由层未被本次重构影响。
+  - HTTP 端到端验证 **K-8 已修复**：「先讲解一下残差，然后给我出3道选择题」实际执行 `agent_sequence: ['tutor', 'quiz']`，主 Agent 8.0s（检索 8 个片段 + 生成），辅助 Agent 16.1s（真实创建 3 道题），总计 24.1s，`practice_set` 正常返回「残差的定义和解释练习」。
+  - 单 Agent 路径回归验证：目录查询 7ms、进度查询 20ms、问候 0ms，`agent_sequence` 分别为 `['catalog']`、`['progress']`、`['general']`，均未产生多余的 Agent 调用。
+- **下一步建议**：优先做 **K-12**（封装 `EvaluatorAgent`），它是 `Evaluator→Planner` 工作流的前置条件，也是路线图第 5 步剩下的一半。同时 Planner 目前只会读取计划、不会生成，需要补上真正的计划生成能力（路线图 4.2 明确点名了这一点）。另外第 9 步的 Orchestrator 版本化评测集仍然缺失 —— 当前只有单元测试，没有像 Router v1 那样可比较、可记录基线的评测。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

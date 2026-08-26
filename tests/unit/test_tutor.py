@@ -10,17 +10,19 @@ from app.domain.models import Conversation, Message
 from app.rag.types import RetrievedEvidence
 from app.schemas.practice import Difficulty, QuestionType
 from app.schemas.tutor import ResponseLanguage, TutorMessageCreate, TutorPracticeOptions, TutorScope
-from app.services.tutor_service import (
-    _conversation_title,
+from app.agents.presenters import (
     _document_inventory_answer,
     _evidence_status,
+    _practice_configuration,
+    _remove_unknown_citations,
+)
+from app.services.tutor_service import (
+    _conversation_title,
     _document_learning_query,
     _latest_cited_document_ids,
     _latest_learning_request,
     _mentions_document_reference,
-    _practice_configuration,
     _resolve_document_references,
-    _remove_unknown_citations,
     _standalone_query,
     TutorService,
 )

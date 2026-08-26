@@ -2,7 +2,20 @@ import re
 from time import monotonic
 from uuid import UUID, uuid4
 
-from app.agents.intent_router import LearningIntentRouter, RouteTarget
+from app.agents.intent_router import LearningIntentRouter
+from app.agents.learning_agents import (
+    CatalogAgent,
+    ClarifyAgent,
+    GeneralAgent,
+    PlannerAgent,
+    ProgressAgent,
+    QuizAgent,
+    TutorAgent,
+)
+from app.agents.orchestrator import LearningAgentOrchestrator
+from app.agents.presenters import _followups, _remove_unknown_citations
+from app.agents.protocol import LearningContext
+from app.agents.routing import AgentName
 from app.core.exceptions import AppError, ResourceNotFoundError
 from app.domain.models import Conversation, Document, Message
 from app.infrastructure.repositories.conversation_repository import ConversationRepository
@@ -29,6 +42,7 @@ class TutorService:
         retriever: CourseRetriever | None = None,
         gateway: TutorAnswerGateway | None = None,
         intent_router: LearningIntentRouter | None = None,
+        orchestrator: LearningAgentOrchestrator | None = None,
     ) -> None:
         self.course_repository = course_repository
         self.conversation_repository = conversation_repository
@@ -39,6 +53,17 @@ class TutorService:
         self.retriever = retriever or CourseRetriever()
         self.gateway = gateway or TutorAnswerGateway()
         self.intent_router = intent_router or LearningIntentRouter()
+        self.orchestrator = orchestrator or LearningAgentOrchestrator(
+            registry={
+                AgentName.TUTOR: TutorAgent(self.retriever, self.gateway),
+                AgentName.QUIZ: QuizAgent(practice_service),
+                AgentName.CATALOG: CatalogAgent(document_repository),
+                AgentName.PROGRESS: ProgressAgent(progress_repository),
+                AgentName.PLANNER: PlannerAgent(study_plan_repository),
+                AgentName.GENERAL: GeneralAgent(),
+            },
+            clarify_agent=ClarifyAgent(),
+        )
 
     async def answer(
         self, user_id: UUID, course_id: UUID, data: TutorMessageCreate
@@ -65,7 +90,6 @@ class TutorService:
             )
 
         started = monotonic()
-        practice_set = None
         standalone_query = _standalone_query(data.message, history)
         effective_scope = data.scope
         learned_context = _references_learned_content(data.message)
@@ -96,88 +120,30 @@ class TutorService:
             scope=effective_scope,
             history=[(item.role, item.content) for item in history],
         )
-        if decision.target == RouteTarget.CLARIFY:
-            evidence = []
-            status = "clarification"
-            generated = GeneratedAnswer(
-                answer=decision.clarification or _general_answer(data.response_language.value),
-                model_name="intent-router",
-            )
-        elif decision.target == RouteTarget.COURSE_CATALOG:
-            documents = await self.document_repository.list_for_course(
-                user_id, course_id, offset=0, limit=100
-            )
-            evidence = []
-            status = "catalog"
-            generated = GeneratedAnswer(
-                answer=_document_inventory_answer(documents, data.response_language.value),
-                model_name="course-catalog",
-            )
-        elif decision.target == RouteTarget.PROGRESS:
-            topics = await self.progress_repository.list_topics(user_id, course_id)
-            total_attempts = await self.progress_repository.count_attempts(user_id, course_id)
-            evidence = []
-            status = "business_data"
-            generated = GeneratedAnswer(
-                answer=_progress_answer(topics, total_attempts, data.response_language.value),
-                model_name="progress-service",
-            )
-        elif decision.target == RouteTarget.STUDY_PLAN:
-            plans = await self.study_plan_repository.list_for_course(
-                user_id, course_id, offset=0, limit=5
-            )
-            evidence = []
-            status = "business_data"
-            generated = GeneratedAnswer(
-                answer=_study_plan_answer(plans, data.response_language.value),
-                model_name="study-plan-service",
-            )
-        elif decision.target == RouteTarget.PRACTICE:
-            configuration = _practice_configuration(
-                data.message,
-                data.response_language,
-                effective_scope,
-                options=data.practice_options,
-                context_topic=learned_topic,
-            )
-            practice_set = await self.practice_service.create(
-                user_id, course_id, configuration
-            )
-            evidence = []
-            status = "practice_created"
-            generated = GeneratedAnswer(
-                answer=_practice_created_answer(practice_set, data.response_language.value),
-                model_name=practice_set.model_name,
-            )
-        elif decision.target == RouteTarget.GENERAL:
-            evidence = []
-            status = "general"
-            generated = GeneratedAnswer(
-                answer=_general_answer(data.response_language.value),
-                model_name="general-router",
-            )
-        else:
-            evidence = await self.retriever.retrieve(
-                user_id=user_id,
-                course_id=course_id,
-                query=decision.query_plan.standalone_query,
-                top_k=decision.query_plan.top_k,
-                document_types=decision.query_plan.document_types or None,
-                document_ids=decision.query_plan.document_ids or None,
-                page_from=decision.query_plan.page_from,
-                page_to=decision.query_plan.page_to,
-            )
-            status = _evidence_status(evidence)
-            if evidence:
-                generated = await self.gateway.answer(
-                    question=data.message,
-                    language=data.response_language.value,
-                    mode=data.mode.value,
-                    evidence=evidence,
-                    history=[(item.role, item.content) for item in history],
-                )
-            else:
-                generated = _extractive_answer(evidence, reason="insufficient_evidence")
+        context = LearningContext(
+            user_id=user_id,
+            course_id=course_id,
+            conversation_id=conversation.id,
+            message=data.message,
+            language=data.response_language.value,
+            mode=data.mode.value,
+            scope=effective_scope,
+            decision=decision,
+            history=history,
+            practice_options=data.practice_options,
+            learned_topic=learned_topic,
+        )
+        result, trace = await self.orchestrator.run(context)
+        evidence = result.evidence
+        status = result.evidence_status
+        practice_set = result.practice_set
+        generated = GeneratedAnswer(
+            answer=result.answer,
+            model_name=result.model_name,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            fallback_reason=result.fallback_reason,
+        )
         answer = _remove_unknown_citations(generated.answer, len(evidence))
         cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         if evidence and not cited:
@@ -239,42 +205,10 @@ class TutorService:
             route=decision.target.value,
             query_plan=decision.query_plan.as_dict(),
             routing=decision.as_dict(),
+            trace=trace.as_dict(),
             practice_set=(practice_set.model_dump(mode="json") if practice_set else None),
             fallback_reason=generated.fallback_reason,
         )
-
-
-def _evidence_status(evidence: list) -> str:
-    if not evidence:
-        return "insufficient"
-    if evidence[0].score >= 0.2 or len(evidence) >= 2 and evidence[1].score >= 0.15:
-        return "sufficient"
-    return "partial"
-
-
-def _remove_unknown_citations(answer: str, evidence_count: int) -> str:
-    def replace(match: re.Match) -> str:
-        index = int(match.group(1))
-        return match.group(0) if 1 <= index <= evidence_count else ""
-
-    cleaned = re.sub(r"\[c(\d+)]", replace, answer)
-    if not cleaned.strip():
-        raise AppError("ANSWER_GENERATION_FAILED", "暂时无法生成可靠回答", status_code=503)
-    return cleaned
-
-
-def _followups(status: str) -> list[str]:
-    if status == "catalog":
-        return ["请概括这些资料的主题。", "这些资料有哪些共同知识点？"]
-    if status == "business_data":
-        return ["我下一步应该学什么？", "帮我安排一份复习计划。"]
-    if status == "practice_created":
-        return ["批改后解释我的错误。", "再生成一组更难的题。"]
-    if status == "general":
-        return ["我现在有哪些课程资料？", "帮我解释一个课程概念。"]
-    if status == "insufficient":
-        return ["要不要换一个关键词提问？", "是否需要上传更多课程资料？"]
-    return ["能否用一个具体例子说明？", "请根据这些内容出一道练习题。"]
 
 
 def _conversation_title(message: str) -> str:
@@ -341,117 +275,6 @@ def _document_learning_query(message: str, standalone_query: str) -> str:
     return standalone_query
 
 
-def _document_inventory_answer(documents: list[Document], language: str) -> str:
-    if not documents:
-        if language == "en":
-            return "There are no course materials in this course yet."
-        return "这门课目前还没有上传课程资料。"
-
-    status_zh = {
-        "ready": "已就绪",
-        "queued": "等待处理",
-        "processing": "正在处理",
-        "failed": "处理失败",
-        "uploaded": "已上传",
-    }
-    status_en = {
-        "ready": "ready",
-        "queued": "queued",
-        "processing": "processing",
-        "failed": "failed",
-        "uploaded": "uploaded",
-    }
-    if language == "en":
-        lines = [f"This course currently has {len(documents)} material(s):"]
-        for index, document in enumerate(reversed(documents), start=1):
-            details = [status_en.get(document.status, document.status)]
-            if document.page_count:
-                details.append(f"{document.page_count} pages")
-            if document.chunk_count:
-                details.append(f"{document.chunk_count} knowledge chunks")
-            lines.append(f"{index}. {document.filename} ({', '.join(details)})")
-        return "\n".join(lines)
-
-    lines = [f"这门课目前共有 {len(documents)} 份课程资料："]
-    for index, document in enumerate(reversed(documents), start=1):
-        details = [status_zh.get(document.status, document.status)]
-        if document.page_count:
-            details.append(f"{document.page_count} 页")
-        if document.chunk_count:
-            details.append(f"{document.chunk_count} 个知识片段")
-        lines.append(f"{index}. {document.filename}（{'、'.join(details)}）")
-    return "\n".join(lines)
-
-
-def _progress_answer(topics: list, total_attempts: int, language: str) -> str:
-    if not topics:
-        if language == "en":
-            return "You have not completed any graded practice yet, so mastery data is unavailable."
-        return "你还没有完成已批改的练习，目前还无法计算知识点掌握度。"
-    overall = sum(item.mastery_score for item in topics) / len(topics)
-    weakest = sorted(topics, key=lambda item: item.mastery_score)[:3]
-    if language == "en":
-        names = ", ".join(f"{item.display_topic} ({item.mastery_score:.0%})" for item in weakest)
-        return f"Overall mastery: {overall:.0%} from {total_attempts} attempts. Focus next on: {names}."
-    names = "、".join(f"{item.display_topic}（{item.mastery_score:.0%}）" for item in weakest)
-    return f"你目前的总体掌握度约为 {overall:.0%}，已完成 {total_attempts} 次作答。建议优先加强：{names}。"
-
-
-def _study_plan_answer(plans: list, language: str) -> str:
-    if not plans:
-        if language == "en":
-            return "There is no study plan for this course yet. Create one in the Study Plan tab."
-        return "这门课还没有学习计划。你可以在“学习计划”中设置天数和每日时间后生成。"
-    plan = plans[0]
-    completed = sum(task.status == "completed" for task in plan.tasks)
-    total = len(plan.tasks)
-    completion_rate = completed / max(1, total)
-    pending = next((task for task in plan.tasks if task.status != "completed"), None)
-    if language == "en":
-        next_text = f" Next: {pending.title}." if pending else " All tasks are complete."
-        return f"Your latest plan is {completed}/{total} tasks complete ({completion_rate:.0%}).{next_text}"
-    next_text = f"下一项：{pending.title}。" if pending else "所有任务都已完成。"
-    return f"你最新的学习计划已完成 {completed}/{total} 项（{completion_rate:.0%}）。{next_text}"
-
-
-def _practice_configuration(
-    message: str, language, scope, *, options=None, context_topic: str | None = None
-) -> PracticeSetCreate:
-    normalized = " ".join(message.casefold().split())
-    number_match = re.search(r"(10|[1-9])\s*(?:道|题|questions?)", normalized)
-    chinese_numbers = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
-    chinese_match = re.search(r"([一两二三四五六七八九十])\s*道", normalized)
-    default_count = options.question_count if options else 3
-    count = int(number_match.group(1)) if number_match else (
-        chinese_numbers[chinese_match.group(1)] if chinese_match else default_count
-    )
-    if any(term in normalized for term in ("选择题", "单选", "multiple choice")):
-        question_type = QuestionType.SINGLE_CHOICE
-    elif any(term in normalized for term in ("概念题", "概念解释", "concept question")):
-        question_type = QuestionType.CONCEPT
-    elif any(term in normalized for term in ("简答题", "问答题", "short answer")):
-        question_type = QuestionType.SHORT_ANSWER
-    else:
-        question_type = QuestionType(options.question_type) if options else QuestionType.SHORT_ANSWER
-    if any(term in normalized for term in ("基础", "简单", "basic", "easy")):
-        difficulty = Difficulty.BASIC
-    elif any(term in normalized for term in ("困难", "挑战", "高级", "advanced", "hard")):
-        difficulty = Difficulty.ADVANCED
-    else:
-        difficulty = Difficulty(options.difficulty) if options else Difficulty.MEDIUM
-    topic_match = re.search(r"(?:关于|针对|topic[:：]?)\s*([^,，。.!?？]{2,80})", message, re.I)
-    topic = context_topic or (topic_match.group(1).strip() if topic_match else None)
-    return PracticeSetCreate(
-        topic=topic,
-        question_type=question_type,
-        difficulty=difficulty,
-        question_count=count,
-        language=language,
-        prioritize_weak_topics=any(term in normalized for term in ("薄弱", "弱项", "weak")),
-        scope=scope,
-    )
-
-
 def _references_learned_content(message: str) -> bool:
     normalized = " ".join(message.casefold().split())
     return any(term in normalized for term in (
@@ -483,19 +306,6 @@ def _latest_cited_document_ids(history: list[Message]) -> list[UUID]:
         if values:
             return list(dict.fromkeys(values))
     return []
-
-
-def _practice_created_answer(practice_set, language: str) -> str:
-    count = len(practice_set.questions)
-    if language == "en":
-        return f'I created and saved "{practice_set.title}" with {count} question(s). Answer them below for grading.'
-    return f"已为你生成并保存“{practice_set.title}”，共 {count} 道题。请直接在下方作答，提交后会自动批改。"
-
-
-def _general_answer(language: str) -> str:
-    if language == "en":
-        return "I am your StudyPilot coach. I can explain uploaded materials with citations, review progress, show study plans, and help you create targeted practice."
-    return "我是你的 StudyPilot 学习教练。我可以基于课程资料带引用讲解知识、查看学习进度和计划，也可以帮你进行针对性练习。"
 
 
 def _standalone_query(message: str, history: list[Message]) -> str:
