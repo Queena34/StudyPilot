@@ -1,0 +1,8 @@
+{
+  "dataset_version": "grading-v1",
+  "status": "not_run",
+  "model_name": null,
+  "generated_at": null,
+  "metrics": null,
+  "note": "Run all 10 questions, three answer levels, and at least three repeats before promoting a baseline."
+}

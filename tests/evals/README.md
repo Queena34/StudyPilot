@@ -48,3 +48,21 @@ python -m tests.evals.run_quiz_eval --course-id <课程ID>
 每个成功案例会创建标题为 `[EVAL:quiz-v1:<case-id>]` 的练习集，并把检索片段发送给已配置的大模型。当前 API 不返回参考答案和 rubric，v1 不对这两项评分；它们需要后续服务层评测，不能通过公开 API 泄露给做题者。
 
 `baselines/quiz_v1.json` 保存完整 30 场景实测结果。正常主题会先经过中英查询扩展和资料支持性判断；只有连续两次明确判定不支持才拒绝生成。后续比较必须保持相同数据集版本和支持性策略。
+
+## Grading v1
+
+`datasets/grading_answers_v1.jsonl` 固定 10 道题，每题包含正确、部分正确和错误三档答案，以及不可变 rubric 和资料证据。运行器默认对每档答案重复批改 3 次，共 90 次模型调用，评估分数区间、三档排序、10 分以内重复稳定性、rubric 完整性、证据有效性、反馈完整性、fallback 和延迟。
+
+先运行 1 道题、每档 1 次的冒烟评测：
+
+```bash
+python -m tests.evals.run_grading_eval --limit 1 --repeats 1
+```
+
+完整基线：
+
+```bash
+python -m tests.evals.run_grading_eval --repeats 3
+```
+
+该运行器直接评测 Evaluator Gateway，不创建 Attempt、不更新学习进度，也不污染课程数据库。原始批改反馈保存在忽略提交的 `artifacts/evals/grading_latest.json`。

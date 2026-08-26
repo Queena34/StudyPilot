@@ -38,39 +38,73 @@ Rubric JSON: {json.dumps(rubric, ensure_ascii=False)}
 Sources JSON: {json.dumps(sources, ensure_ascii=False)}
 Include language feedback: {include_language_feedback}
 
-Return only JSON with criterion_results and feedback. criterion_results must contain one
-entry per rubric item in the same order with criterion_index, earned_ratio (0..1), reason,
-and evidence_ids. feedback contains summary, covered_concepts, missing_concepts,
-knowledge_errors, language_feedback, recommended_topics. Do not decide a total score."""
-        try:
-            async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-                response = await client.post(
-                    f"{settings.anthropic_base_url.rstrip('/')}/v1/messages",
-                    headers={
-                        "x-api-key": settings.anthropic_api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                    },
-                    json={
-                        "model": settings.anthropic_model,
-                        "max_tokens": 1800,
-                        "temperature": 0,
-                        "messages": [{"role": "user", "content": prompt}],
-                    },
+Return only one JSON object with exactly this shape:
+{{
+  "criterion_results": [
+    {{"criterion_index": 0, "earned_ratio": 0.0, "reason": "...", "evidence_ids": ["c1"]}}
+  ],
+  "feedback": {{
+    "summary": "...",
+    "covered_concepts": [],
+    "missing_concepts": [],
+    "knowledge_errors": [],
+    "language_feedback": [],
+    "recommended_topics": []
+  }}
+}}
+criterion_results must contain exactly one entry per rubric item, in the same order.
+earned_ratio is between 0 and 1. Every evidence id must come from Sources JSON.
+Include every feedback field even when its value is an empty array. Do not decide a total score."""
+        payload = {
+            "model": settings.anthropic_model,
+            "max_tokens": 1800,
+            "temperature": 0,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if "deepseek.com" in settings.anthropic_base_url:
+            payload["thinking"] = {"type": "disabled"}
+        for attempt in range(2):
+            request_payload = dict(payload)
+            if attempt:
+                request_payload["messages"] = [
+                    {
+                        "role": "user",
+                        "content": prompt
+                        + "\nIMPORTANT: The previous response was invalid. Return only valid JSON, "
+                        + "include every required field, and preserve the rubric item count.",
+                    }
+                ]
+            try:
+                async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+                    response = await client.post(
+                        f"{settings.anthropic_base_url.rstrip('/')}/v1/messages",
+                        headers={
+                            "x-api-key": settings.anthropic_api_key,
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                        },
+                        json=request_payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                text = "".join(
+                    block.get("text", "")
+                    for block in data.get("content", [])
+                    if block.get("type") == "text"
                 )
-                response.raise_for_status()
-                data = response.json()
-            text = "".join(
-                block.get("text", "")
-                for block in data.get("content", [])
-                if block.get("type") == "text"
-            )
-            raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-            return EvaluationOutput.model_validate(json.loads(raw)), data.get(
-                "model", settings.anthropic_model
-            )
-        except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError, TypeError):
-            return _fallback_evaluation(answer, reference_answer, rubric), "evaluation-fallback"
+                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+                output = EvaluationOutput.model_validate(json.loads(raw))
+                if len(output.criterion_results) == len(rubric):
+                    return output, data.get("model", settings.anthropic_model)
+            except (
+                httpx.HTTPError,
+                json.JSONDecodeError,
+                ValidationError,
+                KeyError,
+                TypeError,
+            ):
+                continue
+        return _fallback_evaluation(answer, reference_answer, rubric), "evaluation-fallback"
 
 
 def _fallback_evaluation(
