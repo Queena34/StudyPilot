@@ -69,6 +69,7 @@ class TutorMessageRead(BaseModel):
     route: str = "rag"
     query_plan: dict = Field(default_factory=dict)
     practice_set: dict | None = None
+    fallback_reason: str | None = None
 
 
 class ConversationRead(BaseModel):

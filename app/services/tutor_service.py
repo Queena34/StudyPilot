@@ -146,7 +146,7 @@ class TutorService:
         answer = _remove_unknown_citations(generated.answer, len(evidence))
         cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         if evidence and not cited:
-            generated = _extractive_answer(evidence)
+            generated = _extractive_answer(evidence, reason="citation_validation_failed")
             answer = generated.answer
             cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         citations = [
@@ -204,6 +204,7 @@ class TutorService:
             route=decision.target.value,
             query_plan=decision.query_plan.as_dict(),
             practice_set=(practice_set.model_dump(mode="json") if practice_set else None),
+            fallback_reason=generated.fallback_reason,
         )
 
 

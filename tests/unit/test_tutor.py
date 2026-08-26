@@ -55,6 +55,14 @@ def test_extractive_fallback_keeps_real_citation() -> None:
     assert "[c1]" in result.answer
 
 
+def test_citation_fallback_does_not_claim_model_is_unconfigured() -> None:
+    result = _extractive_answer([_evidence()], reason="citation_validation_failed")
+
+    assert "引用校验" in result.answer
+    assert "未配置可用的大模型" not in result.answer
+    assert result.fallback_reason == "citation_validation_failed"
+
+
 def test_followup_query_includes_previous_question() -> None:
     history = [
         Message(
