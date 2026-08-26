@@ -12,6 +12,7 @@ an answer is faithful.
 from __future__ import annotations
 
 import argparse
+import asyncio
 from datetime import datetime, timezone
 import html
 import json
@@ -20,9 +21,18 @@ import random
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import UUID
+
+from app.core.config import get_settings
+from app.rag.retrieval import CourseRetriever
 
 
 DATASET_VERSION = "faithfulness-v1"
+
+#: Bumped whenever the review page changes what a reviewer can see. It keys the
+#: browser's saved progress, so judgements made against an older, less complete
+#: view are never silently restored into a corrected round.
+INSTRUMENT_REVISION = "full-chunk-1"
 
 
 def _request(url: str, *, method: str = "GET", body: dict | None = None) -> dict[str, Any]:
@@ -67,6 +77,27 @@ def _document_ids(base: str, course_id: str) -> dict[str, str]:
     return {item["filename"]: item["id"] for item in data["items"]}
 
 
+async def _full_chunks(course_id: str, question: str, document_id: str | None) -> dict[str, str]:
+    """Full chunk text keyed by chunk id.
+
+    The API returns a 300-character preview, but chunks run to a few thousand
+    characters. Judging a citation against the first sixth of it makes correct
+    citations look wrong, so the review page must show the whole thing.
+    """
+
+    evidence = await CourseRetriever().retrieve(
+        user_id=UUID(get_settings().development_user_id),
+        course_id=UUID(course_id),
+        query=question,
+        top_k=8,
+        document_types=None,
+        document_ids=[UUID(document_id)] if document_id else None,
+        page_from=None,
+        page_to=None,
+    )
+    return {item.chunk_id: item.text for item in evidence}
+
+
 def _ask(
     base: str, course_id: str, case: dict[str, Any], documents: dict[str, str]
 ) -> dict[str, Any]:
@@ -80,6 +111,20 @@ def _ask(
         method="POST",
         body={"message": case["question"], "response_language": "zh", "scope": scope},
     )
+    chunks = asyncio.run(_full_chunks(course_id, case["question"], document_id))
+    citations = []
+    for item in payload.get("citations", []):
+        full = chunks.get(item.get("chunk_id", ""), "")
+        citations.append({
+            "citation_id": item["citation_id"],
+            "filename": item["filename"],
+            "page_number": item.get("page_number"),
+            "section_title": item.get("section_title"),
+            # Fall back to the preview only when the chunk could not be re-fetched,
+            # and say so, so a reviewer is never judging a truncation unknowingly.
+            "text": full or item.get("snippet", ""),
+            "truncated": not full,
+        })
     return {
         "id": case["id"],
         "stratum": case["stratum"],
@@ -89,16 +134,7 @@ def _ask(
         "question": case["question"],
         "answer": payload.get("answer", ""),
         "evidence_status": payload.get("evidence_status"),
-        "citations": [
-            {
-                "citation_id": item["citation_id"],
-                "filename": item["filename"],
-                "page_number": item.get("page_number"),
-                "section_title": item.get("section_title"),
-                "snippet": item.get("snippet", ""),
-            }
-            for item in payload.get("citations", [])
-        ],
+        "citations": citations,
     }
 
 
@@ -109,8 +145,9 @@ def _review_page(sample: dict[str, Any]) -> str:
         citations = "".join(
             f"""<details class="cite"><summary><b>[{html.escape(item['citation_id'])}]</b>
               {html.escape(item['filename'])}{f" · 第 {item['page_number']} 页" if item.get('page_number') else ""}
-              {f" · {html.escape(item['section_title'])}" if item.get('section_title') else ""}</summary>
-              <blockquote>{html.escape(item['snippet'])}</blockquote></details>"""
+              {f" · {html.escape(item['section_title'])}" if item.get('section_title') else ""}
+              <span class="len">{len(item['text'])} 字符{'（仅预览，未取到完整片段）' if item.get('truncated') else '（完整片段）'}</span></summary>
+              <blockquote>{html.escape(item['text'])}</blockquote></details>"""
             for item in case["citations"]
         ) or '<p class="none">这个回答没有给出任何引用。</p>'
         unanswerable = "" if case["answerable"] else '<span class="tag warn">资料外问题</span>'
@@ -167,7 +204,9 @@ def _review_page(sample: dict[str, Any]) -> str:
  .answer{{white-space:pre-wrap;padding:14px 16px;background:#edf3ee;border-radius:10px;font-size:14px}}
  h4{{margin:18px 0 8px;font-size:13px;color:#4f6a5c}}
  .cite{{margin:6px 0;padding:8px 11px;border:1px solid #d5dfd7;border-radius:9px;background:#f8fbf8;font-size:13px}}
- .cite blockquote{{margin:9px 0 2px;padding-left:11px;border-left:3px solid #cddbd1;color:#4f5d55;font-size:13px}}
+ .cite blockquote{{margin:9px 0 2px;padding:2px 0 2px 11px;border-left:3px solid #cddbd1;color:#4f5d55;
+   font-size:13px;white-space:pre-wrap;max-height:340px;overflow:auto}}
+ .len{{margin-left:6px;color:#8a948e;font-size:11px}}
  .none{{color:#a84936;font-size:13px}}
  .verdict{{display:grid;gap:11px;margin-top:18px;padding-top:16px;border-top:1px dashed #cfd6d0}}
  .verdict label{{display:grid;gap:5px;font-size:13px;color:#42504a}}
@@ -179,8 +218,9 @@ def _review_page(sample: dict[str, Any]) -> str:
  .done{{color:#7fca91}}
 </style></head><body><div class="wrap">
 <h1>忠实度抽检</h1>
-<p class="lede">共 {len(cases)} 条，抽自 {html.escape(sample['dataset'])}，随机种子 {sample['seed']}。
-判断标准只有一个：<b>回答是否忠于它引用的原文</b>。展开引用可以看到被引用的原始片段。
+<p class="lede">共 {len(cases)} 条，抽自 {html.escape(sample['dataset'])}，随机种子 {sample['seed']}，评审页版本 {sample['instrument']}。
+判断标准只有一个：<b>回答是否忠于它引用的原文</b>。展开引用可以看到<b>完整</b>的被引用片段
+（通常一两千字，需要往下滚动 —— 支撑句常常不在开头）。
 进度会自动保存在本机浏览器中，填完后导出 JSON 交给评分脚本。</p>
 {''.join(cards)}
 </div>
@@ -188,7 +228,7 @@ def _review_page(sample: dict[str, Any]) -> str:
 <button id="export" type="button">导出评审结果</button>
 <span class="done" id="saved"></span></div>
 <script>
-const KEY = "studypilot-faithfulness-{sample['seed']}";
+const KEY = "studypilot-faithfulness-{sample['instrument']}-{sample['seed']}";
 const store = JSON.parse(localStorage.getItem(KEY) || "{{}}");
 
 function readCase(node) {{
@@ -259,6 +299,7 @@ def main() -> None:
         "sampled_at": datetime.now(timezone.utc).isoformat(),
         "course_id": args.course_id,
         "seed": args.seed,
+        "instrument": INSTRUMENT_REVISION,
         "cases": collected,
     }
     output = Path("artifacts/evals")
