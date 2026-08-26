@@ -197,12 +197,56 @@ function resetChat() {
   $("#chat").innerHTML = `<div class="coach-message"><span class="bot-avatar">✦</span><div><strong>你好，我是你的学习教练。</strong><p>向我提问吧。我会优先依据你上传的课程资料回答，并标出信息来源。</p></div></div>`;
 }
 
+function inlineMarkdown(text) {
+  return text
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\[c(\d+)]/g, '<span class="citation-marker">[c$1]</span>');
+}
+
+function richText(content) {
+  const lines = escapeHtml(content).split("\n");
+  const blocks = [];
+  let list = [];
+  const flushList = () => {
+    if (!list.length) return;
+    blocks.push(`<ul>${list.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</ul>`);
+    list = [];
+  };
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+    if (bullet) { list.push(bullet[1]); continue; }
+    flushList();
+    if (heading) {
+      const level = Math.min(5, heading[1].length + 2);
+      blocks.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+    } else if (line.trim()) blocks.push(`<p>${inlineMarkdown(line)}</p>`);
+  }
+  flushList();
+  return blocks.join("");
+}
+
+function renderMessageMath(container) {
+  if (typeof window.renderMathInElement !== "function") return;
+  window.renderMathInElement(container, {
+    delimiters: [
+      {left: "$$", right: "$$", display: true},
+      {left: "\\[", right: "\\]", display: true},
+      {left: "$", right: "$", display: false},
+      {left: "\\(", right: "\\)", display: false},
+    ],
+    throwOnError: false,
+  });
+}
+
 function addMessage(role, content, citations = []) {
   const item = document.createElement("div");
   item.className = role === "user" ? "user-message" : "coach-message";
   const citeHtml = citations.length ? `<div class="citations"><strong>可验证来源</strong>${citations.map((c) => `<details class="citation-item"><summary><a href="${API}/documents/${c.document_id}/content#page=${c.page_number}" target="_blank" rel="noopener">${escapeHtml(c.filename)} · 第 ${c.page_number} 页</a></summary><p>${escapeHtml(c.snippet)}</p>${c.section_title ? `<small>章节：${escapeHtml(c.section_title)}</small>` : ""}</details>`).join("")}</div>` : "";
-  item.innerHTML = role === "user" ? `<div>${escapeHtml(content)}</div>` : `<span class="bot-avatar">✦</span><div>${escapeHtml(content).replace(/\n/g, "<br>")}${citeHtml}</div>`;
+  item.innerHTML = role === "user" ? `<div>${escapeHtml(content)}</div>` : `<span class="bot-avatar">✦</span><div class="assistant-content">${richText(content)}${citeHtml}</div>`;
   $("#chat").appendChild(item);
+  if (role !== "user") renderMessageMath(item.querySelector(".assistant-content"));
   $("#chat").scrollTop = $("#chat").scrollHeight;
 }
 

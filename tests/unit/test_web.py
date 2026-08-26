@@ -26,6 +26,8 @@ def test_static_assets_are_available() -> None:
     assert "updateDocumentChoiceState" in javascript.text
     assert "updateScopePageLimits" in javascript.text
     assert "citation-item" in javascript.text
+    assert "richText" in javascript.text
+    assert "renderMessageMath" in javascript.text
 
 
 def test_upload_control_explains_selection_and_progress() -> None:
@@ -46,3 +48,4 @@ def test_tutor_workspace_has_retrieval_scope_controls() -> None:
     assert 'id="chat-page-from"' in response.text
     assert 'id="chat-page-to"' in response.text
     assert 'id="scope-hint"' in response.text
+    assert "/static/vendor/katex/katex.min.js?v=0.16.11" in response.text

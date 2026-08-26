@@ -43,12 +43,14 @@ class PdfParser:
             raise AppError("PDF_PARSER_UNAVAILABLE", "PDF解析组件未安装") from exc
 
         pages: list[ParsedPage] = []
+        current_section: str | None = None
         try:
             with fitz.open(path) as pdf:
                 for index, page in enumerate(pdf):
                     text = _clean_text(page.get_text("text"))
                     if text:
-                        pages.append(ParsedPage(page_number=index + 1, text=text))
+                        current_section = _chapter_heading(text) or current_section
+                        pages.append(ParsedPage(page_number=index + 1, text=text, section_title=current_section))
         except Exception as exc:
             raise AppError("PDF_PARSE_FAILED", "PDF文件解析失败") from exc
         if sum(len(page.text) for page in pages) < 20:
@@ -77,3 +79,10 @@ def _clean_text(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
+
+def _chapter_heading(text: str) -> str | None:
+    match = re.search(r"(?im)^\s*(chapter\s+\d+\s*[.:：-]?\s*[^\n]{0,120})$", text)
+    if match:
+        return " ".join(match.group(1).split())
+    match = re.search(r"(?m)^\s*(第\s*[一二三四五六七八九十百零〇0-9]+\s*章[^\n]{0,120})$", text)
+    return " ".join(match.group(1).split()) if match else None

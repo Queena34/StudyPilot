@@ -592,6 +592,8 @@ MVP 统一聊天入口使用 `LearningIntentRouter` 执行高精度确定性路�
 
 Web 端可显式设置 `document_types`、`document_ids`、`page_from` 和 `page_to`。引用使用 `<details>` 展开可验证片段，原始文件通过经用户归属校验的 `GET /documents/{document_id}/content` 以 inline 方式返回；PDF 链接使用 `#page=N` 定位。
 
+当问题包含“第一章”“第 1 章”或 `Chapter 1` 且已限定文档时，检索器先依据文档内章节标题确定起止边界，再只在该章节范围内选取代表性片段；找不到目标章节时返回证据不足，不回退到其他章节。AI 回答使用安全的 Markdown 子集展示，并以 KaTeX 渲染 `$...$`、`$$...$$`、`\(...\)` 和 `\[...\]` 数学公式。
+
 ### 13.2 Tutor Agent
 
 输入：用户问题、语言和讲解模式、对话摘要、检索证据。

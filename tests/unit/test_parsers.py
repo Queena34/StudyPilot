@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.core.exceptions import AppError
-from app.rag.parsers import MarkdownParser, TextParser, parser_for_suffix
+from app.rag.parsers import MarkdownParser, TextParser, _chapter_heading, parser_for_suffix
 
 
 def test_text_parser_cleans_utf8_text(tmp_path: Path) -> None:
@@ -23,6 +23,12 @@ def test_markdown_parser_extracts_first_heading(tmp_path: Path) -> None:
     parsed = MarkdownParser().parse(source)
 
     assert parsed.pages[0].section_title == "Machine Learning"
+
+
+def test_pdf_chapter_heading_detection() -> None:
+    text = "Linear Models\nChapter 1. The Simple Regression Model\nCourse notes"
+
+    assert _chapter_heading(text) == "Chapter 1. The Simple Regression Model"
 
 
 def test_parser_rejects_unsupported_suffix() -> None:

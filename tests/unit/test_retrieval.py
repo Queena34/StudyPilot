@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.rag.retrieval import _search_terms, _where_filter
+from app.rag.retrieval import _chapter_evidence, _chapter_number, _search_terms, _where_filter
 
 
 def test_where_filter_always_enforces_user_and_course() -> None:
@@ -27,3 +27,29 @@ def test_search_terms_support_chinese_and_english() -> None:
     terms = _search_terms("解释 L1 regularization 正则化")
 
     assert {"l1", "regularization", "正", "则", "化"} <= terms
+
+
+def test_chapter_number_supports_chinese_and_english() -> None:
+    assert _chapter_number("请讲解第一章") == 1
+    assert _chapter_number("summarize Chapter 12") == 12
+
+
+def test_chapter_evidence_stops_at_next_chapter() -> None:
+    payload = {
+        "ids": ["doc:0", "doc:1", "doc:2", "doc:3"],
+        "documents": [
+            "Chapter 0. Introduction\nOverview",
+            "Chapter 1. Simple Regression\nDefinition",
+            "Slope and intercept",
+            "Chapter 2. Multiple Regression\nDefinition",
+        ],
+        "metadatas": [
+            {"document_id": "doc", "source_file": "lecture.pdf", "page_number": index + 1, "chunk_index": index}
+            for index in range(4)
+        ],
+    }
+
+    evidence = _chapter_evidence(payload, 1, 8)
+
+    assert [item.page_number for item in evidence] == [2, 3]
+    assert all(item.section_title == "Chapter 1. Simple Regression" for item in evidence)
