@@ -118,7 +118,7 @@ docker compose exec api python -m pytest tests/unit -q
 | RAG v1 | 30 题 | 引用有效率、跨资料泄漏、关键词覆盖 | 是 |
 | Quiz v1 | 30 场景 | 生成成功率 96.7%，引用有效性 100% | 是 |
 | Grading v1 | 10 题 × 三档 × 3 次 | 排序与重复稳定性 100%，分数区间 90% | 是 |
-| Faithfulness v1 | 12 条人工抽检 | 流程就绪，等待评审 | 人工 |
+| Faithfulness v1 | 12 条人工抽检 | 依据、引用、无编造均 100%（样本量小，见基线说明） | 人工 |
 
 其中三套完全不调用模型，免费、秒级、逐位可复现，适合进 CI：
 
@@ -132,7 +132,7 @@ docker compose exec api python -m tests.evals.run_orchestrator_eval
 
 这是一个仍在建设中的项目。当前完成度、已知问题和下一步计划以 [docs/PROGRESS.md](docs/PROGRESS.md) 为准 —— 该文件是唯一事实来源，任何参与开发的人或 AI Agent 都应先阅读它。
 
-尚未完成的主要部分：Redis 短期学习状态、全链路 trace 与成本监控。人工忠实度抽检的流程已就绪，等待评审。
+尚未完成的主要部分：Redis 短期学习状态、全链路 trace 与成本监控。人工忠实度抽检已完成首份基线，样本量仍需扩大。
 
 ## 项目由来
 

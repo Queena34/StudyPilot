@@ -1,9 +1,82 @@
 {
   "dataset_version": "faithfulness-v1",
-  "status": "awaiting_review",
-  "reviewer": null,
-  "sampled_at": null,
-  "metrics": null,
+  "status": "recorded",
+  "reviewer": "Queena",
+  "sampled_at": "2026-08-26T17:04:35.318836+00:00",
+  "metrics": {
+    "case_count": 12,
+    "answerable_case_count": 11,
+    "unanswerable_case_count": 1,
+    "grounding_rate": 1.0,
+    "grounding_problem_rate": 0.0,
+    "citation_accuracy_rate": 1.0,
+    "citation_wrong_rate": 0.0,
+    "fabrication_rate": 0.0,
+    "declined_when_unsupported_rate": 1.0,
+    "answered_unsupported_rate": 0.0,
+    "by_stratum": {
+      "application": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "assumption": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "concept": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "example": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "formula": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "history": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "hypothesis": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "interpretation": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "method": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "model": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "no-answer": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      },
+      "transformation": {
+        "case_count": 1,
+        "grounding_rate": 1.0,
+        "fabrication_rate": 0.0
+      }
+    }
+  },
   "purpose": "人工忠实度抽检。其余七套评测衡量的都是机器可判定的代理指标 —— 引用能否解析、是否落在指定文档内、关键词是否出现。没有一项能回答产品真正立足的那个问题：这个回答对它引用的原文忠实吗。该判断只能由人做出。",
   "protocol": {
     "sample": "python -m tests.evals.run_faithfulness_sample --course-id <课程ID> --size 12",
@@ -25,5 +98,27 @@
     "未评审或判断项缺失的样本一律不评分 —— 半份评审报出的满分比没有评审更有害。",
     "记录评审者姓名与随机种子；更换评审者或种子后不得与旧结果直接比较。"
   ],
-  "note": "首次抽样已生成（12 条，种子 20260826），等待人工评审后填入 metrics。"
+  "note": null,
+  "scored_at": "2026-08-26T18:47:21.147680+00:00",
+  "seed": 20260826,
+  "instrument": "rendered-2",
+  "sample_size_caveat": "样本量 12，每个分层各 1 条。全项满分说明**在这 12 条上没有发现问题**，不能读作「系统忠实度为 100%」—— 12 条样本对低频失败几乎没有检出力。按经验法则，12 次全对时真实失败率的 95% 置信上界约为 22%。该基线的价值在于：它是第一份由人判定、而非机器代理指标给出的结论，并且建立了可重复的流程。扩大样本量或更换种子后应重新评审。",
+  "rounds": [
+    {
+      "round": 1,
+      "instrument": "snippet-300",
+      "status": "void",
+      "reason": "评审页仅显示片段前 300 字符（约占中位长度的 15%），支撑句多在截断之后，导致 12 条中 10 条的引用被误判为「指错了地方」。复核确认引用实际正确，故作废。",
+      "artifact": "artifacts/evals/faithfulness_verdicts_round1_invalid.json"
+    },
+    {
+      "round": 2,
+      "instrument": "rendered-2",
+      "status": "recorded",
+      "changes": "完整片段 + 复用主应用渲染器渲染 Markdown 与 LaTeX + 引用可跳转 PDF 原页",
+      "correction": "linear-015 的 admits_gap 由评审者确认为漏勾，已更正为 true。该回答两次明确指出资料未涵盖贝叶斯方法。更正经评审者书面确认，未由脚本自行判定。",
+      "artifact": "artifacts/evals/faithfulness_verdicts_round2.json"
+    }
+  ],
+  "instrument_lesson": "评审工具必须让评审者看到判断所需的**全部**依据。第一轮的教训是：一个只展示部分证据的工具会让正确行为看起来是错的，其危害大于没有评审 —— 它会凭空制造缺陷，并引出针对不存在问题的「修复」。"
 }
