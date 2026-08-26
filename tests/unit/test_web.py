@@ -56,3 +56,51 @@ def test_tutor_workspace_has_retrieval_scope_controls() -> None:
     assert 'id="chat-question-count"' in response.text
     assert "针对已经学的" in response.text
     assert "/static/vendor/katex/katex.min.js?v=0.16.11" in response.text
+
+
+def test_workspace_exposes_the_full_learning_loop() -> None:
+    page = TestClient(app).get("/").text
+
+    # Every stage of the loop needs somewhere to happen in the UI.
+    for element in (
+        "conversation-select",   # pick up an earlier conversation
+        "practice-history",      # past practice sets
+        "practice-detail",       # one set, with sources and rubric
+        "score-trend",           # how scores moved
+        "common-errors",         # what keeps going wrong
+        "recent-practice",       # what was practised lately
+    ):
+        assert f'id="{element}"' in page
+
+
+def test_destructive_actions_are_present_and_reachable() -> None:
+    page = TestClient(app).get("/").text
+
+    for element in ("edit-course", "delete-course", "reset-progress"):
+        assert f'id="{element}"' in page
+
+
+def test_client_script_wires_the_new_panels() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    for symbol in (
+        "loadConversations",
+        "openConversation",
+        "loadPracticeHistory",
+        "renderPracticeSet",
+        "loadInsights",
+        "openCourseDialog",
+        "rubricHtml",
+        "sourcesHtml",
+    ):
+        assert f"function {symbol}" in javascript
+    assert "/practice-sets?size=" in javascript
+    assert "/reprocess" in javascript
+
+
+def test_irreversible_actions_ask_for_confirmation() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    # Deleting a course, deleting material and clearing progress cannot be undone.
+    assert javascript.count("confirm(") >= 3
+    assert "无法恢复" in javascript

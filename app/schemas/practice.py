@@ -57,6 +57,28 @@ class PracticeSetRead(BaseModel):
     questions: list[PracticeQuestionRead]
 
 
+class PracticeSetSummary(BaseModel):
+    """One row of the course practice history, without leaking any answers."""
+
+    id: UUID
+    title: str
+    status: str
+    question_type: QuestionType
+    difficulty: Difficulty
+    topic: str | None
+    question_count: int
+    answered_count: int
+    incorrect_count: int
+    average_score: float | None
+    created_at: datetime
+
+
+class PracticeSetList(BaseModel):
+    items: list[PracticeSetSummary]
+    page: int
+    size: int
+
+
 class GeneratedOption(BaseModel):
     id: str
     text: str

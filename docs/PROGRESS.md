@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `91de768` |
-| 当前阶段 | 路线图第 1–6、8、9、11 步全部完成；剩 7（Redis）、10（监控）、12（前端） |
+| 当前基线 commit | `8c47033` |
+| 当前阶段 | 路线图第 1–6、8、9、11 步完成；第 12 步大部分完成（缺用户偏好设置）；剩 7（Redis）、10（监控） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -34,7 +34,7 @@
 | 9 | Router / Orchestrator / 端到端评测 | 已完成 | `run_router_eval.py`、`run_integrity_eval.py`、`run_orchestrator_eval.py`、`run_loop_eval.py`、`run_grading_eval.py` | 七套版本化基线全部记录 | Router v2（57）、Integrity v1（61）、Orchestrator v1（30）、Loop v1（5 阶段）、Grading v1（90 次） |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 已完成 | 已删除全部旧目录；`README.md`、`MIGRATION.md` 已重写 | 159 测试通过 + 应用冒烟 + 评测基线复现 | 约 4100 行 Python、3 个部署脚本、1 个旧 env 模板已移除 |
-| 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
+| 12 | 补齐前端学习闭环 | 进行中 | `app/web/`、`app/api/v1/routes/practice.py`、`documents.py` | `tests/unit/test_web.py`、`test_practice_history.py`（13 例） | 练习历史/错题重练/rubric 与来源展示、历史对话、课程与资料增删改、学习趋势与常见错误已完成；**用户偏好设置未做**（需新建后端偏好模型） |
 
 ---
 
@@ -85,6 +85,32 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：路线图第 12 步的主体部分 —— 让前端能操作后端已经具备的能力。
+  1. **补两个缺失接口**：`GET /courses/{id}/practice-sets`（练习历史，含题量、已作答数、待加强题数、平均分）和 `POST /documents/{id}/reprocess`（失败资料重试）。
+  2. **练习历史与错题重练**：历史列表可展开某组练习，显示每题的来源、最佳得分和批改后的 rubric 逐条得分；「重练错题」只列出最佳得分 ≤60 的题目。
+  3. **历史对话选择**：对话下拉框可切回任意历史会话并还原完整消息与引用。
+  4. **课程与资料的增删改**：课程编辑/删除、资料删除、失败资料重试，三项不可逆操作都有二次确认并写明后果。
+  5. **学习趋势与常见错误**：进度页新增得分趋势条形图、跨主题聚合的常见错误排行、最近练习列表，以及清空进度入口。
+- **为什么**：路线图第 6 节第 12 项，对应审计文档第 4 节 P1 的前四项。后端能力此前已远超前端可操作范围 —— 练习历史、错题重练、学习趋势都只能通过 API 访问。
+- **改了哪些文件**：
+  - 新增：`tests/unit/test_practice_history.py`
+  - 修改（后端）：`app/schemas/practice.py`（`PracticeSetSummary`/`PracticeSetList`）、`app/infrastructure/repositories/practice_repository.py`（`list_for_course`、`best_scores_for_questions`）、`app/services/practice_service.py`、`app/api/v1/routes/practice.py`、`app/infrastructure/repositories/document_repository.py`（`requeue`）、`app/services/document_service.py`（`reprocess`）、`app/api/v1/routes/documents.py`
+  - 修改（前端）：`app/web/index.html`、`app/web/static/app.js`、`app/web/static/styles.css`
+  - 修改（测试）：`tests/unit/test_web.py`、`tests/unit/test_grading_eval_metrics.py`
+- **怎么验证的**：
+  - 单元测试 `180 passed`（改动前 167，新增 13）。
+  - 全部确定性评测回归：Router v2 意图准确率 73.1%、范围保持 100%；Integrity v1 100%；Orchestrator v1 100%。
+  - 端到端闭环重跑：五阶段全通过，`loop_closed: true`。
+  - 逐一核对前端依赖的数据形状与实际接口返回一致（对话消息、Attempt 的 `criterion_results`、题目 `sources`、主题的 `common_errors`/`recent_score`/`last_practiced_at`）。
+  - 接口行为验证：对已成功的资料调用重试，正确返回 `409 DOCUMENT_NOT_RETRYABLE`（重新处理健康资料会产生重复知识片段）。
+  - 练习历史摘要**不暴露参考答案和 rubric** —— 该列表在作答前可见，专门加了测试守住这条。
+- **修正了上一轮的一个疏漏**：K-4 提交时 `test_grading_eval_metrics.py` 仍在断言基线为 `not_run`，但当时跑测试**没有重建镜像**，测的是镜像里的旧基线文件，因此「167 passed」是对着过期数据得出的。这正是 `AGENTS.md` 里写明的那个坑，我自己踩了。该测试已改为校验已记录基线的契约（90 次、全部成功、排序与重复稳定性满分、越界数量与 `score_band_accuracy` 一致、诊断与门槛齐备）。
+- **下一步建议**：第 12 步剩用户偏好设置页，需要先建后端偏好模型（语言、默认讲解模式、默认题型难度、语言反馈开关），审计文档记为「无用户偏好设置 API/UI」。之后剩第 7 步 Redis 与第 10 步监控。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

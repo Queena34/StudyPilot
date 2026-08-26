@@ -109,6 +109,27 @@ class DocumentService:
             for document in documents
         ]
 
+    async def reprocess(self, user_id: UUID, document_id: UUID) -> tuple[Document, Job]:
+        """Retry a failed ingestion. Only a failed document may be requeued, so a
+        successful one cannot be silently reprocessed into duplicate chunks."""
+
+        document = await self.repository.get(user_id, document_id)
+        if document is None:
+            raise ResourceNotFoundError("资料")
+        if document.status != DocumentStatus.FAILED.value:
+            raise AppError(
+                "DOCUMENT_NOT_RETRYABLE",
+                "只有处理失败的资料才能重新处理",
+                status_code=409,
+            )
+        job = Job(
+            user_id=user_id,
+            document_id=document.id,
+            job_type="document_ingestion",
+            status=JobStatus.QUEUED.value,
+        )
+        return document, await self.repository.requeue(document, job)
+
     async def delete(self, user_id: UUID, document_id: UUID) -> None:
         document, _ = await self.get(user_id, document_id)
         self.storage.delete(document.storage_key)

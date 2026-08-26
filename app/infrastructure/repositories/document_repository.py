@@ -72,6 +72,16 @@ class DocumentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def requeue(self, document: Document, job: Job) -> Job:
+        """Queue a fresh ingestion attempt for a document that failed to process."""
+
+        document.status = DocumentStatus.QUEUED.value
+        document.error_message = None
+        self.session.add_all([document, job])
+        await self.session.commit()
+        await self.session.refresh(job)
+        return job
+
     async def mark_deleted(self, document: Document) -> None:
         now = datetime.now(timezone.utc)
         document.status = DocumentStatus.DELETED.value

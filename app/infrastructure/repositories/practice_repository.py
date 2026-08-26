@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -31,6 +31,33 @@ class PracticeRepository:
             .where(Question.id == question_id, PracticeSet.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+    async def list_for_course(
+        self, user_id: UUID, course_id: UUID, *, offset: int, limit: int
+    ) -> list[PracticeSet]:
+        result = await self.session.execute(
+            select(PracticeSet)
+            .options(selectinload(PracticeSet.questions))
+            .where(PracticeSet.user_id == user_id, PracticeSet.course_id == course_id)
+            .order_by(PracticeSet.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.scalars().unique())
+
+    async def best_scores_for_questions(
+        self, user_id: UUID, question_ids: list[UUID]
+    ) -> dict[UUID, float]:
+        """Highest recorded score per question, used to mark what still needs work."""
+
+        if not question_ids:
+            return {}
+        result = await self.session.execute(
+            select(Attempt.question_id, func.max(Attempt.score))
+            .where(Attempt.user_id == user_id, Attempt.question_id.in_(question_ids))
+            .group_by(Attempt.question_id)
+        )
+        return {row[0]: float(row[1]) for row in result.all()}
 
     async def latest_pending_question(
         self, user_id: UUID, course_id: UUID

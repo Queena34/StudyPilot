@@ -79,6 +79,16 @@ async def view_document_content(
     )
 
 
+@router.post("/documents/{document_id}/reprocess", response_model=DocumentRead)
+async def reprocess_document(
+    document_id: UUID,
+    session: DbSession,
+    user_id: CurrentUserId,
+) -> DocumentRead:
+    document, job = await _service(session).reprocess(user_id, document_id)
+    return _response(document, job)
+
+
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID, session: DbSession, user_id: CurrentUserId

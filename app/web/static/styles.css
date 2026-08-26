@@ -18,3 +18,43 @@
 .assistant-content>p{margin:0 0 10px}.assistant-content>p:last-child{margin-bottom:0}.assistant-content h3,.assistant-content h4,.assistant-content h5{margin:16px 0 7px;color:#244d3e;line-height:1.35}.assistant-content h3:first-child,.assistant-content h4:first-child{margin-top:0}.assistant-content ul{margin:7px 0 12px;padding-left:22px}.assistant-content li{margin:4px 0}.assistant-content code{padding:2px 5px;border-radius:4px;background:#dfe9e2;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}.citation-marker{color:#376b57;font-size:.82em;font-weight:700;white-space:nowrap}.assistant-content .katex-display{margin:14px 0;overflow-x:auto;overflow-y:hidden;padding:4px 0}.assistant-content .katex{font-size:1.08em}
 .math-block{margin:10px 0;overflow-x:auto;text-align:center}
 .chat-practice-settings{margin:0 0 10px;padding:9px 12px;border:1px solid #dde3dd;border-radius:11px;background:#fafbf8}.chat-practice-settings summary{color:#466154;font-size:11px;font-weight:700;cursor:pointer}.chat-practice-settings>div{display:grid;grid-template-columns:140px 140px 110px 1fr;gap:9px;align-items:end;margin-top:9px}.chat-practice-settings label{display:grid;gap:4px}.chat-practice-settings label span{color:var(--muted);font-size:10px}.chat-practice-settings select,.chat-practice-settings input{width:100%;padding:7px 9px;font-size:12px}.chat-practice-settings small{align-self:center;color:var(--muted);line-height:1.45}@media(max-width:700px){.chat-practice-settings>div{grid-template-columns:1fr 1fr}.chat-practice-settings small{grid-column:1/-1}}
+
+/* Course actions, conversation picker, practice history and progress insights. */
+.course-actions{position:absolute;top:18px;right:22px;display:flex;gap:8px;z-index:2}
+.ghost-button{padding:6px 12px;border:1px solid rgba(255,255,255,.28);border-radius:8px;background:rgba(255,255,255,.08);color:#e6efe9;font:inherit;font-size:12px;cursor:pointer}
+.ghost-button:hover{background:rgba(255,255,255,.16)}
+.ghost-button.danger:hover{border-color:#f0a898;background:rgba(233,120,93,.28);color:#fff}
+.chat-head-actions{display:flex;align-items:center;gap:10px}
+.conversation-picker select{max-width:230px;padding:7px 10px;font-size:12px;color:var(--muted)}
+.history-heading{margin-top:34px;padding-top:22px;border-top:1px solid var(--line)}
+.danger-text{color:#a84936!important}
+.history-card{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:15px 17px;border:1px solid #e1e2dc;border-radius:12px;background:white}
+.history-card.active{border-color:var(--green);box-shadow:0 0 0 2px rgba(40,92,73,.12)}
+.history-card h4{margin:0 0 4px;font-size:15px}
+.history-card p{margin:0;color:var(--muted);font-size:12px}
+.history-score{font:19px Georgia,serif;color:var(--green);white-space:nowrap}
+.history-score.low{color:var(--coral)}
+.history-actions{display:flex;gap:8px}
+.mini-button{padding:7px 12px;border:1px solid #cbd5ce;border-radius:8px;background:white;color:#3f5a4d;font:inherit;font-size:12px;cursor:pointer}
+.mini-button:hover{border-color:var(--green);color:var(--green)}
+.mini-button.danger:hover{border-color:#c9705c;color:#a84936}
+.question-card.needs-work{border-color:#eec4b8;background:#fffaf8}
+.question-sources{margin-top:10px;padding-top:9px;border-top:1px solid #e8ece8}
+.question-sources summary{color:#4f6a5c;font-size:11px;cursor:pointer}
+.question-sources ul{margin:8px 0 0;padding-left:18px;color:#5d6b63;font-size:11px;line-height:1.6}
+.rubric-list{margin:10px 0 0;padding:11px 13px;border-radius:9px;background:#f3f6f2}
+.rubric-list strong{display:block;margin-bottom:6px;color:#3f5a4d;font-size:11px}
+.rubric-row{display:grid;grid-template-columns:1fr 46px;gap:10px;padding:4px 0;font-size:12px;color:#4f5d55}
+.rubric-row b{text-align:right;font-weight:650}
+.rubric-row.missed b{color:var(--coral)}
+.insight-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}
+.insight-title{margin:0 0 12px;font:18px Georgia,"Songti SC",serif}
+.trend{display:flex;align-items:flex-end;gap:6px;height:130px;padding:12px 14px;border:1px solid #e1e2dc;border-radius:12px;background:white}
+.trend-bar{flex:1;min-width:12px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;height:100%}
+.trend-bar i{display:block;width:100%;border-radius:5px 5px 2px 2px;background:#6b9a83}
+.trend-bar i.low{background:var(--coral)}
+.trend-bar small{color:var(--muted);font-size:9px;white-space:nowrap}
+.error-list{display:grid;gap:8px;padding:12px 14px;border:1px solid #e1e2dc;border-radius:12px;background:white}
+.error-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;font-size:12px;color:#4f5d55}
+.error-row b{padding:2px 8px;border-radius:999px;background:#fbe7e2;color:#a84936;font-size:10px}
+@media(max-width:900px){.insight-grid{grid-template-columns:1fr}.course-actions{position:static;margin-bottom:12px}.history-card{grid-template-columns:1fr}}

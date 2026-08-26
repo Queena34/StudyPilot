@@ -52,6 +52,10 @@
             <h2 id="course-name"></h2>
             <p id="course-description">上传课程资料，开始你的个性化学习。</p>
           </div>
+          <div class="course-actions">
+            <button id="edit-course" class="ghost-button" type="button">编辑课程</button>
+            <button id="delete-course" class="ghost-button danger" type="button">删除课程</button>
+          </div>
           <div class="exam-card">
             <span>距离考试</span>
             <strong id="exam-days">--</strong>
@@ -75,7 +79,7 @@
         </nav>
 
         <section id="panel-coach" class="panel tab-panel">
-          <div class="section-heading"><div><p class="eyebrow">基于你的课程资料</p><h3>问 StudyPilot</h3></div><button id="new-chat" class="text-button">新对话</button></div>
+          <div class="section-heading"><div><p class="eyebrow">基于你的课程资料</p><h3>问 StudyPilot</h3></div><div class="chat-head-actions"><label class="conversation-picker"><span class="visually-hidden">历史对话</span><select id="conversation-select"><option value="">新对话</option></select></label><button id="new-chat" class="text-button">新对话</button></div></div>
           <div id="chat" class="chat"><div class="coach-message"><span class="bot-avatar">✦</span><div><strong>你好，我是你的学习教练。</strong><p>你可以让我解释课程概念、梳理笔记，或用苏格拉底式提问帮你想清楚。</p></div></div></div>
           <div class="scope-bar">
             <label><span>资料类型</span><select id="chat-document-type"><option value="">全部类型</option><option value="lecture">课堂讲义</option><option value="reading">阅读材料</option><option value="notes">学习笔记</option><option value="assignment">作业</option><option value="past_exam">往年试题</option><option value="other">其他</option></select></label>
@@ -122,12 +126,29 @@
             <button class="primary-button" type="submit">生成练习</button>
           </form>
           <div id="practice-result" class="question-list"></div>
+
+          <div class="section-heading history-heading"><div><p class="eyebrow">PRACTICE HISTORY</p><h3>练习历史</h3></div><button id="refresh-practice-history" class="text-button">刷新</button></div>
+          <div id="practice-history" class="stack-list"></div>
+          <div id="practice-detail" class="question-list"></div>
         </section>
 
         <section id="panel-progress" class="panel tab-panel hidden">
           <div class="section-heading"><div><p class="eyebrow">LEARNING INSIGHTS</p><h3>知识点掌握情况</h3></div></div>
           <div id="recommendations" class="recommendations"></div>
           <div id="topic-list" class="topic-list"></div>
+
+          <div class="insight-grid">
+            <section>
+              <h4 class="insight-title">得分趋势</h4>
+              <div id="score-trend" class="trend"></div>
+            </section>
+            <section>
+              <h4 class="insight-title">常见错误</h4>
+              <div id="common-errors" class="error-list"></div>
+            </section>
+          </div>
+          <div class="section-heading history-heading"><div><h3 class="insight-title">最近练习</h3></div><button id="reset-progress" class="text-button danger-text">清空进度</button></div>
+          <div id="recent-practice" class="stack-list"></div>
         </section>
 
         <section id="panel-plan" class="panel tab-panel hidden">

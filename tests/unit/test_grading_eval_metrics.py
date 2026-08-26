@@ -81,7 +81,7 @@ def test_aggregate_grading_ordering_and_repeatability() -> None:
     assert metrics["fallback_rate"] == 0
 
 
-def test_grading_v1_dataset_contract_and_unmeasured_baseline() -> None:
+def test_grading_v1_dataset_contract_and_recorded_baseline() -> None:
     dataset = ROOT / "tests/evals/datasets/grading_answers_v1.jsonl"
     cases = [json.loads(line) for line in dataset.read_text().splitlines() if line]
 
@@ -92,5 +92,18 @@ def test_grading_v1_dataset_contract_and_unmeasured_baseline() -> None:
     assert all(case["sources"] for case in cases)
 
     baseline = json.loads((ROOT / "tests/evals/baselines/grading_v1.json").read_text())
-    assert baseline["status"] == "not_run"
-    assert baseline["metrics"] is None
+    assert baseline["status"] == "recorded"
+    assert baseline["configuration"]["total_runs"] == 90
+    metrics = baseline["metrics"]
+    # A baseline may only be claimed once every run completed without falling back.
+    assert metrics["run_count"] == 90
+    assert metrics["run_success_rate"] == 1.0
+    assert metrics["fallback_rate"] == 0.0
+    # Ordering is the floor for a usable grader and is a hard gate in the baseline.
+    assert metrics["ordering_accuracy"] == 1
+    assert metrics["repeatability_within_10_points"] == 1
+    # Any deviation must stay diagnosed rather than merely recorded.
+    assert len(baseline["out_of_band_runs"]) == round(
+        (1 - metrics["score_band_accuracy"]) * metrics["run_count"]
+    )
+    assert baseline["diagnosis"] and baseline["regression_rules"]

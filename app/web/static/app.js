@@ -75,7 +75,7 @@ async function selectCourse(course) {
     $("#exam-date").textContent = "未设置考试日期";
   }
   resetChat();
-  await Promise.allSettled([loadProgress(), loadDocuments(), loadPlans()]);
+  await Promise.allSettled([loadProgress(), loadDocuments(), loadPlans(), loadConversations(), loadPracticeHistory()]);
   $(".sidebar").classList.remove("open");
 }
 
@@ -97,7 +97,7 @@ async function loadDocuments() {
   state.documents = data.items;
   renderChatDocumentOptions();
   const labels = { lecture:"课堂讲义", reading:"阅读材料", assignment:"作业", past_exam:"往年试题", notes:"学习笔记", other:"其他" };
-  $("#document-list").innerHTML = data.items.length ? data.items.map((doc) => `<div class="list-card"><div><strong>${escapeHtml(doc.filename)}</strong><p>${labels[doc.document_type] || doc.document_type} · ${(doc.size_bytes / 1024).toFixed(1)} KB${doc.chunk_count ? ` · ${doc.chunk_count} 个知识片段` : ""}</p></div><span class="badge ${doc.status === "failed" ? "failed" : ""}">${doc.status === "ready" ? "已就绪" : doc.status === "failed" ? "处理失败" : "处理中"}</span></div>`).join("") : `<div class="empty-inline">还没有课程资料。上传后，AI 教练会优先依据资料回答。</div>`;
+  $("#document-list").innerHTML = data.items.length ? data.items.map((doc) => `<div class="list-card"><div><strong>${escapeHtml(doc.filename)}</strong><p>${labels[doc.document_type] || doc.document_type} · ${(doc.size_bytes / 1024).toFixed(1)} KB${doc.chunk_count ? ` · ${doc.chunk_count} 个知识片段` : ""}</p></div><div class="history-actions"><span class="badge ${doc.status === "failed" ? "failed" : ""}">${doc.status === "ready" ? "已就绪" : doc.status === "failed" ? "处理失败" : "处理中"}</span>${doc.status === "failed" ? `<button class="mini-button" type="button" data-retry-document="${doc.id}">重试</button>` : ""}<button class="mini-button danger" type="button" data-delete-document="${doc.id}" data-filename="${escapeHtml(doc.filename)}">删除</button></div></div>`).join("") : `<div class="empty-inline">还没有课程资料。上传后，AI 教练会优先依据资料回答。</div>`;
   return data.items;
 }
 
@@ -194,6 +194,8 @@ function renderPlan(plan) {
 
 function resetChat() {
   state.conversationId = null;
+  const picker = document.querySelector("#conversation-select");
+  if (picker) picker.value = "";
   $("#chat").innerHTML = `<div class="coach-message"><span class="bot-avatar">✦</span><div><strong>你好，我是你的学习教练。</strong><p>向我提问吧。我会优先依据你上传的课程资料回答，并标出信息来源。</p></div></div>`;
 }
 
@@ -288,22 +290,39 @@ $("#course-list").addEventListener("click", (event) => {
   const button = event.target.closest("[data-course-id]");
   if (button) selectCourse(state.courses.find((course) => course.id === button.dataset.courseId));
 });
-$$('[data-action="new-course"], #new-course-button').forEach((button) => button.addEventListener("click", () => $("#course-dialog").showModal()));
+$$('[data-action="new-course"], #new-course-button').forEach((button) => button.addEventListener("click", () => openCourseDialog()));
 $('[data-action="close-dialog"]').addEventListener("click", () => $("#course-dialog").close());
 $("#menu-button").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
 
 $$('.tab').forEach((tab) => tab.addEventListener("click", () => {
   $$('.tab').forEach((item) => item.classList.toggle("active", item === tab));
   $$('.tab-panel').forEach((panel) => panel.classList.toggle("hidden", panel.id !== `panel-${tab.dataset.tab}`));
-  if (tab.dataset.tab === "progress") loadProgress().catch((error) => toast(error.message, true));
+  if (tab.dataset.tab === "progress") Promise.allSettled([loadProgress(), loadInsights()]).catch(() => {});
+  if (tab.dataset.tab === "practice") loadPracticeHistory().catch((error) => toast(error.message, true));
 }));
 
 $("#course-form").addEventListener("submit", async (event) => {
-  event.preventDefault(); const button = event.submitter; setLoading(button, true, "正在创建…");
+  event.preventDefault();
+  const button = event.submitter;
+  const courseId = $("#course-dialog").dataset.courseId;
+  setLoading(button, true, courseId ? "正在保存…" : "正在创建…");
   try {
     const optional = (selector) => $(selector).value.trim() || null;
-    const course = await request("/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:$("#new-name").value, course_code:optional("#new-code"), institution:optional("#new-institution"), semester:optional("#new-semester"), exam_date:optional("#new-exam-date"), target_grade:optional("#new-target"), description:optional("#new-description") }) });
-    $("#course-dialog").close(); event.target.reset(); $("#new-institution").value = "KU Leuven"; await loadCourses(course.id); toast("课程已创建");
+    const body = JSON.stringify({
+      name: $("#new-name").value, course_code: optional("#new-code"),
+      institution: optional("#new-institution"), semester: optional("#new-semester"),
+      exam_date: optional("#new-exam-date"), target_grade: optional("#new-target"),
+      description: optional("#new-description"),
+    });
+    const course = courseId
+      ? await request(`/courses/${courseId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body })
+      : await request("/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    $("#course-dialog").close();
+    $("#course-dialog").dataset.courseId = "";
+    event.target.reset();
+    $("#new-institution").value = "KU Leuven";
+    await loadCourses(course.id);
+    toast(courseId ? "课程已更新" : "课程已创建");
   } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
@@ -342,7 +361,7 @@ $("#chat-form").addEventListener("submit", async (event) => {
   const scope = { document_types: $("#chat-document-type").value ? [$("#chat-document-type").value] : [], document_ids: $("#chat-document").value ? [$("#chat-document").value] : [], page_from: pageFrom, page_to: pageTo };
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
   const practiceOptions = {question_type:$("#chat-question-type").value, difficulty:$("#chat-difficulty").value, question_count:Number($("#chat-question-count").value)};
-  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); loadConversations().catch(() => {}); if (result.practice_set) loadPracticeHistory().catch(() => {}); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
 });
 
 $("#chat-document-type").addEventListener("change", () => {
@@ -384,3 +403,221 @@ $("#plan-list").addEventListener("change", async (event) => {
 
 $("#today").textContent = new Intl.DateTimeFormat("zh-CN", {month:"long", day:"numeric", weekday:"short"}).format(new Date());
 loadCourses().catch((error) => { toast(`无法载入：${error.message}`, true); $("#empty-state").classList.remove("hidden"); });
+
+/* ── Conversation history ─────────────────────────────────────────────────── */
+
+async function loadConversations() {
+  const select = $("#conversation-select");
+  try {
+    const data = await request(`/courses/${state.course.id}/tutor/conversations?size=20`);
+    state.conversations = data.items;
+    select.innerHTML = `<option value="">新对话</option>${data.items.map((item) => `<option value="${item.id}">${escapeHtml(item.title)} · ${formatDate(item.updated_at)}</option>`).join("")}`;
+    select.value = state.conversationId || "";
+  } catch (error) {
+    select.innerHTML = `<option value="">新对话</option>`;
+  }
+}
+
+async function openConversation(conversationId) {
+  if (!conversationId) { resetChat(); loadConversations(); return; }
+  const data = await request(`/courses/${state.course.id}/tutor/conversations/${conversationId}/messages?size=100`);
+  state.conversationId = conversationId;
+  $("#chat").innerHTML = "";
+  data.items.forEach((message) => addMessage(message.role === "user" ? "user" : "coach", message.content, message.citations || []));
+  $("#chat").scrollTop = $("#chat").scrollHeight;
+}
+
+/* ── Practice history and retry ───────────────────────────────────────────── */
+
+const QUESTION_TYPE_LABELS = { single_choice: "单选题", short_answer: "简答题", concept: "概念解释" };
+const DIFFICULTY_LABELS = { basic: "基础", medium: "进阶", advanced: "挑战" };
+
+async function loadPracticeHistory() {
+  const container = $("#practice-history");
+  const data = await request(`/courses/${state.course.id}/practice-sets?size=20`);
+  state.practiceSets = data.items;
+  if (!data.items.length) {
+    container.innerHTML = `<div class="empty-inline">还没有练习记录。生成一组练习后，这里会保留历史和错题。</div>`;
+    return;
+  }
+  container.innerHTML = data.items.map((item) => {
+    const scored = item.average_score !== null;
+    const meta = [
+      `${QUESTION_TYPE_LABELS[item.question_type] || item.question_type} · ${DIFFICULTY_LABELS[item.difficulty] || item.difficulty}`,
+      `${item.question_count} 题`,
+      item.answered_count ? `已作答 ${item.answered_count}` : "未作答",
+      item.incorrect_count ? `${item.incorrect_count} 题需加强` : "",
+      formatDate(item.created_at),
+    ].filter(Boolean).join(" · ");
+    return `<article class="history-card" data-practice-set-id="${item.id}">
+      <div><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(meta)}</p></div>
+      <span class="history-score ${scored && item.average_score < 60 ? "low" : ""}">${scored ? `${Math.round(item.average_score)} 分` : "—"}</span>
+      <div class="history-actions">
+        <button class="mini-button" type="button" data-open-set="${item.id}">查看</button>
+        ${item.incorrect_count ? `<button class="mini-button" type="button" data-retry-set="${item.id}">重练错题</button>` : ""}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+async function questionScores(questions) {
+  const entries = await Promise.all(questions.map(async (question) => {
+    try {
+      const data = await request(`/questions/${question.id}/attempts?size=5`);
+      return [question.id, data.items];
+    } catch (error) {
+      return [question.id, []];
+    }
+  }));
+  return Object.fromEntries(entries);
+}
+
+function sourcesHtml(question) {
+  if (!question.sources || !question.sources.length) return "";
+  return `<details class="question-sources"><summary>来源（${question.sources.length}）</summary><ul>${question.sources.map((source) => `<li>${escapeHtml(source.filename)}${source.page_number ? ` · 第 ${source.page_number} 页` : ""}${source.section_title ? ` · ${escapeHtml(source.section_title)}` : ""}</li>`).join("")}</ul></details>`;
+}
+
+function rubricHtml(attempt) {
+  if (!attempt || !attempt.criterion_results || !attempt.criterion_results.length) return "";
+  return `<div class="rubric-list"><strong>评分要点</strong>${attempt.criterion_results.map((item) => `<div class="rubric-row ${item.earned_ratio < 1 ? "missed" : ""}"><span>${escapeHtml(item.criterion)}</span><b>${Math.round(item.points)} / ${Math.round(item.weight * 100)}</b></div>`).join("")}</div>`;
+}
+
+async function renderPracticeSet(practiceSetId, { onlyIncorrect = false } = {}) {
+  const practiceSet = await request(`/practice-sets/${practiceSetId}`);
+  const attempts = await questionScores(practiceSet.questions);
+  const threshold = 60;
+  const questions = practiceSet.questions.filter((question) => {
+    if (!onlyIncorrect) return true;
+    const best = (attempts[question.id] || []).reduce((max, item) => Math.max(max, item.score), -1);
+    return best >= 0 && best <= threshold;
+  });
+  $$('.history-card').forEach((card) => card.classList.toggle("active", card.dataset.practiceSetId === practiceSetId));
+  if (!questions.length) {
+    $("#practice-detail").innerHTML = `<div class="empty-inline">这组练习没有需要重练的题目。</div>`;
+    return;
+  }
+  $("#practice-detail").innerHTML = questions.map((question, index) => {
+    const history = attempts[question.id] || [];
+    const latest = history[0];
+    const best = history.reduce((max, item) => Math.max(max, item.score), -1);
+    const needsWork = best >= 0 && best <= threshold;
+    return `<article class="question-card ${needsWork ? "needs-work" : ""}">
+      <h4>${index + 1}. ${escapeHtml(question.content)}</h4>
+      ${question.options ? `<div class="options">${question.options.map((option) => `<label><input type="radio" name="q-${question.id}" value="${escapeHtml(option.id)}"> ${escapeHtml(option.id)}. ${escapeHtml(option.text)}</label>`).join("")}</div>` : ""}
+      <small>知识点：${question.knowledge_points.map(escapeHtml).join("、")}${best >= 0 ? ` · 最佳得分 ${Math.round(best)}` : " · 未作答"}</small>
+      ${sourcesHtml(question)}
+      ${rubricHtml(latest)}
+      <form class="answer-form" data-question-id="${question.id}"><input required maxlength="12000" placeholder="${best >= 0 ? "再答一次" : "输入你的答案"}${question.options ? "（如 A）" : ""}"><button class="primary-button" type="submit">提交批改</button></form>
+      <div class="feedback hidden"></div>
+    </article>`;
+  }).join("");
+  $("#practice-detail").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ── Progress insights ────────────────────────────────────────────────────── */
+
+async function loadInsights() {
+  const [topics, practiceSets] = await Promise.all([
+    request(`/courses/${state.course.id}/topics`),
+    request(`/courses/${state.course.id}/practice-sets?size=20`),
+  ]);
+
+  const practiced = topics.filter((topic) => topic.attempt_count > 0)
+    .sort((a, b) => new Date(a.last_practiced_at || 0) - new Date(b.last_practiced_at || 0))
+    .slice(-12);
+  $("#score-trend").innerHTML = practiced.length
+    ? practiced.map((topic) => {
+        const score = Math.round((topic.recent_score ?? topic.average_score ?? 0));
+        return `<div class="trend-bar" title="${escapeHtml(topic.topic)}：${score} 分"><i class="${score < 60 ? "low" : ""}" style="height:${Math.max(score, 3)}%"></i><small>${score}</small></div>`;
+      }).join("")
+    : `<div class="empty-inline">完成练习后，这里会显示最近的得分变化。</div>`;
+
+  const errors = {};
+  topics.forEach((topic) => Object.entries(topic.common_errors || {}).forEach(([message, count]) => {
+    errors[message] = (errors[message] || 0) + count;
+  }));
+  const ranked = Object.entries(errors).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  $("#common-errors").innerHTML = ranked.length
+    ? ranked.map(([message, count]) => `<div class="error-row"><span>${escapeHtml(message)}</span><b>${count} 次</b></div>`).join("")
+    : `<div class="empty-inline">暂无记录到的常见错误。</div>`;
+
+  const recent = practiceSets.items.filter((item) => item.answered_count > 0).slice(0, 5);
+  $("#recent-practice").innerHTML = recent.length
+    ? recent.map((item) => `<div class="list-card"><div><strong>${escapeHtml(item.title)}</strong><p>${item.answered_count}/${item.question_count} 题已作答 · ${formatDate(item.created_at)}</p></div><span class="history-score ${item.average_score !== null && item.average_score < 60 ? "low" : ""}">${item.average_score !== null ? `${Math.round(item.average_score)} 分` : "—"}</span></div>`).join("")
+    : `<div class="empty-inline">还没有已作答的练习。</div>`;
+}
+
+/* ── Wiring ───────────────────────────────────────────────────────────────── */
+
+$("#conversation-select").addEventListener("change", (event) => {
+  openConversation(event.target.value).catch((error) => toast(error.message, true));
+});
+
+$("#practice-history").addEventListener("click", (event) => {
+  const open = event.target.closest("[data-open-set]");
+  const retry = event.target.closest("[data-retry-set]");
+  if (open) renderPracticeSet(open.dataset.openSet).catch((error) => toast(error.message, true));
+  if (retry) renderPracticeSet(retry.dataset.retrySet, { onlyIncorrect: true }).catch((error) => toast(error.message, true));
+});
+
+$("#refresh-practice-history").addEventListener("click", () => {
+  loadPracticeHistory().catch((error) => toast(error.message, true));
+});
+
+const COURSE_FIELDS = {
+  name: "#new-name", course_code: "#new-code", semester: "#new-semester",
+  institution: "#new-institution", exam_date: "#new-exam-date",
+  target_grade: "#new-target", description: "#new-description",
+};
+
+function openCourseDialog(course = null) {
+  const dialog = $("#course-dialog");
+  dialog.dataset.courseId = course ? course.id : "";
+  $("#course-dialog h2").textContent = course ? "编辑课程" : "添加课程";
+  Object.entries(COURSE_FIELDS).forEach(([field, selector]) => {
+    $(selector).value = course ? (course[field] || "") : "";
+  });
+  if (!course) $("#new-institution").value = "KU Leuven";
+  dialog.showModal();
+}
+
+$("#edit-course").addEventListener("click", () => openCourseDialog(state.course));
+
+$("#delete-course").addEventListener("click", async () => {
+  const course = state.course;
+  if (!confirm(`确定删除课程「${course.name}」吗？该课程的资料、练习、批改记录和学习计划都会一并删除，且无法恢复。`)) return;
+  try {
+    await request(`/courses/${course.id}`, { method: "DELETE" });
+    toast("课程已删除");
+    state.course = null;
+    await loadCourses();
+  } catch (error) {
+    toast(error.message, true);
+  }
+});
+
+$("#document-list").addEventListener("click", async (event) => {
+  const remove = event.target.closest("[data-delete-document]");
+  const retry = event.target.closest("[data-retry-document]");
+  if (remove) {
+    const { deleteDocument, filename } = remove.dataset;
+    if (!confirm(`确定删除「${filename}」吗？该资料的知识片段会一并移除，之后的回答不再引用它。`)) return;
+    try { await request(`/documents/${deleteDocument}`, { method: "DELETE" }); toast("资料已删除"); await loadDocuments(); }
+    catch (error) { toast(error.message, true); }
+  }
+  if (retry) {
+    try { await request(`/documents/${retry.dataset.retryDocument}/reprocess`, { method: "POST" }); toast("已重新提交处理"); await loadDocuments(); }
+    catch (error) { toast(error.message, true); }
+  }
+});
+
+$("#reset-progress").addEventListener("click", async () => {
+  if (!confirm("确定清空这门课的学习进度吗？掌握度、薄弱知识点和作答统计都会被清除，且无法恢复。")) return;
+  try {
+    await request(`/courses/${state.course.id}/progress`, { method: "DELETE" });
+    toast("学习进度已清空");
+    await Promise.all([loadProgress(), loadInsights()]);
+  } catch (error) {
+    toast(error.message, true);
+  }
+});

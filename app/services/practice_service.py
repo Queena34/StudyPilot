@@ -10,10 +10,13 @@ from app.llm.quiz_gateway import QuizGenerationGateway
 from app.rag.retrieval import CourseRetriever
 from app.rag.types import RetrievedEvidence
 from app.schemas.practice import (
+    Difficulty,
     GeneratedQuestion,
     PracticeQuestionRead,
     PracticeSetCreate,
+    PracticeSetList,
     PracticeSetRead,
+    PracticeSetSummary,
     QuestionOption,
     QuestionType,
 )
@@ -103,6 +106,25 @@ class PracticeService:
         await self.practice_repository.create(practice_set)
         return _to_read(practice_set)
 
+    #: A question at or below this score still needs work and is offered for retry.
+    RETRY_SCORE_THRESHOLD = 60.0
+
+    async def list_for_course(
+        self, user_id: UUID, course_id: UUID, *, page: int, size: int
+    ) -> PracticeSetList:
+        if await self.course_repository.get(user_id, course_id) is None:
+            raise ResourceNotFoundError("课程")
+        practice_sets = await self.practice_repository.list_for_course(
+            user_id, course_id, offset=(page - 1) * size, limit=size
+        )
+        question_ids = [item.id for entry in practice_sets for item in entry.questions]
+        best = await self.practice_repository.best_scores_for_questions(user_id, question_ids)
+        return PracticeSetList(
+            items=[_to_summary(entry, best, self.RETRY_SCORE_THRESHOLD) for entry in practice_sets],
+            page=page,
+            size=size,
+        )
+
     async def get(self, user_id: UUID, practice_set_id: UUID) -> PracticeSetRead:
         practice_set = await self.practice_repository.get(user_id, practice_set_id)
         if practice_set is None:
@@ -185,4 +207,23 @@ def _to_read(practice_set: PracticeSet) -> PracticeSetRead:
             )
             for item in practice_set.questions
         ],
+    )
+
+
+def _to_summary(practice_set, best_scores: dict, threshold: float) -> PracticeSetSummary:
+    question_ids = [item.id for item in practice_set.questions]
+    scored = [best_scores[item] for item in question_ids if item in best_scores]
+    configuration = practice_set.configuration_json or {}
+    return PracticeSetSummary(
+        id=practice_set.id,
+        title=practice_set.title,
+        status=practice_set.status,
+        question_type=configuration.get("question_type", QuestionType.SHORT_ANSWER),
+        difficulty=configuration.get("difficulty", Difficulty.MEDIUM),
+        topic=configuration.get("topic"),
+        question_count=len(question_ids),
+        answered_count=len(scored),
+        incorrect_count=sum(1 for score in scored if score <= threshold),
+        average_score=round(sum(scored) / len(scored), 1) if scored else None,
+        created_at=practice_set.created_at,
     )
