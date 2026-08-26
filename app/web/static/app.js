@@ -104,9 +104,26 @@ async function loadDocuments() {
 function renderChatDocumentOptions() {
   const select = $("#chat-document");
   const selected = select.value;
-  const ready = state.documents.filter((document) => document.status === "ready");
-  select.innerHTML = `<option value="">全部资料</option>${ready.map((document) => `<option value="${document.id}">${escapeHtml(document.filename)}</option>`).join("")}`;
+  const documentType = $("#chat-document-type").value;
+  const ready = state.documents.filter((document) => document.status === "ready" && (!documentType || document.document_type === documentType));
+  const emptyLabel = documentType ? "该类型暂无可用资料" : "暂无可用资料";
+  select.innerHTML = ready.length ? `<option value="">全部资料（${ready.length} 份）</option>${ready.map((document) => `<option value="${document.id}">${escapeHtml(document.filename)}</option>`).join("")}` : `<option value="">${emptyLabel}</option>`;
+  select.disabled = ready.length === 0;
   if (ready.some((document) => document.id === selected)) select.value = selected;
+  else select.value = "";
+  updateScopePageLimits();
+}
+
+function updateScopePageLimits() {
+  const selected = state.documents.find((document) => document.id === $("#chat-document").value);
+  const pageCount = selected?.page_count || null;
+  [$("#chat-page-from"), $("#chat-page-to")].forEach((input) => {
+    if (pageCount) input.max = pageCount;
+    else input.removeAttribute("max");
+  });
+  const documentType = $("#chat-document-type").value;
+  const matching = state.documents.filter((document) => document.status === "ready" && (!documentType || document.document_type === documentType));
+  $("#scope-hint").textContent = selected ? `已限定：${selected.filename}${pageCount ? `（共 ${pageCount} 页）` : ""}` : documentType ? `该类型共 ${matching.length} 份可用资料` : "默认检索当前课程的全部可用资料";
 }
 
 function formatFileSize(bytes) {
@@ -242,9 +259,20 @@ $("#chat-form").addEventListener("submit", async (event) => {
   const pageFrom = $("#chat-page-from").value ? Number($("#chat-page-from").value) : null;
   const pageTo = $("#chat-page-to").value ? Number($("#chat-page-to").value) : null;
   if (pageFrom && pageTo && pageFrom > pageTo) { toast("起始页不能大于结束页", true); return; }
+  const selectedDocument = state.documents.find((document) => document.id === $("#chat-document").value);
+  if (selectedDocument?.page_count && ((pageFrom && pageFrom > selectedDocument.page_count) || (pageTo && pageTo > selectedDocument.page_count))) { toast(`页码不能超过该资料的 ${selectedDocument.page_count} 页`, true); return; }
   const scope = { document_types: $("#chat-document-type").value ? [$("#chat-document-type").value] : [], document_ids: $("#chat-document").value ? [$("#chat-document").value] : [], page_from: pageFrom, page_to: pageTo };
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
   try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
+});
+
+$("#chat-document-type").addEventListener("change", () => {
+  renderChatDocumentOptions();
+});
+$("#chat-document").addEventListener("change", () => {
+  $("#chat-page-from").value = "";
+  $("#chat-page-to").value = "";
+  updateScopePageLimits();
 });
 $("#new-chat").addEventListener("click", resetChat);
 
