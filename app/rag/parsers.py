@@ -81,8 +81,17 @@ def _clean_text(text: str) -> str:
 
 
 def _chapter_heading(text: str) -> str | None:
-    match = re.search(r"(?im)^\s*(chapter\s+\d+\s*[.:：-]?\s*[^\n]{0,120})$", text)
+    match = re.search(r"(?im)^\s*((?:chapter|section|unit|module)\s+\d+\s*[.:：-]?\s*[^\n]{0,120})$", text)
     if match:
         return " ".join(match.group(1).split())
     match = re.search(r"(?m)^\s*(第\s*[一二三四五六七八九十百零〇0-9]+\s*章[^\n]{0,120})$", text)
-    return " ".join(match.group(1).split()) if match else None
+    if match:
+        return " ".join(match.group(1).split())
+    for line in text.splitlines()[:12]:
+        match = re.fullmatch(
+            r"\s*((?:[0-9]{1,2}|[一二三四五六七八九十]+)(?:[.、:：]\s*|\s+)[A-Za-z\u3400-\u9fff][^\n]{2,100})\s*",
+            line,
+        )
+        if match:
+            return " ".join(match.group(1).split())
+    return None

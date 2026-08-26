@@ -34,6 +34,13 @@ def test_chapter_number_supports_chinese_and_english() -> None:
     assert _chapter_number("summarize Chapter 12") == 12
 
 
+def test_numbered_heading_is_a_chapter_marker() -> None:
+    from app.rag.retrieval import _chapter_marker
+
+    assert _chapter_marker("1 Introduction\nLearning goals") == (1, "1 Introduction")
+    assert _chapter_marker("Body", "Section 2. Estimation") == (2, "Chapter 2. Estimation")
+
+
 def test_chapter_evidence_stops_at_next_chapter() -> None:
     payload = {
         "ids": ["doc:0", "doc:1", "doc:2", "doc:3"],
@@ -53,3 +60,19 @@ def test_chapter_evidence_stops_at_next_chapter() -> None:
 
     assert [item.page_number for item in evidence] == [2, 3]
     assert all(item.section_title == "Chapter 1. Simple Regression" for item in evidence)
+
+
+def test_first_chapter_uses_whole_document_when_source_has_no_chapter_markers() -> None:
+    payload = {
+        "ids": ["doc:0", "doc:1", "doc:2"],
+        "documents": ["One-way ANOVA", "F test assumptions", "Post-hoc comparisons"],
+        "metadatas": [
+            {"document_id": "doc", "source_file": "anova.pdf", "page_number": index + 1, "chunk_index": index}
+            for index in range(3)
+        ],
+    }
+
+    evidence = _chapter_evidence(payload, 1, 8)
+
+    assert [item.page_number for item in evidence] == [1, 2, 3]
+    assert all(item.section_title == "第一部分（原文未标注章节）" for item in evidence)

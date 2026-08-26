@@ -31,6 +31,11 @@ def test_pdf_chapter_heading_detection() -> None:
     assert _chapter_heading(text) == "Chapter 1. The Simple Regression Model"
 
 
+def test_numbered_section_heading_detection() -> None:
+    assert _chapter_heading("Course title\n1 Introduction\nLearning goals") == "1 Introduction"
+    assert _chapter_heading("课程讲义\n二、理论基础\n正文") == "二、理论基础"
+
+
 def test_parser_rejects_unsupported_suffix() -> None:
     with pytest.raises(AppError) as exc_info:
         parser_for_suffix(".docx")

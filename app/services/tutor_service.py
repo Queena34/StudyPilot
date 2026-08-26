@@ -146,13 +146,16 @@ class TutorService:
                 page_to=decision.query_plan.page_to,
             )
             status = _evidence_status(evidence)
-            generated = await self.gateway.answer(
-                question=data.message,
-                language=data.response_language.value,
-                mode=data.mode.value,
-                evidence=evidence,
-                history=[(item.role, item.content) for item in history],
-            )
+            if evidence:
+                generated = await self.gateway.answer(
+                    question=data.message,
+                    language=data.response_language.value,
+                    mode=data.mode.value,
+                    evidence=evidence,
+                    history=[(item.role, item.content) for item in history],
+                )
+            else:
+                generated = _extractive_answer(evidence, reason="insufficient_evidence")
         answer = _remove_unknown_citations(generated.answer, len(evidence))
         cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         if evidence and not cited:

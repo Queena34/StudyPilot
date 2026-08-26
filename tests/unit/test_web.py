@@ -9,6 +9,7 @@ def test_home_page_serves_studypilot_workspace() -> None:
     assert response.status_code == 200
     assert "StudyPilot" in response.text
     assert "AI 学习教练" in response.text
+    assert 'window.location.protocol === "file:"' in response.text
 
 
 def test_static_assets_are_available() -> None:

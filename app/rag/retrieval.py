@@ -160,18 +160,26 @@ def _chapter_number(query: str) -> int | None:
     return None
 
 
-def _chapter_marker(text: str) -> tuple[int, str] | None:
-    match = re.search(r"(?im)^\s*chapter\s+([0-9]+)\s*[.:：-]?\s*([^\n]{0,120})", text)
+def _chapter_marker(text: str, section_title: str | None = None) -> tuple[int, str] | None:
+    searchable = f"{section_title}\n{text}" if section_title else text
+    match = re.search(r"(?im)^\s*(?:chapter|section|unit|module)\s+([0-9]+)\s*[.:：-]?\s*([^\n]{0,120})", searchable)
     if match:
         title = f"Chapter {match.group(1)}"
         if match.group(2).strip():
             title += f". {match.group(2).strip()}"
         return int(match.group(1)), " ".join(title.split())
-    match = re.search(r"(?m)^\s*第\s*([一二三四五六七八九十零〇0-9]+)\s*章([^\n]{0,120})", text)
+    match = re.search(r"(?m)^\s*第\s*([一二三四五六七八九十零〇0-9]+)\s*章([^\n]{0,120})", searchable)
     if match:
         number = _chapter_number(f"第{match.group(1)}章")
         if number is not None:
             return number, " ".join(match.group(0).split())
+    for line in searchable.splitlines()[:12]:
+        match = re.fullmatch(
+            r"\s*([0-9]{1,2})(?:[.、:：]\s*|\s+)([A-Za-z\u3400-\u9fff][^\n]{2,100})\s*",
+            line,
+        )
+        if match:
+            return int(match.group(1)), " ".join(match.group(0).split())
     return None
 
 
@@ -188,10 +196,14 @@ def _chapter_evidence(payload: dict, target: int, top_k: int) -> list[RetrievedE
         by_document.setdefault(row[2]["document_id"], []).append(row)
     for document_rows in by_document.values():
         document_rows.sort(key=lambda row: int(row[2].get("chunk_index", 0)))
+        markers = [_chapter_marker(row[1], row[2].get("section_title")) for row in document_rows]
+        if target == 1 and not any(markers):
+            selected.extend((*row, "第一部分（原文未标注章节）") for row in document_rows)
+            continue
         active = False
         section_title = f"Chapter {target}"
         for row in document_rows:
-            marker = _chapter_marker(row[1])
+            marker = _chapter_marker(row[1], row[2].get("section_title"))
             if marker:
                 if marker[0] == target:
                     active = True
