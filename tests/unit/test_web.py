@@ -29,6 +29,8 @@ def test_static_assets_are_available() -> None:
     assert "citation-item" in javascript.text
     assert "richText" in javascript.text
     assert "renderMessageMath" in javascript.text
+    assert "normalizeMathEscapes" in javascript.text
+    assert 'class="math-block"' in javascript.text
 
 
 def test_upload_control_explains_selection_and_progress() -> None:

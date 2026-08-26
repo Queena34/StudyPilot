@@ -204,8 +204,15 @@ function inlineMarkdown(text) {
     .replace(/\[c(\d+)]/g, '<span class="citation-marker">[c$1]</span>');
 }
 
+function normalizeMathEscapes(content) {
+  return content.replace(
+    /(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\[[\s\S]*?\\\]|\\\([^\n]*?\\\))/g,
+    (formula) => formula.replace(/\\_/g, "_"),
+  );
+}
+
 function richText(content) {
-  const lines = escapeHtml(content).split("\n");
+  const lines = escapeHtml(normalizeMathEscapes(content)).split("\n");
   const blocks = [];
   let list = [];
   const flushList = () => {
@@ -213,7 +220,21 @@ function richText(content) {
     blocks.push(`<ul>${list.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</ul>`);
     list = [];
   };
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (trimmed === "$$" || trimmed === "\\[") {
+      flushList();
+      const closing = trimmed === "$$" ? "$$" : "\\]";
+      const formula = [];
+      index += 1;
+      while (index < lines.length && lines[index].trim() !== closing) {
+        formula.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(`<div class="math-block">${trimmed}\n${formula.join("\n")}\n${closing}</div>`);
+      continue;
+    }
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
     const bullet = line.match(/^\s*[-*]\s+(.+)$/);
     if (bullet) { list.push(bullet[1]); continue; }
@@ -237,6 +258,7 @@ function renderMessageMath(container) {
       {left: "\\(", right: "\\)", display: false},
     ],
     throwOnError: false,
+    ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
   });
 }
 
