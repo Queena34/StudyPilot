@@ -7,4 +7,4 @@
 - 开工前必读 `docs/PROGRESS.md`（进度台账，唯一事实来源）。
 - 架构类工作一律以 `docs/ECHOMIND_ARCHITECTURE_MIGRATION.md` 的 12 步路线图为准。
 - 收工前必须更新 `docs/PROGRESS.md`：路线图状态表 + 已知问题清单 + 变更日志新条目（五字段齐全）。
-- 不要接入 `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/` 中的旧 EchoMind 客服代码，新代码写在 `app/` 下。
+- 不要从 Git 历史恢复已删除的 EchoMind 客服代码（第 11 步已全部移除），所有代码写在 `app/` 下。

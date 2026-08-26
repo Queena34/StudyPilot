@@ -14,7 +14,7 @@
 
 当前 StudyPilot 的主应用使用 `app/agents/intent_router.py` 中的确定性 `LearningIntentRouter` 识别意图，并由 `TutorService` 通过条件分支调用不同业务工作流。它属于“意图路由 + 多工作流编排”，还不是完整的多 Agent 协同系统。
 
-`core/intent_recognizer.py` 和 `agents/agent_orchestrator.py` 是从 EchoMind 保留的旧客服代码，当前未接入 `app/` 主链路，不能作为 StudyPilot 已实现能力进行描述。
+> 更新（2026-08-26）：本节写作时作为参考保留的 `core/intent_recognizer.py` 和 `agents/agent_orchestrator.py` 等旧客服代码，已在路线图第 11 步中全部删除。StudyPilot 现在的意图路由和编排实现分别是 `app/agents/intent_router.py` 与 `app/agents/orchestrator.py`。
 
 ## 2. EchoMind 能力映射
 

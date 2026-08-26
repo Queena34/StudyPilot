@@ -32,4 +32,4 @@ enabled: true
 
 ## 与旧客服 Skills 的关系
 
-原 EchoMind 的 `general_customer_service`、`technical_support`、`billing_support` 三个客服 Skill 已在路线图第 8 步中删除。顶层 `core/skill_loader.py` 是旧加载器，未接入 `app/` 主链路，不要直接启用。StudyPilot 的加载器是 `app/agents/skills.py`。
+原 EchoMind 的 `general_customer_service`、`technical_support`、`billing_support` 三个客服 Skill 已在路线图第 8 步中删除，旧加载器 `core/skill_loader.py` 已随第 11 步的旧代码清理一并移除。StudyPilot 的加载器是 `app/agents/skills.py`。

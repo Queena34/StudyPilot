@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `834ccf9` |
-| 当前阶段 | 路线图第 1–6、8 步已完成；第 7 步（Redis）未开始 |
+| 当前基线 commit | `b60bfa1` |
+| 当前阶段 | 路线图第 1–6、8、11 步已完成；剩 7（Redis）、9（评测集）、10（监控）、12（前端） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -33,7 +33,7 @@
 | 8 | 教学 Skills + 学术诚信 Guard | 已完成 | `app/agents/integrity.py`、`app/agents/skills.py`、`skills/*/SKILL.md` | `tests/unit/test_integrity_and_skills.py`（24 例） | 四级 Guard 已接入编排层；7 个教学 Skill 替换旧客服 Skill |
 | 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v2.json` | Router v2（57 例）已完成；编排层、工具层与 Guard 由 57 个单元测试覆盖但**仍无版本化评测集** |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
-| 11 | 清理旧 EchoMind 客服代码 | 进行中 | `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`api/`、`README.md` | 全仓库无客服语义引用 | `skills/` 已在第 8 步替换完毕；其余顶层目录仍是客服代码，均未接入 `app/` 主链路 |
+| 11 | 清理旧 EchoMind 客服代码 | 已完成 | 已删除全部旧目录；`README.md`、`MIGRATION.md` 已重写 | 159 测试通过 + 应用冒烟 + 评测基线复现 | 约 4100 行 Python、3 个部署脚本、1 个旧 env 模板已移除 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
 
 ---
@@ -63,7 +63,7 @@
 | K-2 | 引用校验失败时无修复重试；「未配置密钥」「Provider 失败」「引用校验失败」三种情形未区分暴露 | 高 | 未修复 |
 | K-3 | 学术诚信 Guard 完全未实现（PRD 8.7） | 高 | 未修复 |
 | K-4 | Grading v1 仅冒烟通过，缺 90 次完整基线与人工忠实度报告 | 中 | 未修复 |
-| K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | 未修复 |
+| K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | **已修复**（1438 行重写为 131 行 StudyPilot 文档） |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
 | K-7 | 无流式输出；无跨 Agent trace ID | 中 | 未修复 |
 | K-8 | 路由已能输出 `supporting_agents` 与 `execution_mode=sequential`，但 `TutorService` 只执行 primary agent，串行工作流被识别却未执行 | 高 | **已修复**（Orchestrator 落地，`tutor→quiz` 端到端跑通） |
@@ -71,7 +71,7 @@
 | K-10 | 澄清判定准确率 88.9%：`rt-ambig-004`「再来一点」被判为可执行意图而非请求澄清 | 低 | 未修复 |
 | K-11 | 串行工作流中若引用校验失败，`_extractive_answer` 会整体替换答案，导致 Quiz 的提示文案丢失（练习集本身仍在 `practice_set` 字段中正常返回） | 低 | 未修复 |
 | K-12 | `EvaluatorAgent` 尚未封装，批改仍只能走独立的 Attempt API，无法进入编排流程，因此 `Evaluator→Planner` 工作流暂时做不了 | 中 | **已修复** |
-| K-16 | 旧入口 `api/main.py` 仍会读取 `skills/` 目录，第 8 步替换后它会把教学 Skill 注入客服 Agent。该文件未接入 `app/` 主链路，将在第 11 步随旧代码一并删除 | 低 | 未修复 |
+| K-16 | 旧入口 `api/main.py` 仍会读取 `skills/` 目录，第 8 步替换后它会把教学 Skill 注入客服 Agent | 低 | **已修复**（第 11 步删除该文件） |
 | K-15 | Agent 通过工具层调用大模型网关（Tutor 生成回答）时不算工具调用，因此 `AgentTrace` 里不再出现 `generate_tutor_answer` 记录；模型名与降级原因仍在 `AgentStep` 上可见 | 低 | 未修复 |
 | K-13 | 高置信度显式规则（如答案提交 0.96）会直接返回、跳过复合意图检测，导致 `rt-comp-008`「我的答案是…帮我改一下并安排后续复习」的 planner 辅助 Agent 被漏掉 | 中 | 未修复 |
 | K-14 | `_practice_configuration` 的主题抽取会把「关于残差的简答题」整体当成主题，导致题目支持性判断失败并返回 `INSUFFICIENT_EVIDENCE`（既有问题，非本轮引入） | 中 | 未修复 |
@@ -82,6 +82,28 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成路线图第 11 步，移除全部 EchoMind 客服遗留。
+  1. 删除 7 个顶层目录共约 4100 行 Python：`core/`（意图识别、LLM 工具、Skill 加载器）、`agents/`（客服编排）、`mcp/`（工具管理器、客服知识库）、`memory/`（Redis 对话记忆）、`monitor/`（客服性能监控）、`evaluation/`（客服端到端评测）、`api/main.py`（旧 EchoMind 入口）。
+  2. 删除 EchoMind 时代的部署脚本 `docker-deploy.sh`、`run-image.sh`、`build-image.sh` 和旧环境变量模板 `.env.example.env`。
+  3. `README.md` 从 1438 行重写为 131 行：快速开始、能力清单、架构图与关键约束、项目结构、测试与评测、开发状态。原本约 1390 行的客服系统指南全部移除。
+  4. `MIGRATION.md` 重写，记录设计思想的实际去向和本次清理的具体内容。
+  5. 同步更新指向已删文件的文档：`skills/README.md`、`docs/ECHOMIND_ARCHITECTURE_MIGRATION.md`、`docs/TECHNICAL_DESIGN.md`（历史对照表加注说明）、`AGENTS.md`、`CLAUDE.md`（约束从"不要接入"改为"不要从 Git 历史恢复"）。
+- **为什么**：路线图第 6 节第 11 项。这些目录从项目建立起就未接入 `app/` 主链路，但任何人打开仓库第一眼看到的仍是一个客服系统，直接损害项目可信度（K-5）。同时旧入口 `api/main.py` 在第 8 步替换 Skill 后会把教学 Skill 注入客服 Agent（K-16）。
+- **改了哪些文件**：
+  - 删除：`core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`api/`、`docker-deploy.sh`、`run-image.sh`、`build-image.sh`、`.env.example.env`
+  - 重写：`README.md`、`MIGRATION.md`
+  - 修改：`skills/README.md`、`docs/ECHOMIND_ARCHITECTURE_MIGRATION.md`、`docs/TECHNICAL_DESIGN.md`、`AGENTS.md`、`CLAUDE.md`
+- **怎么验证的**：
+  - **删除前**确认三点：`app/` 与 `tests/` 对这些模块**零引用**（grep 导入语句无结果）；`docker-compose.yml`、`Dockerfile`、`.dockerignore` **不引用**被删的脚本；`run-image.sh` 操作的是 `echomind` / `echomind-app` 这组根本不存在的容器（当前运行的是 `studypilot-*`）。
+  - 删除后重建镜像，单元测试 `159 passed`，`/health/ready` 返回 `postgresql: up`，目录查询走完整链路正常。
+  - Router 基线复现（v2 意图准确率 73.1%、范围保持 100%）。
+  - 全仓库客服语义检查：`README.md` 中仅剩说明项目由来的一句；`docs/TECHNICAL_DESIGN.md` 的历史对照表已加注说明为何保留。
+- **下一步建议**：补 `integrity-v1` 评测集（第 8 步遗留），Guard 是安全相关判定且误判代价不对称，目前只有单元测试。之后建议第 12 步前端学习闭环 —— 后端能力已远超前端可操作范围，练习历史、错题重练、学习趋势和用户设置都还没有界面。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

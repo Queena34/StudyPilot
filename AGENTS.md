@@ -39,7 +39,7 @@
 
 这些来自 `ECHOMIND_ARCHITECTURE_MIGRATION.md` 第 5 节，违反即为返工：
 
-- **不要**启用或接入 `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/` 这些顶层目录中的旧 EchoMind 客服代码。它们是迁移参考，未接入 `app/` 主链路。新代码一律写在 `app/` 下。
+- **不要**从 Git 历史中恢复已删除的 EchoMind 客服代码（`core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`api/`，已于路线图第 11 步移除）。它们是客服语义，与学习场景不兼容。所有代码写在 `app/` 下。
 - **不要**让所有请求都经过 LLM Router。规则优先，LLM 只处理低置信度、模糊和复合意图。
 - **不要**允许模型覆盖用户显式选择的 `course_id`、`document_ids`、资料类型和页码范围。LLM 只能补全缺失字段。
 - **不要**把 ChromaDB 同时当作课程知识库、聊天记忆和业务数据库。
