@@ -76,6 +76,8 @@ class TutorMessageRead(BaseModel):
     intent: str = "course_qa"
     route: str = "rag"
     query_plan: dict = Field(default_factory=dict)
+    #: Full structured RoutingDecision, for tracing and offline router evaluation.
+    routing: dict = Field(default_factory=dict)
     practice_set: dict | None = None
     fallback_reason: str | None = None
 

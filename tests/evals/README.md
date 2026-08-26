@@ -66,3 +66,35 @@ python -m tests.evals.run_grading_eval --repeats 3
 ```
 
 该运行器直接评测 Evaluator Gateway，不创建 Attempt、不更新学习进度，也不污染课程数据库。原始批改反馈保存在忽略提交的 `artifacts/evals/grading_latest.json`。
+
+## Router v1
+
+`datasets/router_intents_v1.jsonl` 包含 45 条路由用例，覆盖路线图要求的四类场景：单意图（23）、模糊意图（8）、复合意图（6）、上下文追问（5），另加 3 条显式范围保持用例。
+
+与其他评测不同，路由没有检索和数据库依赖，运行器在进程内直接调用 `LearningIntentRouter`，不需要启动 API。
+
+规则层基线（确定性、零成本，可在 CI 中运行）：
+
+```bash
+python -m tests.evals.run_router_eval --rules-only
+```
+
+完整混合评测（模糊、复合和追问用例会调用已配置的大模型）：
+
+```bash
+python -m tests.evals.run_router_eval
+```
+
+指标含义：
+
+- `intent_accuracy` 只在“应当给出确定意图”的用例上计算，需要澄清的用例不计入，避免把正确的澄清判为错误。
+- `rule_resolution_rate` 和 `llm_invocation_rate` 用于监控“规则优先”是否仍然成立。若 LLM 调用率持续上升，说明规则层退化或数据集变难。
+- `scope_preservation_rate` 是硬性约束，必须恒为 100%：任何路由路径都不得修改学习者显式选择的课程、资料、类型和页码范围。
+- `composite_supporting_accuracy` 衡量复合意图的辅助 Agent 识别，当前偏低是已知项，需要在编排层落地后一并改进。
+
+`baselines/router_v1.json` 在同一份数据集下并列保存**两种模式**的基线：
+
+- `modes.rules_only`：不调用任何模型，结果完全可复现，是可进 CI 的回归防线。实测意图准确率 70.0%、规则解决率 55.6%、范围保持 100%。
+- `modes.hybrid`：完整混合路由的真实能力基线。实测意图准确率 92.5%、执行模式准确率 93.3%、范围保持 100%、LLM 调用率 44.4%、平均延迟 569ms，并逐条记录了 3 条误判用例及其判断说明。
+
+文件中的 `regression_rules` 是这套基线的合入门槛，其中两条是硬性的：`scope_preservation_rate` 必须恒为 1.0；`rules_only` 除 `average_latency_ms` 外的全部指标必须逐位复现。后续比较必须使用相同 `dataset_version` 和相同 `configuration` 阈值。

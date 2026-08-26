@@ -88,14 +88,22 @@ class TutorService:
                     update={"document_ids": resolved_ids}
                 )
                 standalone_query = _document_learning_query(data.message, standalone_query)
-        decision = self.intent_router.analyze(
+        decision = await self.intent_router.route(
             message=data.message,
             standalone_query=standalone_query,
             course_id=course_id,
             language=data.response_language.value,
             scope=effective_scope,
+            history=[(item.role, item.content) for item in history],
         )
-        if decision.target == RouteTarget.COURSE_CATALOG:
+        if decision.target == RouteTarget.CLARIFY:
+            evidence = []
+            status = "clarification"
+            generated = GeneratedAnswer(
+                answer=decision.clarification or _general_answer(data.response_language.value),
+                model_name="intent-router",
+            )
+        elif decision.target == RouteTarget.COURSE_CATALOG:
             documents = await self.document_repository.list_for_course(
                 user_id, course_id, offset=0, limit=100
             )
@@ -230,6 +238,7 @@ class TutorService:
             intent=decision.intent.value,
             route=decision.target.value,
             query_plan=decision.query_plan.as_dict(),
+            routing=decision.as_dict(),
             practice_set=(practice_set.model_dump(mode="json") if practice_set else None),
             fallback_reason=generated.fallback_reason,
         )

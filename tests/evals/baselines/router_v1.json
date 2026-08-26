@@ -1,0 +1,132 @@
+{
+  "dataset_version": "router-v1",
+  "configuration": {
+    "rule_confidence_threshold": 0.8,
+    "clarification_threshold": 0.45,
+    "llm_temperature": 0,
+    "llm_max_tokens": 400,
+    "history_turns_sent": 4
+  },
+  "modes": {
+    "rules_only": {
+      "model": "rules-only",
+      "recorded_at": "2026-08-26T12:45:28.092896+00:00",
+      "purpose": "确定性、零成本、可在 CI 中运行的回归防线。不调用任何模型，因此结果必须完全可复现。",
+      "metrics": {
+        "case_count": 45,
+        "decisive_case_count": 40,
+        "composite_case_count": 7,
+        "intent_accuracy": 0.7,
+        "execution_mode_accuracy": 0.8444444444444444,
+        "composite_supporting_accuracy": 0.0,
+        "clarification_accuracy": 0.8888888888888888,
+        "scope_preservation_rate": 1.0,
+        "rule_resolution_rate": 0.5555555555555556,
+        "llm_invocation_rate": 0.4444444444444444,
+        "average_latency_ms": 0.06666666666666667
+      },
+      "by_category": {
+        "ambiguous": {
+          "case_count": 8,
+          "intent_accuracy": 0.0,
+          "rule_resolution_rate": 0.0
+        },
+        "composite": {
+          "case_count": 6,
+          "intent_accuracy": 0.5,
+          "rule_resolution_rate": 0.16666666666666666
+        },
+        "contextual": {
+          "case_count": 5,
+          "intent_accuracy": 0.2,
+          "rule_resolution_rate": 0.0
+        },
+        "scope": {
+          "case_count": 3,
+          "intent_accuracy": 0.5,
+          "rule_resolution_rate": 0.3333333333333333
+        },
+        "single": {
+          "case_count": 23,
+          "intent_accuracy": 1.0,
+          "rule_resolution_rate": 1.0
+        }
+      }
+    },
+    "hybrid": {
+      "model": "deepseek-v4-flash",
+      "recorded_at": "2026-08-26T12:39:15.969853+00:00",
+      "purpose": "完整混合路由的真实能力基线。模糊、复合和上下文追问用例会调用已配置的大模型，结果存在轻微抖动。",
+      "metrics": {
+        "case_count": 45,
+        "decisive_case_count": 40,
+        "composite_case_count": 7,
+        "intent_accuracy": 0.925,
+        "execution_mode_accuracy": 0.9333333333333333,
+        "composite_supporting_accuracy": 0.5714285714285714,
+        "clarification_accuracy": 0.8888888888888888,
+        "scope_preservation_rate": 1.0,
+        "rule_resolution_rate": 0.5555555555555556,
+        "llm_invocation_rate": 0.4444444444444444,
+        "average_latency_ms": 569.4222222222222
+      },
+      "by_category": {
+        "ambiguous": {
+          "case_count": 8,
+          "intent_accuracy": 0.75,
+          "rule_resolution_rate": 0.0
+        },
+        "composite": {
+          "case_count": 6,
+          "intent_accuracy": 0.8333333333333334,
+          "rule_resolution_rate": 0.16666666666666666
+        },
+        "contextual": {
+          "case_count": 5,
+          "intent_accuracy": 0.8,
+          "rule_resolution_rate": 0.0
+        },
+        "scope": {
+          "case_count": 3,
+          "intent_accuracy": 1.0,
+          "rule_resolution_rate": 0.3333333333333333
+        },
+        "single": {
+          "case_count": 23,
+          "intent_accuracy": 1.0,
+          "rule_resolution_rate": 1.0
+        }
+      },
+      "misrouted_cases": [
+        {
+          "id": "rt-ambig-006",
+          "message": "我对第二章不太熟",
+          "expected": "progress_review",
+          "actual": "concept_explanation",
+          "note": "Stating a weakness is defensibly either progress_review or concept_explanation; both are acceptable product behaviour."
+        },
+        {
+          "id": "rt-comp-005",
+          "message": "根据我的掌握度生成一份学习计划",
+          "expected": "progress_review",
+          "actual": "study_planning",
+          "note": "The model made planner primary and dropped progress_review; both agents are still involved, only the order label differs."
+        },
+        {
+          "id": "rt-ctx-001",
+          "message": "那这个的假设条件呢？",
+          "expected": "course_qa",
+          "actual": "concept_explanation",
+          "note": "course_qa and concept_explanation share the same RAG target, so downstream behaviour is unchanged."
+        }
+      ]
+    }
+  },
+  "regression_rules": [
+    "scope_preservation_rate 必须恒为 1.0。任何低于 1.0 的结果都是硬性约束被破坏，不得合入。",
+    "rules_only 模式除 average_latency_ms 外的全部指标必须逐位复现（该模式不调用模型，延迟随机器变化）。出现差异说明规则层被改动，必须在 PROGRESS.md 变更日志中说明。",
+    "rules_only 的 intent_accuracy 不得低于 0.70，rule_resolution_rate 不得低于 0.55；后者下降意味着规则层退化、LLM 成本上升。",
+    "hybrid 模式的 intent_accuracy 不得低于 0.90。模型抖动允许小幅波动，连续两次低于阈值须视为回归。",
+    "比较必须使用相同 dataset_version 和相同 configuration 阈值。"
+  ]
+}

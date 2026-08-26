@@ -1,66 +1,54 @@
-from dataclasses import dataclass
-from enum import Enum
+"""Hybrid learning intent router: deterministic rules first, LLM only when unsure.
+
+Deterministic rules own the high-frequency, unambiguous requests. The structured
+LLM router in `app.agents.llm_router` is consulted only for low-confidence,
+ambiguous or composite messages. The learner's explicit course and material scope
+is copied straight from `TutorScope` and is never exposed to the model, so no
+routing path can widen or replace it.
+"""
+
+from dataclasses import replace
 import re
 from uuid import UUID
 
+from app.agents.llm_router import LLMIntentRouter, LLMRoutingProposal
+from app.agents.routing import (
+    CLARIFICATION_THRESHOLD,
+    INTENT_AGENTS,
+    INTENT_TARGETS,
+    RULE_CONFIDENCE_THRESHOLD,
+    AgentName,
+    ExecutionMode,
+    LearningIntent,
+    QueryPlan,
+    RouteTarget,
+    RoutingDecision,
+    RoutingSource,
+    decision_for,
+)
 from app.schemas.tutor import TutorScope
 
+# Re-exported so existing importers keep working after the protocol move.
+__all__ = [
+    "AgentName",
+    "ExecutionMode",
+    "LearningIntent",
+    "LearningIntentRouter",
+    "QueryPlan",
+    "RouteTarget",
+    "RoutingDecision",
+    "RoutingSource",
+]
 
-class LearningIntent(str, Enum):
-    COURSE_QA = "course_qa"
-    CONCEPT_EXPLANATION = "concept_explanation"
-    PRACTICE_GENERATION = "practice_generation"
-    ANSWER_EVALUATION = "answer_evaluation"
-    STUDY_PLANNING = "study_planning"
-    PROGRESS_REVIEW = "progress_review"
-    DOCUMENT_MANAGEMENT = "document_management"
-    GENERAL = "general"
-
-
-class RouteTarget(str, Enum):
-    RAG = "rag"
-    COURSE_CATALOG = "course_catalog"
-    PROGRESS = "progress"
-    STUDY_PLAN = "study_plan"
-    PRACTICE = "practice"
-    GENERAL = "general"
-
-
-@dataclass(frozen=True)
-class QueryPlan:
-    standalone_query: str
-    course_id: UUID
-    document_types: list[str]
-    document_ids: list[UUID]
-    page_from: int | None
-    page_to: int | None
-    requested_language: str
-    top_k: int
-
-    def as_dict(self) -> dict:
-        return {
-            "standalone_query": self.standalone_query,
-            "course_id": str(self.course_id),
-            "document_types": self.document_types,
-            "document_ids": [str(value) for value in self.document_ids],
-            "page_from": self.page_from,
-            "page_to": self.page_to,
-            "requested_language": self.requested_language,
-            "top_k": self.top_k,
-        }
-
-
-@dataclass(frozen=True)
-class IntentDecision:
-    intent: LearningIntent
-    target: RouteTarget
-    confidence: float
-    reason: str
-    query_plan: QueryPlan
+# Backwards-compatible alias for the pre-hybrid return type.
+IntentDecision = RoutingDecision
 
 
 class LearningIntentRouter:
-    """High-precision deterministic router for the MVP unified chat entry."""
+    """Rule-first router with a structured LLM fallback for unclear messages."""
+
+    def __init__(self, llm_router: LLMIntentRouter | None = None) -> None:
+        self.llm_router = llm_router or LLMIntentRouter()
 
     def analyze(
         self,
@@ -70,78 +58,210 @@ class LearningIntentRouter:
         course_id: UUID,
         language: str,
         scope: TutorScope,
-    ) -> IntentDecision:
-        normalized = " ".join(message.casefold().split())
-        plan = QueryPlan(
-            standalone_query=standalone_query,
-            course_id=course_id,
-            document_types=[item.value for item in scope.document_types],
-            document_ids=scope.document_ids,
-            page_from=scope.page_from,
-            page_to=scope.page_to,
-            requested_language=language,
-            top_k=8,
+    ) -> RoutingDecision:
+        """Deterministic-only routing. Kept synchronous for callers that cannot await."""
+
+        plan = _build_plan(standalone_query, course_id, language, scope)
+        return _rule_decision(message, plan)
+
+    async def route(
+        self,
+        *,
+        message: str,
+        standalone_query: str,
+        course_id: UUID,
+        language: str,
+        scope: TutorScope,
+        history: list[tuple[str, str]] | None = None,
+    ) -> RoutingDecision:
+        """Full hybrid routing. Falls back to the rule decision on any LLM problem."""
+
+        plan = _build_plan(standalone_query, course_id, language, scope)
+        rule = _rule_decision(message, plan, has_history=bool(history))
+        if rule.confidence >= RULE_CONFIDENCE_THRESHOLD:
+            return rule
+
+        proposal = await self.llm_router.propose(message=message, history=history)
+        if proposal is None:
+            return _mark_unresolved(rule, RoutingSource.LLM_UNAVAILABLE)
+        if proposal.confidence < rule.confidence:
+            return _mark_unresolved(rule, RoutingSource.LLM_REJECTED)
+        return _merge(rule, proposal, plan, message, standalone_query)
+
+
+def _build_plan(
+    standalone_query: str, course_id: UUID, language: str, scope: TutorScope
+) -> QueryPlan:
+    """Scope comes only from the learner's explicit selection, never from a model."""
+
+    return QueryPlan(
+        standalone_query=standalone_query,
+        course_id=course_id,
+        document_types=[item.value for item in scope.document_types],
+        document_ids=scope.document_ids,
+        page_from=scope.page_from,
+        page_to=scope.page_to,
+        requested_language=language,
+        top_k=8,
+    )
+
+
+def _merge(
+    rule: RoutingDecision,
+    proposal: LLMRoutingProposal,
+    plan: QueryPlan,
+    message: str,
+    standalone_query: str,
+) -> RoutingDecision:
+    intent = proposal.intent
+    supporting = [
+        agent for agent in proposal.supporting_agents if agent != INTENT_AGENTS[intent]
+    ]
+    merged_plan = plan
+    if (
+        proposal.standalone_query
+        and INTENT_TARGETS[intent] == RouteTarget.RAG
+        and standalone_query.strip() == message.strip()
+    ):
+        # Only refine the query when nothing upstream already enriched it.
+        merged_plan = QueryPlan(
+            standalone_query=proposal.standalone_query.strip()[:1000],
+            course_id=plan.course_id,
+            document_types=plan.document_types,
+            document_ids=plan.document_ids,
+            page_from=plan.page_from,
+            page_to=plan.page_to,
+            requested_language=plan.requested_language,
+            top_k=plan.top_k,
         )
 
-        if _is_catalog_request(normalized):
-            return IntentDecision(
-                LearningIntent.DOCUMENT_MANAGEMENT,
-                RouteTarget.COURSE_CATALOG,
-                0.99,
-                "The user asked for course-material metadata, not document content.",
-                plan,
+    decision = decision_for(
+        intent,
+        confidence=proposal.confidence,
+        reason=proposal.reason.strip()[:300] or "LLM router classified an unclear message.",
+        query_plan=merged_plan,
+        source=RoutingSource.LLM,
+        supporting_agents=supporting,
+        rule_confidence=rule.confidence,
+    )
+    if proposal.confidence < CLARIFICATION_THRESHOLD:
+        return _as_clarification(decision)
+    return decision
+
+
+def _mark_unresolved(rule: RoutingDecision, source: RoutingSource) -> RoutingDecision:
+    """Keep the deterministic result but record why the LLM stage did not apply."""
+
+    return replace(rule, source=source, rule_confidence=rule.confidence)
+
+
+def _as_clarification(decision: RoutingDecision) -> RoutingDecision:
+    return replace(
+        decision,
+        target=RouteTarget.CLARIFY,
+        execution_mode=ExecutionMode.CLARIFY,
+        clarification=(
+            "我不确定你想要课程讲解、生成练习、查看进度还是学习计划，能再说得具体一点吗？"
+        ),
+    )
+
+
+def _rule_decision(
+    message: str, plan: QueryPlan, *, has_history: bool = False
+) -> RoutingDecision:
+    normalized = " ".join(message.casefold().split())
+    matches = _rule_matches(normalized)
+
+    if has_history and _is_context_dependent(normalized):
+        # A follow-up that leans on earlier turns is exactly the low-confidence
+        # case the LLM stage exists for, unless an explicit operation was named.
+        if not matches or matches[0][1] < _EXPLICIT_OPERATION_CONFIDENCE:
+            intent = matches[0][0] if matches else LearningIntent.COURSE_QA
+            return decision_for(
+                intent,
+                confidence=0.55,
+                reason="The message depends on earlier turns and names no explicit operation.",
+                query_plan=plan,
             )
-        if _contains(normalized, _PROGRESS_TERMS):
-            return IntentDecision(
-                LearningIntent.PROGRESS_REVIEW,
-                RouteTarget.PROGRESS,
-                0.95,
-                "The user asked about mastery, weak topics, or learning progress.",
-                plan,
-            )
-        if _contains(normalized, _PLAN_TERMS):
-            return IntentDecision(
-                LearningIntent.STUDY_PLANNING,
-                RouteTarget.STUDY_PLAN,
-                0.93,
-                "The user asked about a study or revision plan.",
-                plan,
-            )
-        if _is_practice_request(normalized):
-            return IntentDecision(
-                LearningIntent.PRACTICE_GENERATION,
-                RouteTarget.PRACTICE,
-                0.94,
-                "The user asked to generate questions or start a quiz.",
-                plan,
-            )
-        if _is_general(normalized):
-            return IntentDecision(
-                LearningIntent.GENERAL,
-                RouteTarget.GENERAL,
-                0.98,
-                "The message is a greeting or a request for product capabilities.",
-                plan,
-            )
-        if _contains(normalized, _EXPLANATION_TERMS):
-            return IntentDecision(
-                LearningIntent.CONCEPT_EXPLANATION,
-                RouteTarget.RAG,
-                0.88,
-                "The user asked for a course concept explanation.",
-                plan,
-            )
-        return IntentDecision(
-            LearningIntent.COURSE_QA,
-            RouteTarget.RAG,
-            0.65,
-            "No high-confidence operational intent matched; use grounded course Q&A.",
-            plan,
+
+    if len(matches) > 1:
+        return decision_for(
+            matches[0][0],
+            confidence=0.50,
+            reason="The message matched more than one learning intent; it may be composite.",
+            query_plan=plan,
         )
+    if matches:
+        intent, confidence, reason = matches[0]
+        return decision_for(intent, confidence=confidence, reason=reason, query_plan=plan)
+    if _is_question(normalized):
+        return decision_for(
+            LearningIntent.COURSE_QA,
+            confidence=0.85,
+            reason="The message is phrased as a question about the course material.",
+            query_plan=plan,
+        )
+    return decision_for(
+        LearningIntent.COURSE_QA,
+        confidence=0.40,
+        reason="No rule matched and the message is not phrased as a question.",
+        query_plan=plan,
+    )
+
+
+def _rule_matches(message: str) -> list[tuple[LearningIntent, float, str]]:
+    """All deterministic matches, most specific first."""
+
+    matches: list[tuple[LearningIntent, float, str]] = []
+    if _is_catalog_request(message):
+        matches.append((
+            LearningIntent.DOCUMENT_MANAGEMENT,
+            0.99,
+            "The user asked for course-material metadata, not document content.",
+        ))
+    if _contains(message, _PROGRESS_TERMS):
+        matches.append((
+            LearningIntent.PROGRESS_REVIEW,
+            0.95,
+            "The user asked about mastery, weak topics, or learning progress.",
+        ))
+    if _contains(message, _PLAN_TERMS):
+        matches.append((
+            LearningIntent.STUDY_PLANNING,
+            0.93,
+            "The user asked about a study or revision plan.",
+        ))
+    if _is_practice_request(message):
+        matches.append((
+            LearningIntent.PRACTICE_GENERATION,
+            0.94,
+            "The user asked to generate questions or start a quiz.",
+        ))
+    if _is_general(message):
+        matches.append((
+            LearningIntent.GENERAL,
+            0.98,
+            "The message is a greeting or a request for product capabilities.",
+        ))
+    if _contains(message, _EXPLANATION_TERMS):
+        matches.append((
+            LearningIntent.CONCEPT_EXPLANATION,
+            0.88,
+            "The user asked for a course concept explanation.",
+        ))
+    return matches
 
 
 def _contains(message: str, terms: tuple[str, ...]) -> bool:
     return any(term in message for term in terms)
+
+
+def _is_question(message: str) -> bool:
+    if message.rstrip().endswith(("?", "？")):
+        return True
+    if _contains(message, _QUESTION_TERMS):
+        return True
+    return bool(re.match(r"^(?:what|why|how|when|where|which|who|is|are|does|do|can)\b", message))
 
 
 def _is_general(message: str) -> bool:
@@ -194,4 +314,22 @@ _CAPABILITY_TERMS = (
 _EXPLANATION_TERMS = (
     "解释", "讲解", "什么是", "为什么", "举个例子", "区别",
     "explain", "what is", "why", "example", "difference between",
+)
+#: Rules at or above this confidence name an explicit operation and are trusted
+#: even in a follow-up turn.
+_EXPLICIT_OPERATION_CONFIDENCE = 0.90
+
+
+def _is_context_dependent(message: str) -> bool:
+    return _contains(message, _ANAPHORA_TERMS) or len(message.strip("！!?？。. ")) <= 6
+
+
+_ANAPHORA_TERMS = (
+    "那个", "那这", "那我", "这个", "它", "再来", "再详细", "再多",
+    "继续", "换成", "接下来", "还有呢", "刚才", "上面",
+    "that one", "it again", "more of", "keep going", "same thing",
+)
+_QUESTION_TERMS = (
+    "吗", "呢", "怎么", "如何", "哪些", "哪个", "多少", "是否", "什么",
+    "为什么", "能不能", "可不可以",
 )

@@ -1,0 +1,45 @@
+{"id":"rt-single-001","category":"single","message":"我现在有什么课程资料？","expected_intent":"document_management"}
+{"id":"rt-single-002","category":"single","message":"列出我上传的文件清单","expected_intent":"document_management"}
+{"id":"rt-single-003","category":"single","message":"what materials do I have in this course?","expected_intent":"document_management"}
+{"id":"rt-single-004","category":"single","message":"我的掌握度和薄弱点怎么样？","expected_intent":"progress_review"}
+{"id":"rt-single-005","category":"single","message":"我这门课学得怎么样了","expected_intent":"progress_review"}
+{"id":"rt-single-006","category":"single","message":"show me my weak topics","expected_intent":"progress_review"}
+{"id":"rt-single-007","category":"single","message":"我的学习计划完成了多少？","expected_intent":"study_planning"}
+{"id":"rt-single-008","category":"single","message":"帮我看下这周的复习安排","expected_intent":"study_planning"}
+{"id":"rt-single-009","category":"single","message":"what does my study plan look like?","expected_intent":"study_planning"}
+{"id":"rt-single-010","category":"single","message":"给我出题测试一下","expected_intent":"practice_generation"}
+{"id":"rt-single-011","category":"single","message":"给我出3道基础选择题","expected_intent":"practice_generation"}
+{"id":"rt-single-012","category":"single","message":"quiz me on chapter two","expected_intent":"practice_generation"}
+{"id":"rt-single-013","category":"single","message":"生成5道中等难度的简答题","expected_intent":"practice_generation"}
+{"id":"rt-single-014","category":"single","message":"你好","expected_intent":"general"}
+{"id":"rt-single-015","category":"single","message":"你能做什么？","expected_intent":"general"}
+{"id":"rt-single-016","category":"single","message":"请解释什么是 ANOVA","expected_intent":"concept_explanation"}
+{"id":"rt-single-017","category":"single","message":"讲解一下正则化的作用","expected_intent":"concept_explanation"}
+{"id":"rt-single-018","category":"single","message":"explain the difference between type I and type II error","expected_intent":"concept_explanation"}
+{"id":"rt-single-019","category":"single","message":"残差和误差有什么区别？","expected_intent":"concept_explanation"}
+{"id":"rt-single-020","category":"single","message":"ANOVA 的假设条件有哪些？","expected_intent":"course_qa"}
+{"id":"rt-single-021","category":"single","message":"第三章提到的显著性水平是多少？","expected_intent":"course_qa"}
+{"id":"rt-single-022","category":"single","message":"which estimator does the lecture recommend for skewed data?","expected_intent":"course_qa"}
+{"id":"rt-single-023","category":"single","message":"指定 ANOVA 资料列出的基本假设有哪些？","expected_intent":"course_qa"}
+{"id":"rt-ambig-001","category":"ambiguous","message":"这个","expected_intent":"course_qa","expect_clarification":true}
+{"id":"rt-ambig-002","category":"ambiguous","message":"继续","expected_intent":"course_qa","expect_clarification":true}
+{"id":"rt-ambig-003","category":"ambiguous","message":"帮我看看","expected_intent":"course_qa","expect_clarification":true}
+{"id":"rt-ambig-004","category":"ambiguous","message":"再来一点","expected_intent":"course_qa","expect_clarification":true}
+{"id":"rt-ambig-005","category":"ambiguous","message":"我想准备考试","expected_intent":"study_planning"}
+{"id":"rt-ambig-006","category":"ambiguous","message":"我对第二章不太熟","expected_intent":"progress_review"}
+{"id":"rt-ambig-007","category":"ambiguous","message":"help me get ready for the exam","expected_intent":"study_planning"}
+{"id":"rt-ambig-008","category":"ambiguous","message":"我想练一练第一章","expected_intent":"practice_generation"}
+{"id":"rt-comp-001","category":"composite","message":"讲解一下第二章，然后给我出5道题","expected_intent":"concept_explanation","expected_supporting":["quiz"]}
+{"id":"rt-comp-002","category":"composite","message":"先解释什么是残差，再出3道选择题考我","expected_intent":"concept_explanation","expected_supporting":["quiz"]}
+{"id":"rt-comp-003","category":"composite","message":"explain regularization and then quiz me on it","expected_intent":"concept_explanation","expected_supporting":["quiz"]}
+{"id":"rt-comp-004","category":"composite","message":"看一下我的薄弱点，然后据此安排复习计划","expected_intent":"progress_review","expected_supporting":["planner"]}
+{"id":"rt-comp-005","category":"composite","message":"根据我的掌握度生成一份学习计划","expected_intent":"progress_review","expected_supporting":["planner"]}
+{"id":"rt-comp-006","category":"composite","message":"针对我做错的题再出一组练习","expected_intent":"practice_generation","expected_supporting":["progress"]}
+{"id":"rt-ctx-001","category":"contextual","message":"那这个的假设条件呢？","history":[["user","请解释什么是 ANOVA"],["assistant","ANOVA 用于比较多组均值是否存在显著差异 [c1]。"]],"expected_intent":"course_qa"}
+{"id":"rt-ctx-002","category":"contextual","message":"再来5道","history":[["user","给我出3道基础选择题"],["assistant","已经生成 3 道基础选择题。"]],"expected_intent":"practice_generation"}
+{"id":"rt-ctx-003","category":"contextual","message":"换成简答题","history":[["user","给我出3道基础选择题"],["assistant","已经生成 3 道基础选择题。"]],"expected_intent":"practice_generation"}
+{"id":"rt-ctx-004","category":"contextual","message":"能再详细一点吗？","history":[["user","讲解一下正则化的作用"],["assistant","正则化通过惩罚项限制模型复杂度 [c1]。"]],"expected_intent":"concept_explanation"}
+{"id":"rt-ctx-005","category":"contextual","message":"那我接下来该学什么","history":[["user","我的掌握度和薄弱点怎么样？"],["assistant","你在第二章的掌握度较低。"]],"expected_intent":"study_planning"}
+{"id":"rt-scope-001","category":"scope","message":"这个","scope":{"document_ids":["11111111-1111-1111-1111-111111111111"],"page_from":2,"page_to":5},"expected_intent":"course_qa","expect_clarification":true}
+{"id":"rt-scope-002","category":"scope","message":"讲解一下第二章，然后给我出5道题","scope":{"document_ids":["11111111-1111-1111-1111-111111111111"],"document_types":["lecture"],"page_from":10,"page_to":20},"expected_intent":"concept_explanation","expected_supporting":["quiz"]}
+{"id":"rt-scope-003","category":"scope","message":"ANOVA 的假设条件有哪些？","scope":{"document_ids":["22222222-2222-2222-2222-222222222222"],"page_from":1,"page_to":3},"expected_intent":"course_qa"}
