@@ -45,7 +45,9 @@ class TutorAnswerGateway:
             "by the supplied sources. Cite claims using [c1], [c2], etc. If evidence is incomplete, "
             "say so explicitly. Do not invent citations. Structure explanations with concise Markdown "
             "headings and lists. Write mathematical notation as LaTeX using $...$ for inline math and "
-            "$$...$$ for display math."
+            "$$...$$ for display math. For a chapter walkthrough, cover every major topic represented "
+            "in the sources and finish with a concise chapter summary. If the student says continue, "
+            "resume from the exact stopping point in the recent assistant answer without repeating it."
         )
         prompt = (
             f"Requested language: {language}\nExplanation mode: {mode}\n"
@@ -57,43 +59,60 @@ class TutorAnswerGateway:
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
+        messages = [{"role": "user", "content": prompt}]
         payload = {
             "model": settings.anthropic_model,
-            "max_tokens": 3000,
+            "max_tokens": 6000,
             "temperature": 0.2,
             "system": system,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
         if "deepseek.com" in settings.anthropic_base_url:
-            payload["reasoning"] = {"effort": "none"}
+            payload["thinking"] = {"type": "disabled"}
         try:
+            answers: list[str] = []
+            input_tokens = 0
+            output_tokens = 0
+            model_name = settings.anthropic_model
             async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-                response = await client.post(
-                    f"{settings.anthropic_base_url.rstrip('/')}/v1/messages",
-                    headers=headers,
-                    json=payload,
-                )
-                response.raise_for_status()
-                data = response.json()
-            answer = "".join(
-                block.get("text", "")
-                for block in data.get("content", [])
-                if block.get("type") == "text"
-            ).strip()
-            if not answer:
-                logger.warning(
-                    "LLM returned no text: stop_reason=%s block_types=%s model=%s",
-                    data.get("stop_reason"),
-                    [block.get("type") for block in data.get("content", [])],
-                    settings.anthropic_model,
-                )
-                return _extractive_answer(evidence, reason="empty_model_response")
-            usage = data.get("usage", {})
+                for segment in range(2):
+                    response = await client.post(
+                        f"{settings.anthropic_base_url.rstrip('/')}/v1/messages",
+                        headers=headers,
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    answer = "".join(
+                        block.get("text", "")
+                        for block in data.get("content", [])
+                        if block.get("type") == "text"
+                    ).strip()
+                    if not answer:
+                        logger.warning(
+                            "LLM returned no text: stop_reason=%s block_types=%s model=%s",
+                            data.get("stop_reason"),
+                            [block.get("type") for block in data.get("content", [])],
+                            settings.anthropic_model,
+                        )
+                        return _extractive_answer(evidence, reason="empty_model_response")
+                    answers.append(answer)
+                    usage = data.get("usage", {})
+                    input_tokens += usage.get("input_tokens") or 0
+                    output_tokens += usage.get("output_tokens") or 0
+                    model_name = data.get("model", model_name)
+                    if data.get("stop_reason") != "max_tokens":
+                        break
+                    if segment == 0:
+                        messages.extend([
+                            {"role": "assistant", "content": answer},
+                            {"role": "user", "content": "Continue exactly where you stopped. Complete all remaining chapter topics, then provide the chapter summary. Do not repeat earlier sections."},
+                        ])
             return GeneratedAnswer(
-                answer=answer,
-                model_name=data.get("model", settings.anthropic_model),
-                input_tokens=usage.get("input_tokens"),
-                output_tokens=usage.get("output_tokens"),
+                answer="\n\n".join(answers),
+                model_name=model_name,
+                input_tokens=input_tokens or None,
+                output_tokens=output_tokens or None,
             )
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
             status_code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -135,4 +154,8 @@ def _extractive_answer(
 def _history_text(history: list[tuple[str, str]]) -> str:
     if not history:
         return "(none)"
-    return "\n".join(f"{role}: {escape(content[:1000])}" for role, content in history[-8:])
+    lines = []
+    for role, content in history[-8:]:
+        excerpt = content[-2500:] if role == "assistant" else content[:1200]
+        lines.append(f"{role}: {escape(excerpt)}")
+    return "\n".join(lines)

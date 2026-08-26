@@ -83,6 +83,30 @@ def test_followup_query_includes_previous_question() -> None:
     assert "能举个例子吗" in query
 
 
+def test_continue_query_inherits_previous_chapter_request() -> None:
+    history = [
+        Message(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            conversation_id=UUID("00000000-0000-0000-0000-000000000002"),
+            role="user",
+            content="详细讲解第一章",
+            citations_json=[],
+        ),
+        Message(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            conversation_id=UUID("00000000-0000-0000-0000-000000000002"),
+            role="assistant",
+            content="第一部分内容……",
+            citations_json=[],
+        ),
+    ]
+
+    query = _standalone_query("继续", history)
+
+    assert "详细讲解第一章" in query
+    assert "继续" in query
+
+
 def test_new_short_question_is_not_forced_into_previous_topic() -> None:
     history = [
         Message(

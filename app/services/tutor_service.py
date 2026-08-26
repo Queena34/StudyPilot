@@ -448,12 +448,16 @@ def _standalone_query(message: str, history: list[Message]) -> str:
         "上述",
         "刚才",
         "再",
+        "继续",
+        "接着",
+        "往下",
         "举个例子",
         "what about",
         "it",
         "this",
         "that",
         "example",
+        "continue",
     )
     if not any(marker in normalized for marker in followup_markers):
         return message
