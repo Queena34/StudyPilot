@@ -5,6 +5,8 @@ StudyPilot 正在从 EchoMind Python 框架迁移为面向国际研究生的双�
 - [产品需求文档](docs/PRD.md)
 - [技术设计文档](docs/TECHNICAL_DESIGN.md)
 - [迁移说明](MIGRATION.md)
+- [开发进度台账](docs/PROGRESS.md)（跨 AI Agent 交接的唯一事实来源）
+- [AI Agent 协作规约](AGENTS.md)
 
 当前已完成课程管理、资料异步入库和首版课程级 RAG 问答。旧 EchoMind 客服代码暂时保留为迁移参考，以下旧版指南中的客服接口与命名不代表 StudyPilot 最终行为。
 
