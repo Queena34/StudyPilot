@@ -588,6 +588,8 @@ MVP 统一聊天入口使用 `LearningIntentRouter` 执行高精度确定性路�
 
 规则路由无法高置信度匹配时，默认进入无副作用的 `COURSE_QA` RAG 路径。后续可增加结构化 LLM 分类作为低置信度补充，但不允许模型覆盖 `course_id`、`document_ids`或页码范围。
 
+在意图路由前，系统对“资料1”“第二份 PDF”“文件名”等资料指代执行确定性解析。序号按当前课程上传时间从早到晚计算，解析结果写入 QueryPlan `document_ids`，后续 RAG 和 Practice 工作流必须使用该范围。
+
 ### 13.2 Tutor Agent
 
 输入：用户问题、语言和讲解模式、对话摘要、检索证据。

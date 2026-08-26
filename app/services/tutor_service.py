@@ -67,12 +67,23 @@ class TutorService:
         started = monotonic()
         practice_set = None
         standalone_query = _standalone_query(data.message, history)
+        effective_scope = data.scope
+        if not effective_scope.document_ids and _mentions_document_reference(data.message):
+            available_documents = await self.document_repository.list_for_course(
+                user_id, course_id, offset=0, limit=100
+            )
+            resolved_ids = _resolve_document_references(data.message, available_documents)
+            if resolved_ids:
+                effective_scope = effective_scope.model_copy(
+                    update={"document_ids": resolved_ids}
+                )
+                standalone_query = _document_learning_query(data.message, standalone_query)
         decision = self.intent_router.analyze(
             message=data.message,
             standalone_query=standalone_query,
             course_id=course_id,
             language=data.response_language.value,
-            scope=data.scope,
+            scope=effective_scope,
         )
         if decision.target == RouteTarget.COURSE_CATALOG:
             documents = await self.document_repository.list_for_course(
@@ -105,7 +116,7 @@ class TutorService:
             )
         elif decision.target == RouteTarget.PRACTICE:
             configuration = _practice_configuration(
-                data.message, data.response_language, data.scope
+                data.message, data.response_language, effective_scope
             )
             practice_set = await self.practice_service.create(
                 user_id, course_id, configuration
@@ -124,16 +135,15 @@ class TutorService:
                 model_name="general-router",
             )
         else:
-            scope = data.scope
             evidence = await self.retriever.retrieve(
                 user_id=user_id,
                 course_id=course_id,
                 query=decision.query_plan.standalone_query,
                 top_k=decision.query_plan.top_k,
-                document_types=[item.value for item in scope.document_types] or None,
-                document_ids=scope.document_ids or None,
-                page_from=scope.page_from,
-                page_to=scope.page_to,
+                document_types=decision.query_plan.document_types or None,
+                document_ids=decision.query_plan.document_ids or None,
+                page_from=decision.query_plan.page_from,
+                page_to=decision.query_plan.page_to,
             )
             status = _evidence_status(evidence)
             generated = await self.gateway.answer(
@@ -243,6 +253,66 @@ def _followups(status: str) -> list[str]:
 
 def _conversation_title(message: str) -> str:
     return " ".join(message.split())[:80]
+
+
+def _mentions_document_reference(message: str) -> bool:
+    normalized = message.casefold()
+    ordinal_reference = re.search(
+        r"(?:资料|文件|文档|讲义|课件|pdf)\s*(?:第)?\s*(?:10|[1-9]|[一两二三四五六七八九十])"
+        r"|第\s*(?:10|[1-9]|[一两二三四五六七八九十])\s*(?:份|个|篇)?\s*(?:资料|文件|文档|讲义|课件|pdf)"
+        r"|(?:document|file|pdf)\s*(?:#\s*)?(?:10|[1-9])",
+        normalized,
+        re.I,
+    )
+    return bool(ordinal_reference) or ".pdf" in normalized or ".md" in normalized or ".txt" in normalized
+
+
+def _resolve_document_references(message: str, documents: list[Document]) -> list[UUID]:
+    if not documents:
+        return []
+    normalized = " ".join(message.casefold().split())
+    ordered = list(reversed(documents))
+    matched_by_name = [
+        item.id
+        for item in ordered
+        if item.filename.casefold() in normalized
+        or _filename_stem(item.filename) in normalized
+    ]
+    if matched_by_name:
+        return list(dict.fromkeys(matched_by_name))
+
+    patterns = (
+        r"(?:资料|文件|文档|讲义|课件|pdf)\s*(?:第)?\s*(10|[1-9]|[一两二三四五六七八九十])",
+        r"第\s*(10|[1-9]|[一两二三四五六七八九十])\s*(?:份|个|篇)?\s*(?:资料|文件|文档|讲义|课件|pdf)",
+        r"(?:document|file|pdf)\s*(?:#\s*)?(10|[1-9])",
+    )
+    chinese_numbers = {
+        "一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5,
+        "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+    }
+    for pattern in patterns:
+        match = re.search(pattern, normalized, re.I)
+        if match:
+            raw = match.group(1)
+            position = int(raw) if raw.isdigit() else chinese_numbers[raw]
+            return [ordered[position - 1].id] if position <= len(ordered) else []
+    return []
+
+
+def _filename_stem(filename: str) -> str:
+    return filename.rsplit(".", 1)[0].casefold()
+
+
+def _document_learning_query(message: str, standalone_query: str) -> str:
+    normalized = message.casefold()
+    if any(term in normalized for term in ("开始学习", "开始看", "带我学", "start studying", "study this")):
+        return (
+            "Identify and explain the most important concepts, prerequisite knowledge, "
+            "and a sensible study sequence from the selected document."
+        )
+    if any(term in normalized for term in ("总结", "概括", "summary", "summarize")):
+        return "Summarize the main concepts and relationships in the selected document."
+    return standalone_query
 
 
 def _document_inventory_answer(documents: list[Document], language: str) -> str:

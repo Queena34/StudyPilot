@@ -13,7 +13,10 @@ from app.services.tutor_service import (
     _conversation_title,
     _document_inventory_answer,
     _evidence_status,
+    _document_learning_query,
+    _mentions_document_reference,
     _practice_configuration,
+    _resolve_document_references,
     _remove_unknown_citations,
     _standalone_query,
 )
@@ -128,3 +131,23 @@ def test_practice_configuration_is_parsed_from_natural_language() -> None:
     assert configuration.question_type == QuestionType.SINGLE_CHOICE
     assert configuration.difficulty == Difficulty.ADVANCED
     assert configuration.prioritize_weak_topics is True
+
+
+def test_resolves_document_ordinal_by_upload_order() -> None:
+    first_id = UUID("00000000-0000-0000-0000-000000000031")
+    second_id = UUID("00000000-0000-0000-0000-000000000032")
+    documents_newest_first = [
+        SimpleNamespace(id=second_id, filename="second.pdf"),
+        SimpleNamespace(id=first_id, filename="first.pdf"),
+    ]
+
+    assert _resolve_document_references("开始学习资料1", documents_newest_first) == [first_id]
+    assert _resolve_document_references("总结第二份 PDF", documents_newest_first) == [second_id]
+    assert _resolve_document_references("Use second.pdf", documents_newest_first) == [second_id]
+
+
+def test_document_reference_detection_and_learning_query() -> None:
+    assert _mentions_document_reference("先开始学习资料1")
+    assert not _mentions_document_reference("什么是线性模型？")
+    query = _document_learning_query("先开始学习资料1", "先开始学习资料1")
+    assert "most important concepts" in query
