@@ -51,4 +51,8 @@ def test_tutor_workspace_has_retrieval_scope_controls() -> None:
     assert 'id="chat-page-from"' in response.text
     assert 'id="chat-page-to"' in response.text
     assert 'id="scope-hint"' in response.text
+    assert 'id="chat-question-type"' in response.text
+    assert 'id="chat-difficulty"' in response.text
+    assert 'id="chat-question-count"' in response.text
+    assert "针对已经学的" in response.text
     assert "/static/vendor/katex/katex.min.js?v=0.16.11" in response.text

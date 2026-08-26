@@ -68,6 +68,16 @@ class TutorService:
         practice_set = None
         standalone_query = _standalone_query(data.message, history)
         effective_scope = data.scope
+        learned_context = _references_learned_content(data.message)
+        learned_topic = _latest_learning_request(history) if learned_context else None
+        if learned_topic:
+            standalone_query = f"{learned_topic}\nPractice request: {data.message}"
+        if learned_context:
+            learned_document_ids = _latest_cited_document_ids(history)
+            if learned_document_ids:
+                effective_scope = effective_scope.model_copy(
+                    update={"document_ids": learned_document_ids}
+                )
         if not effective_scope.document_ids and _mentions_document_reference(data.message):
             available_documents = await self.document_repository.list_for_course(
                 user_id, course_id, offset=0, limit=100
@@ -116,7 +126,11 @@ class TutorService:
             )
         elif decision.target == RouteTarget.PRACTICE:
             configuration = _practice_configuration(
-                data.message, data.response_language, effective_scope
+                data.message,
+                data.response_language,
+                effective_scope,
+                options=data.practice_options,
+                context_topic=learned_topic,
             )
             practice_set = await self.practice_service.create(
                 user_id, course_id, configuration
@@ -391,28 +405,33 @@ def _study_plan_answer(plans: list, language: str) -> str:
     return f"你最新的学习计划已完成 {completed}/{total} 项（{completion_rate:.0%}）。{next_text}"
 
 
-def _practice_configuration(message: str, language, scope) -> PracticeSetCreate:
+def _practice_configuration(
+    message: str, language, scope, *, options=None, context_topic: str | None = None
+) -> PracticeSetCreate:
     normalized = " ".join(message.casefold().split())
     number_match = re.search(r"(10|[1-9])\s*(?:道|题|questions?)", normalized)
     chinese_numbers = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
     chinese_match = re.search(r"([一两二三四五六七八九十])\s*道", normalized)
+    default_count = options.question_count if options else 3
     count = int(number_match.group(1)) if number_match else (
-        chinese_numbers[chinese_match.group(1)] if chinese_match else 3
+        chinese_numbers[chinese_match.group(1)] if chinese_match else default_count
     )
     if any(term in normalized for term in ("选择题", "单选", "multiple choice")):
         question_type = QuestionType.SINGLE_CHOICE
     elif any(term in normalized for term in ("概念题", "概念解释", "concept question")):
         question_type = QuestionType.CONCEPT
-    else:
+    elif any(term in normalized for term in ("简答题", "问答题", "short answer")):
         question_type = QuestionType.SHORT_ANSWER
+    else:
+        question_type = QuestionType(options.question_type) if options else QuestionType.SHORT_ANSWER
     if any(term in normalized for term in ("基础", "简单", "basic", "easy")):
         difficulty = Difficulty.BASIC
     elif any(term in normalized for term in ("困难", "挑战", "高级", "advanced", "hard")):
         difficulty = Difficulty.ADVANCED
     else:
-        difficulty = Difficulty.MEDIUM
+        difficulty = Difficulty(options.difficulty) if options else Difficulty.MEDIUM
     topic_match = re.search(r"(?:关于|针对|topic[:：]?)\s*([^,，。.!?？]{2,80})", message, re.I)
-    topic = topic_match.group(1).strip() if topic_match else None
+    topic = context_topic or (topic_match.group(1).strip() if topic_match else None)
     return PracticeSetCreate(
         topic=topic,
         question_type=question_type,
@@ -422,6 +441,39 @@ def _practice_configuration(message: str, language, scope) -> PracticeSetCreate:
         prioritize_weak_topics=any(term in normalized for term in ("薄弱", "弱项", "weak")),
         scope=scope,
     )
+
+
+def _references_learned_content(message: str) -> bool:
+    normalized = " ".join(message.casefold().split())
+    return any(term in normalized for term in (
+        "已经学", "学过的", "刚学", "刚才学", "已学习", "学完的",
+        "what i learned", "what we studied", "just studied",
+    ))
+
+
+def _latest_learning_request(history: list[Message]) -> str | None:
+    for item in reversed(history):
+        if item.role != "user":
+            continue
+        normalized = item.content.casefold()
+        if re.search(r"(?:第\s*[一二三四五六七八九十零〇0-9]+\s*章|chapter\s*[0-9]+)", normalized, re.I):
+            return item.content
+    return None
+
+
+def _latest_cited_document_ids(history: list[Message]) -> list[UUID]:
+    for item in reversed(history):
+        if item.role != "assistant" or not item.citations_json:
+            continue
+        values = []
+        for citation in item.citations_json:
+            try:
+                values.append(UUID(str(citation["document_id"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+        if values:
+            return list(dict.fromkeys(values))
+    return []
 
 
 def _practice_created_answer(practice_set, language: str) -> str:

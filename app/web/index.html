@@ -7,7 +7,7 @@
   <title>StudyPilot · AI 学习教练</title>
   <script>if (window.location.protocol === "file:") window.location.replace("http://localhost:8000/");</script>
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=0.16.11">
-  <link rel="stylesheet" href="/static/styles.css?v=20260826-4">
+  <link rel="stylesheet" href="/static/styles.css?v=20260826-5">
 </head>
 <body>
   <div class="app-shell">
@@ -84,6 +84,15 @@
             <label><span>结束页</span><input id="chat-page-to" type="number" min="1" placeholder="不限"></label>
             <p id="scope-hint" class="scope-hint" aria-live="polite"></p>
           </div>
+          <details class="chat-practice-settings" open>
+            <summary>聊天出题设置</summary>
+            <div>
+              <label><span>题型</span><select id="chat-question-type"><option value="single_choice" selected>单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
+              <label><span>难度</span><select id="chat-difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
+              <label><span>题目数</span><input id="chat-question-count" type="number" min="1" max="10" value="5"></label>
+              <small>仅在你通过聊天要求出题时使用；“针对已经学的”会自动继承最近学习的资料和章节。</small>
+            </div>
+          </details>
           <form id="chat-form" class="composer">
             <textarea id="chat-input" rows="2" minlength="2" maxlength="4000" placeholder="例如：用简单的例子解释这门课的核心概念…" required></textarea>
             <div class="composer-bottom"><select id="answer-mode"><option value="deep">深入解释</option><option value="concise">简洁回答</option><option value="socratic">启发式引导</option></select><button class="send-button" type="submit">发送 ↑</button></div>
@@ -106,9 +115,9 @@
           <div class="section-heading"><div><p class="eyebrow">ACTIVE RECALL</p><h3>生成一组针对性练习</h3></div></div>
           <form id="practice-form" class="form-grid compact-form">
             <label><span>练习主题</span><input id="practice-topic" placeholder="留空则根据课程资料生成"></label>
-            <label><span>题型</span><select id="question-type"><option value="short_answer">简答题</option><option value="single_choice">单选题</option><option value="concept">概念解释</option></select></label>
+            <label><span>题型</span><select id="question-type"><option value="single_choice" selected>单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
             <label><span>难度</span><select id="difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
-            <label><span>题目数</span><input id="question-count" type="number" min="1" max="10" value="3"></label>
+            <label><span>题目数</span><input id="question-count" type="number" min="1" max="10" value="5"></label>
             <label class="check-label"><input id="weak-first" type="checkbox"><span>优先针对薄弱点</span></label>
             <button class="primary-button" type="submit">生成练习</button>
           </form>
@@ -153,6 +162,6 @@
   <div id="toast" class="toast" role="status"></div>
   <script src="/static/vendor/katex/katex.min.js?v=0.16.11" defer></script>
   <script src="/static/vendor/katex/contrib/auto-render.min.js?v=0.16.11" defer></script>
-  <script src="/static/app.js?v=20260826-4" defer></script>
+  <script src="/static/app.js?v=20260826-5" defer></script>
 </body>
 </html>

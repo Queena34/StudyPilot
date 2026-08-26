@@ -54,6 +54,8 @@ Every evidence id must be one of c1..c{len(evidence)}.
             "temperature": 0.2,
             "messages": [{"role": "user", "content": prompt}],
         }
+        if "deepseek.com" in settings.anthropic_base_url:
+            payload["thinking"] = {"type": "disabled"}
         try:
             async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
                 response = await client.post(

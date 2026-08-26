@@ -1,5 +1,6 @@
 from enum import Enum
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -32,12 +33,19 @@ class TutorScope(BaseModel):
         return self
 
 
+class TutorPracticeOptions(BaseModel):
+    question_type: Literal["single_choice", "short_answer", "concept"] = "single_choice"
+    difficulty: Literal["basic", "medium", "advanced"] = "medium"
+    question_count: int = Field(default=5, ge=1, le=10)
+
+
 class TutorMessageCreate(BaseModel):
     conversation_id: UUID | None = None
     message: str = Field(min_length=2, max_length=4000)
     response_language: ResponseLanguage = ResponseLanguage.ZH
     mode: ExplanationMode = ExplanationMode.DEEP
     scope: TutorScope = Field(default_factory=TutorScope)
+    practice_options: TutorPracticeOptions = Field(default_factory=TutorPracticeOptions)
 
 
 class Citation(BaseModel):

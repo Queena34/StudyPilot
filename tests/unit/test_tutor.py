@@ -1,24 +1,28 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
 
 from app.llm.gateway import _extractive_answer
-from app.domain.models import Message
+from app.domain.models import Conversation, Message
 from app.rag.types import RetrievedEvidence
 from app.schemas.practice import Difficulty, QuestionType
-from app.schemas.tutor import ResponseLanguage, TutorScope
+from app.schemas.tutor import ResponseLanguage, TutorMessageCreate, TutorPracticeOptions, TutorScope
 from app.services.tutor_service import (
     _conversation_title,
     _document_inventory_answer,
     _evidence_status,
     _document_learning_query,
+    _latest_cited_document_ids,
+    _latest_learning_request,
     _mentions_document_reference,
     _practice_configuration,
     _resolve_document_references,
     _remove_unknown_citations,
     _standalone_query,
+    TutorService,
 )
 
 
@@ -155,6 +159,104 @@ def test_practice_configuration_is_parsed_from_natural_language() -> None:
     assert configuration.question_type == QuestionType.SINGLE_CHOICE
     assert configuration.difficulty == Difficulty.ADVANCED
     assert configuration.prioritize_weak_topics is True
+
+
+def test_chat_practice_options_default_to_selected_multiple_choice_settings() -> None:
+    configuration = _practice_configuration(
+        "针对已经学的内容生成练习",
+        ResponseLanguage.ZH,
+        TutorScope(),
+        options=TutorPracticeOptions(
+            question_type="single_choice", difficulty="advanced", question_count=5
+        ),
+        context_topic="详细讲解第一章",
+    )
+
+    assert configuration.question_type == QuestionType.SINGLE_CHOICE
+    assert configuration.difficulty == Difficulty.ADVANCED
+    assert configuration.question_count == 5
+    assert configuration.topic == "详细讲解第一章"
+
+
+def test_learned_context_restores_chapter_and_cited_document() -> None:
+    document_id = UUID("00000000-0000-0000-0000-000000000099")
+    history = [
+        Message(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            conversation_id=UUID("00000000-0000-0000-0000-000000000002"),
+            role="user",
+            content="详细讲解第一章",
+            citations_json=[],
+        ),
+        Message(
+            user_id=UUID("00000000-0000-0000-0000-000000000001"),
+            conversation_id=UUID("00000000-0000-0000-0000-000000000002"),
+            role="assistant",
+            content="第一章讲解",
+            citations_json=[{"document_id": str(document_id)}],
+        ),
+    ]
+
+    assert _latest_learning_request(history) == "详细讲解第一章"
+    assert _latest_cited_document_ids(history) == [document_id]
+
+
+@pytest.mark.asyncio
+async def test_practice_agent_receives_recent_learned_scope_and_selected_options() -> None:
+    user_id = UUID("00000000-0000-0000-0000-000000000001")
+    course_id = UUID("00000000-0000-0000-0000-000000000002")
+    conversation_id = UUID("00000000-0000-0000-0000-000000000003")
+    document_id = UUID("00000000-0000-0000-0000-000000000099")
+    history = [
+        Message(user_id=user_id, conversation_id=conversation_id, role="user", content="详细讲解第一章", citations_json=[]),
+        Message(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            role="assistant",
+            content="第一章讲解",
+            citations_json=[{"document_id": str(document_id)}],
+        ),
+    ]
+    course_repository = SimpleNamespace(get=AsyncMock(return_value=object()))
+    conversation_repository = SimpleNamespace(
+        get=AsyncMock(return_value=Conversation(id=conversation_id, user_id=user_id, course_id=course_id, title="第一章")),
+        recent_messages=AsyncMock(return_value=history),
+        save_exchange=AsyncMock(),
+    )
+    created_practice = SimpleNamespace(
+        title="第一章练习",
+        questions=[object()] * 5,
+        model_name="fake-quiz",
+        model_dump=lambda mode=None: {"title": "第一章练习", "questions": []},
+    )
+    practice_service = SimpleNamespace(create=AsyncMock(return_value=created_practice))
+    service = TutorService(
+        course_repository=course_repository,
+        conversation_repository=conversation_repository,
+        document_repository=SimpleNamespace(),
+        progress_repository=SimpleNamespace(),
+        study_plan_repository=SimpleNamespace(),
+        practice_service=practice_service,
+    )
+
+    await service.answer(
+        user_id,
+        course_id,
+        TutorMessageCreate(
+            conversation_id=conversation_id,
+            message="针对已经学的内容生成练习",
+            practice_options=TutorPracticeOptions(
+                question_type="single_choice", difficulty="advanced", question_count=5
+            ),
+        ),
+    )
+
+    configuration = practice_service.create.await_args.args[2]
+    assert configuration.topic == "详细讲解第一章"
+    assert configuration.scope.document_ids == [document_id]
+    assert configuration.question_type == QuestionType.SINGLE_CHOICE
+    assert configuration.difficulty == Difficulty.ADVANCED
+    assert configuration.question_count == 5
 
 
 def test_resolves_document_ordinal_by_upload_order() -> None:

@@ -596,6 +596,8 @@ Web 端可显式设置 `document_types`、`document_ids`、`page_from` 和 `page
 
 章节详解使用 6000 token 的单段输出预算；若供应商返回 `stop_reason=max_tokens`，网关自动请求一次无重复续写并合并两段结果。用户后续输入“继续”“接着”或“往下”时，QueryPlan 会继承上一条用户问题，检索仍保持原章节范围；发送给 DeepSeek Anthropic 兼容接口时使用 `thinking.type=disabled`，避免思考内容耗尽正文预算。
 
+聊天练习请求携带 `practice_options`（题型、难度、题量）。当消息包含“已经学”“刚学”或同义表达时，Tutor Service 从最近一次章节学习请求恢复练习主题，并从最近一条带引用的助教回答恢复 `document_ids`；Quiz/Practice Agent 因此在已学习章节而非整门课程范围内出题。消息中显式写出的题型、难度和题量优先于界面设置。
+
 ### 13.2 Tutor Agent
 
 输入：用户问题、语言和讲解模式、对话摘要、检索证据。
