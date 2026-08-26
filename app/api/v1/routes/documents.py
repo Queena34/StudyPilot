@@ -1,8 +1,11 @@
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, Response, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app.api.dependencies import CurrentUserId, DbSession
+from app.core.config import get_settings
+from app.infrastructure.file_storage import LocalFileStorage
 from app.infrastructure.repositories.course_repository import CourseRepository
 from app.infrastructure.repositories.document_repository import DocumentRepository
 from app.schemas.document import DocumentList, DocumentRead, DocumentType, JobSummary
@@ -62,10 +65,23 @@ async def get_document(
     return _response(document, job)
 
 
+@router.get("/documents/{document_id}/content", response_class=FileResponse)
+async def view_document_content(
+    document_id: UUID, session: DbSession, user_id: CurrentUserId
+) -> FileResponse:
+    document, _ = await _service(session).get(user_id, document_id)
+    path = LocalFileStorage(get_settings().upload_dir).resolve(document.storage_key)
+    return FileResponse(
+        path,
+        media_type=document.mime_type,
+        filename=document.filename,
+        content_disposition_type="inline",
+    )
+
+
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID, session: DbSession, user_id: CurrentUserId
 ) -> Response:
     await _service(session).delete(user_id, document_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-

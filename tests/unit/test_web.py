@@ -22,6 +22,8 @@ def test_static_assets_are_available() -> None:
     assert "30 * 1024 * 1024" in javascript.text
     assert "addChatPractice" in javascript.text
     assert "result.practice_set" in javascript.text
+    assert "renderChatDocumentOptions" in javascript.text
+    assert "citation-item" in javascript.text
 
 
 def test_upload_control_explains_selection_and_progress() -> None:
@@ -31,3 +33,12 @@ def test_upload_control_explains_selection_and_progress() -> None:
     assert 'id="upload-status"' in response.text
     assert "最大 30 MB" in response.text
     assert "请先选择文件" in response.text
+
+
+def test_tutor_workspace_has_retrieval_scope_controls() -> None:
+    response = TestClient(app).get("/")
+
+    assert 'id="chat-document-type"' in response.text
+    assert 'id="chat-document"' in response.text
+    assert 'id="chat-page-from"' in response.text
+    assert 'id="chat-page-to"' in response.text

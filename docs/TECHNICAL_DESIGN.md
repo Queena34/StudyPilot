@@ -590,6 +590,8 @@ MVP 统一聊天入口使用 `LearningIntentRouter` 执行高精度确定性路�
 
 在意图路由前，系统对“资料1”“第二份 PDF”“文件名”等资料指代执行确定性解析。序号按当前课程上传时间从早到晚计算，解析结果写入 QueryPlan `document_ids`，后续 RAG 和 Practice 工作流必须使用该范围。
 
+Web 端可显式设置 `document_types`、`document_ids`、`page_from` 和 `page_to`。引用使用 `<details>` 展开可验证片段，原始文件通过经用户归属校验的 `GET /documents/{document_id}/content` 以 inline 方式返回；PDF 链接使用 `#page=N` 定位。
+
 ### 13.2 Tutor Agent
 
 输入：用户问题、语言和讲解模式、对话摘要、检索证据。

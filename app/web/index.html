@@ -75,6 +75,12 @@
         <section id="panel-coach" class="panel tab-panel">
           <div class="section-heading"><div><p class="eyebrow">基于你的课程资料</p><h3>问 StudyPilot</h3></div><button id="new-chat" class="text-button">新对话</button></div>
           <div id="chat" class="chat"><div class="coach-message"><span class="bot-avatar">✦</span><div><strong>你好，我是你的学习教练。</strong><p>你可以让我解释课程概念、梳理笔记，或用苏格拉底式提问帮你想清楚。</p></div></div></div>
+          <div class="scope-bar">
+            <label><span>资料类型</span><select id="chat-document-type"><option value="">全部类型</option><option value="lecture">课堂讲义</option><option value="reading">阅读材料</option><option value="notes">学习笔记</option><option value="assignment">作业</option><option value="past_exam">往年试题</option><option value="other">其他</option></select></label>
+            <label class="scope-document"><span>指定资料</span><select id="chat-document"><option value="">全部资料</option></select></label>
+            <label><span>起始页</span><input id="chat-page-from" type="number" min="1" placeholder="不限"></label>
+            <label><span>结束页</span><input id="chat-page-to" type="number" min="1" placeholder="不限"></label>
+          </div>
           <form id="chat-form" class="composer">
             <textarea id="chat-input" rows="2" minlength="2" maxlength="4000" placeholder="例如：用简单的例子解释这门课的核心概念…" required></textarea>
             <div class="composer-bottom"><select id="answer-mode"><option value="deep">深入解释</option><option value="concise">简洁回答</option><option value="socratic">启发式引导</option></select><button class="send-button" type="submit">发送 ↑</button></div>

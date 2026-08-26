@@ -1,5 +1,5 @@
 const API = "/api/v1";
-const state = { courses: [], course: null, conversationId: null, plan: null };
+const state = { courses: [], course: null, conversationId: null, plan: null, documents: [] };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
 
@@ -94,9 +94,19 @@ async function loadProgress() {
 
 async function loadDocuments() {
   const data = await request(`/courses/${state.course.id}/documents?size=100`);
+  state.documents = data.items;
+  renderChatDocumentOptions();
   const labels = { lecture:"课堂讲义", reading:"阅读材料", assignment:"作业", past_exam:"往年试题", notes:"学习笔记", other:"其他" };
   $("#document-list").innerHTML = data.items.length ? data.items.map((doc) => `<div class="list-card"><div><strong>${escapeHtml(doc.filename)}</strong><p>${labels[doc.document_type] || doc.document_type} · ${(doc.size_bytes / 1024).toFixed(1)} KB${doc.chunk_count ? ` · ${doc.chunk_count} 个知识片段` : ""}</p></div><span class="badge ${doc.status === "failed" ? "failed" : ""}">${doc.status === "ready" ? "已就绪" : doc.status === "failed" ? "处理失败" : "处理中"}</span></div>`).join("") : `<div class="empty-inline">还没有课程资料。上传后，AI 教练会优先依据资料回答。</div>`;
   return data.items;
+}
+
+function renderChatDocumentOptions() {
+  const select = $("#chat-document");
+  const selected = select.value;
+  const ready = state.documents.filter((document) => document.status === "ready");
+  select.innerHTML = `<option value="">全部资料</option>${ready.map((document) => `<option value="${document.id}">${escapeHtml(document.filename)}</option>`).join("")}`;
+  if (ready.some((document) => document.id === selected)) select.value = selected;
 }
 
 function formatFileSize(bytes) {
@@ -161,7 +171,7 @@ function resetChat() {
 function addMessage(role, content, citations = []) {
   const item = document.createElement("div");
   item.className = role === "user" ? "user-message" : "coach-message";
-  const citeHtml = citations.length ? `<div class="citations">来源：${citations.map((c) => `${escapeHtml(c.filename)} · 第 ${c.page_number} 页`).join("；")}</div>` : "";
+  const citeHtml = citations.length ? `<div class="citations"><strong>可验证来源</strong>${citations.map((c) => `<details class="citation-item"><summary><a href="${API}/documents/${c.document_id}/content#page=${c.page_number}" target="_blank" rel="noopener">${escapeHtml(c.filename)} · 第 ${c.page_number} 页</a></summary><p>${escapeHtml(c.snippet)}</p>${c.section_title ? `<small>章节：${escapeHtml(c.section_title)}</small>` : ""}</details>`).join("")}</div>` : "";
   item.innerHTML = role === "user" ? `<div>${escapeHtml(content)}</div>` : `<span class="bot-avatar">✦</span><div>${escapeHtml(content).replace(/\n/g, "<br>")}${citeHtml}</div>`;
   $("#chat").appendChild(item);
   $("#chat").scrollTop = $("#chat").scrollHeight;
@@ -229,8 +239,12 @@ $("#document-file").addEventListener("change", (event) => {
 
 $("#chat-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; const message = $("#chat-input").value.trim(); if (!message) return;
+  const pageFrom = $("#chat-page-from").value ? Number($("#chat-page-from").value) : null;
+  const pageTo = $("#chat-page-to").value ? Number($("#chat-page-to").value) : null;
+  if (pageFrom && pageTo && pageFrom > pageTo) { toast("起始页不能大于结束页", true); return; }
+  const scope = { document_types: $("#chat-document-type").value ? [$("#chat-document-type").value] : [], document_ids: $("#chat-document").value ? [$("#chat-document").value] : [], page_from: pageFrom, page_to: pageTo };
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
-  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope:{}})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
 });
 $("#new-chat").addEventListener("click", resetChat);
 
