@@ -3,7 +3,7 @@ from uuid import UUID
 import pytest
 
 from app.core.exceptions import AppError
-from app.llm.quiz_gateway import _fallback_questions
+from app.llm.quiz_gateway import _fallback_questions, _matches_generation_request
 from app.rag.types import RetrievedEvidence
 from app.schemas.practice import (
     Difficulty,
@@ -90,3 +90,19 @@ def test_validator_rejects_unknown_evidence() -> None:
         _validate_questions([question], request, 1)
 
     assert exc_info.value.code == "INVALID_GENERATED_CITATION"
+
+
+def test_generation_request_match_rejects_wrong_type_or_difficulty() -> None:
+    questions = _fallback_questions(
+        QuestionType.CONCEPT, Difficulty.MEDIUM, 1, [_evidence()]
+    )
+
+    assert _matches_generation_request(
+        questions, QuestionType.CONCEPT, Difficulty.MEDIUM, 1
+    )
+    assert not _matches_generation_request(
+        questions, QuestionType.SHORT_ANSWER, Difficulty.MEDIUM, 1
+    )
+    assert not _matches_generation_request(
+        questions, QuestionType.CONCEPT, Difficulty.ADVANCED, 1
+    )

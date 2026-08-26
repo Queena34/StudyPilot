@@ -28,3 +28,21 @@ python -m tests.evals.run_rag_eval --course-id <课程ID>
 `baselines/rag_v1.json` 保存完整 30 题真实运行的模型、日期、配置和实测指标。以后必须使用同一数据集版本和配置比较；原始回答仅保存在忽略提交的本地 artifacts 中。
 
 PRD 的目标包括引用有效率不低于 95%、跨资料泄漏为 0、可回答题正确率不低于 90%。当前 v1 是 API 层的确定性代理指标；人工忠实度评分、检索器 Recall@K、练习题质量和判分一致性将在后续评测集补充。
+
+## Quiz v1
+
+`datasets/quiz_generation_v1.jsonl` 包含 30 个练习生成场景，覆盖两份资料、三种题型、三档难度、1/3/5 题数量、第一章页码范围和资料外主题。运行器检查题量、题型、难度、选项格式、内容完整性、来源、资料与页码范围、主题覆盖、拒绝生成、降级和延迟。
+
+3 条冒烟评测：
+
+```bash
+python -m tests.evals.run_quiz_eval --course-id <课程ID> --smoke
+```
+
+完整评测：
+
+```bash
+python -m tests.evals.run_quiz_eval --course-id <课程ID>
+```
+
+每个成功案例会创建标题为 `[EVAL:quiz-v1:<case-id>]` 的练习集，并把检索片段发送给已配置的大模型。当前 API 不返回参考答案和 rubric，v1 不对这两项评分；它们需要后续服务层评测，不能通过公开 API 泄露给做题者。

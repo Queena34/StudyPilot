@@ -56,29 +56,64 @@ Every evidence id must be one of c1..c{len(evidence)}.
         }
         if "deepseek.com" in settings.anthropic_base_url:
             payload["thinking"] = {"type": "disabled"}
-        try:
-            async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-                response = await client.post(
-                    f"{settings.anthropic_base_url.rstrip('/')}/v1/messages",
-                    headers={
-                        "x-api-key": settings.anthropic_api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                    },
-                    json=payload,
+        for attempt in range(2):
+            request_payload = dict(payload)
+            if attempt:
+                request_payload["messages"] = [
+                    {
+                        "role": "user",
+                        "content": prompt
+                        + "\nIMPORTANT: The previous result violated the requested constraints. "
+                        + f"Every item must use question_type={question_type.value}, "
+                        + f"difficulty={difficulty.value}, and the array must contain exactly {count} items.",
+                    }
+                ]
+            try:
+                async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+                    response = await client.post(
+                        f"{settings.anthropic_base_url.rstrip('/')}/v1/messages",
+                        headers={
+                            "x-api-key": settings.anthropic_api_key,
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                        },
+                        json=request_payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                text = "".join(
+                    block.get("text", "")
+                    for block in data.get("content", [])
+                    if block.get("type") == "text"
                 )
-                response.raise_for_status()
-                data = response.json()
-            text = "".join(
-                block.get("text", "")
-                for block in data.get("content", [])
-                if block.get("type") == "text"
-            )
-            raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-            questions = TypeAdapter(list[GeneratedQuestion]).validate_python(json.loads(raw))
-            return questions, data.get("model", settings.anthropic_model)
-        except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError, TypeError):
-            return _fallback_questions(question_type, difficulty, count, evidence), "quiz-fallback"
+                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+                questions = TypeAdapter(list[GeneratedQuestion]).validate_python(json.loads(raw))
+                if _matches_generation_request(questions, question_type, difficulty, count):
+                    return questions, data.get("model", settings.anthropic_model)
+            except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError, TypeError):
+                continue
+        return _fallback_questions(question_type, difficulty, count, evidence), "quiz-fallback"
+
+
+def _matches_generation_request(
+    questions: list[GeneratedQuestion],
+    question_type: QuestionType,
+    difficulty: Difficulty,
+    count: int,
+) -> bool:
+    if len(questions) != count:
+        return False
+    for question in questions:
+        if question.question_type != question_type or question.difficulty != difficulty:
+            return False
+        if question_type == QuestionType.SINGLE_CHOICE:
+            if question.options is None or len(question.options) != 4:
+                return False
+            if sum(option.is_correct for option in question.options) != 1:
+                return False
+        elif question.options is not None:
+            return False
+    return True
 
 
 def _fallback_questions(
