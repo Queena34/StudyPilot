@@ -105,19 +105,24 @@ docs/                           PRD、技术设计、架构路线、进度台账
 docker compose exec api python -m pytest tests/unit -q
 ```
 
-四套版本化评测集，各自记录了可比较的基线和合入门槛，详见 [tests/evals/README.md](tests/evals/README.md)：
+七套版本化评测集，各自记录了可比较的基线和合入门槛，详见 [tests/evals/README.md](tests/evals/README.md)：
 
-| 评测集 | 规模 | 当前基线 |
-|---|---|---|
-| Router v2 | 57 例 | 混合模式意图准确率 90.4%，范围保持 100% |
-| RAG v1 | 30 题 | 引用有效率、跨资料泄漏、关键词覆盖 |
-| Quiz v1 | 30 场景 | 生成成功率 96.7%，引用有效性 100% |
-| Grading v1 | 10 题 × 三档 | 仅冒烟通过，完整基线待补 |
+| 评测集 | 规模 | 当前基线 | 需要模型 |
+|---|---|---|---|
+| Router v2 | 57 例 | 混合模式意图准确率 90.4%，范围保持 100% | 部分 |
+| Integrity v1 | 61 例 | 全指标满分，假阳性率 0% | 否 |
+| Orchestrator v1 | 30 例 | 全指标 100% | 否 |
+| Loop v1 | 5 阶段 | 闭环成立，总延迟 22.5s | 是 |
+| RAG v1 | 30 题 | 引用有效率、跨资料泄漏、关键词覆盖 | 是 |
+| Quiz v1 | 30 场景 | 生成成功率 96.7%，引用有效性 100% | 是 |
+| Grading v1 | 10 题 × 三档 | 仅冒烟通过，完整基线待补 | 是 |
 
-路由评测不需要启动服务，且提供零成本的确定性模式：
+其中三套完全不调用模型，免费、秒级、逐位可复现，适合进 CI：
 
 ```bash
 docker compose exec api python -m tests.evals.run_router_eval --rules-only
+docker compose exec api python -m tests.evals.run_integrity_eval
+docker compose exec api python -m tests.evals.run_orchestrator_eval
 ```
 
 ## 开发状态

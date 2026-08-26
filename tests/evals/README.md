@@ -136,3 +136,43 @@ python -m tests.evals.run_integrity_eval
 - `false_negative_rate` 与 `wrong_severity_rate`：漏判和判错档位，代价低于假阳性但仍需跟踪。
 
 `baselines/integrity_v1.json` 实测全部指标为满分（level_accuracy 100%、false_positive_rate 0%），并写明了七条合入门槛。建立该评测集时抓到一个真实缺陷：「我作业做完了，帮我检查思路对不对」被判为 `hint_only`，即学生做完作业请人复核反而被限制，已通过新增自有成果复核豁免修复。
+
+## Orchestrator v1
+
+`datasets/orchestrator_flows_v1.jsonl` 包含 30 条编排流程用例，直接对应路线图第 9 节对编排层的四项要求：
+
+| 要求 | 用例数 |
+|---|---:|
+| Agent 选择 | 9 |
+| 执行顺序 | 4 |
+| 上下文传递 | 3 |
+| 失败降级 | 7 |
+| 澄清 / 学术诚信 / Trace | 7 |
+
+Agent 被替换为**脚本化替身**，所以这套评测只考察编排本身 —— 选谁、按什么顺序、上下文是否传到、失败时保住了什么。不调用模型也不碰数据库，因此免费、秒级、逐位可复现。
+
+```bash
+python -m tests.evals.run_orchestrator_eval
+```
+
+指标分开报告而不合并，因为一个"选对了 Agent 但在辅助步骤失败时丢了答案"的编排层不是部分正确，而是在最要紧的地方坏了。`answer_preservation_rate`、`isolation_rate`、`context_passing_accuracy`、`failure_containment` 四项在 `baselines/orchestrator_v1.json` 中都是硬性门槛，必须为 100%。
+
+## Loop v1（端到端闭环）
+
+`run_loop_eval.py` 是唯一打真实 API 的编排类评测。它按学习者的实际路径走完五个阶段，每一步对照**真实状态**校验后置条件，而不是对照 mock：
+
+```text
+1-explain   讲解 → 有引用、引用可解析、证据充分、诚信判定为允许
+2-practice  出题 → 练习集真实创建、题量符合、每题有来源、路由经过 quiz
+3-grade     批改 → 路由经过 evaluator、grade_answer 工具真实调用、报出得分
+4-mastery   掌握度 → 作答数确实增加、主题记录存在
+5-plan      计划 → 路由经过 planner、create_study_plan 真实调用、计划已持久化
+```
+
+```bash
+python -m tests.evals.run_loop_eval --course-id <课程ID>
+```
+
+需要运行中的 StudyPilot、已配置模型密钥，以及一门已完成资料入库的课程。**会在该课程下创建真实的练习集、作答记录和学习计划**，不要对演示课程之外的数据运行。
+
+`baselines/loop_v1.json` 实测五阶段全部通过、`loop_closed: true`、总延迟约 22.5 秒。其中四条门槛是硬性的：讲解必须带可解析引用；`grade_answer` 工具必须真实调用（不能只是模型在对话里说了句评价）；作答必须落到掌握度（否则闭环只是表面成立）；计划必须真实创建并持久化。本评测调用真实模型，延迟仅供参考，不作为回归门槛。

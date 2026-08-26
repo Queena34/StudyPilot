@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `8d47745` |
-| 当前阶段 | 路线图第 1–6、8、11 步已完成；剩 7（Redis）、9（评测集）、10（监控）、12（前端） |
+| 当前基线 commit | `c8c3ac3` |
+| 当前阶段 | 路线图第 1–6、8、9、11 步已完成；剩 7（Redis）、10（监控）、12（前端） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -31,7 +31,7 @@
 | 6 | `TeachingToolManager` | 已完成 | `app/agents/tools.py` | `tests/unit/test_teaching_tools.py`（9 例） | 9 个教学工具；课程归属与资料范围统一校验，越权返回 403；调用结果、耗时、失败原因统一记录 |
 | 7 | Redis 短期学习状态 | 未开始 | `app/infrastructure/` | — | Redis 当前在 compose 中已启动但主链路未使用 |
 | 8 | 教学 Skills + 学术诚信 Guard | 已完成 | `app/agents/integrity.py`、`app/agents/skills.py`、`skills/*/SKILL.md` | `tests/evals/run_integrity_eval.py`（61 例，假阳性率 0%）+ 32 个单元测试 | 四级 Guard 已接入编排层；7 个教学 Skill 替换旧客服 Skill |
-| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `run_router_eval.py`、`run_integrity_eval.py` | `baselines/router_v2.json`、`integrity_v1.json` | Router v2（57 例）与 Integrity v1（61 例）已完成；**Orchestrator 与端到端闭环仍无版本化评测集** |
+| 9 | Router / Orchestrator / 端到端评测 | 已完成 | `run_router_eval.py`、`run_integrity_eval.py`、`run_orchestrator_eval.py`、`run_loop_eval.py` | 六套版本化基线 | Router v2（57）、Integrity v1（61）、Orchestrator v1（30）、Loop v1（5 阶段）；Grading v1 的 90 次完整基线仍缺（K-4） |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 已完成 | 已删除全部旧目录；`README.md`、`MIGRATION.md` 已重写 | 159 测试通过 + 应用冒烟 + 评测基线复现 | 约 4100 行 Python、3 个部署脚本、1 个旧 env 模板已移除 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
@@ -62,7 +62,7 @@
 | K-1 | PDF 页数统计存在异常样本，需单独校验 Parser 并对真实资料做页码/引用抽检 | 高 | 未修复 |
 | K-2 | 引用校验失败时无修复重试；「未配置密钥」「Provider 失败」「引用校验失败」三种情形未区分暴露 | 高 | 未修复 |
 | K-3 | 学术诚信 Guard 完全未实现（PRD 8.7） | 高 | 未修复 |
-| K-4 | Grading v1 仅冒烟通过，缺 90 次完整基线与人工忠实度报告 | 中 | 未修复 |
+| K-4 | Grading v1 仅冒烟通过，缺 90 次完整基线与人工忠实度报告。这是第 9 步唯一遗留项 | 中 | 未修复 |
 | K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | **已修复**（1438 行重写为 131 行 StudyPilot 文档） |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
 | K-7 | 无流式输出；无跨 Agent trace ID | 中 | 未修复 |
@@ -82,6 +82,26 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成路线图第 9 步剩余部分 —— 编排层评测与端到端闭环评测。
+  1. **Orchestrator v1**（30 例，确定性）：Agent 被替换为脚本化替身，只考察编排本身。用例数按路线图第 9 节的四项要求分配：Agent 选择 9、执行顺序 4、上下文传递 3、失败降级 7，另加澄清 1、学术诚信 4、Trace 2。不调用模型也不碰数据库。
+  2. **Loop v1**（5 阶段，真实 API）：唯一打真实链路的编排类评测，按学习者实际路径走完讲解→出题→批改→掌握度更新→复习计划，每一步对照**真实状态**校验后置条件而非 mock。
+  3. 指标分开报告而非合并成单一通过率：一个「选对了 Agent 但在辅助步骤失败时丢了答案」的编排层不是部分正确，而是在最要紧的地方坏了。
+- **为什么**：路线图第 6 节第 9 项。编排层此前有 33 个单元测试但没有版本化基线，无法回答「换了模型或改了 prompt 之后，讲解→出题→批改→更新薄弱点→生成计划这条链路还成立吗」。
+- **改了哪些文件**：
+  - 新增：`tests/evals/datasets/orchestrator_flows_v1.jsonl`、`tests/evals/orchestrator_metrics.py`、`tests/evals/run_orchestrator_eval.py`、`tests/evals/run_loop_eval.py`、`tests/evals/baselines/orchestrator_v1.json`、`tests/evals/baselines/loop_v1.json`
+  - 修改：`tests/evals/README.md`
+  - **未改动任何 `app/` 代码** —— 两套评测都是对现有实现的观测。
+- **怎么验证的**：
+  - Orchestrator v1 基线：30 例全通过，`agent_selection_accuracy`、`execution_order_accuracy`、`isolation_rate`、`context_passing_accuracy`、`answer_preservation_rate`、`skip_correctness`、`failure_containment`、`trace_completeness` 均为 100%。
+  - Loop v1 基线：五阶段全通过，`loop_closed: true`，总延迟 22.5 秒（讲解 14.6s、出题 3.7s、批改 2.7s、计划 1.6s）。实测一轮产生 4 条引用、2 道题、1 次真实批改、掌握度累计 9 次作答 23 个主题、6 份计划。
+  - 全套确定性评测同时回归：Router v2 意图准确率 73.1%、Integrity v1 100%、Orchestrator v1 100%，单元测试 167 passed。
+  - 建立过程中修正了两处**评测自身**的错误（不是实现的错误）：运行器按 `status` 判断 Agent 是否执行，导致返回 `SKIPPED` 的诚信 Guard 被误判为没跑，改为按 `role` 判断；诚信重定向用例没有设置 `source`，不符合「显式规则匹配仍然优先」的实际设计，已补 `source` 字段并新增一条反向用例把该规则钉死。
+- **下一步建议**：第 9 步唯一遗留是 **K-4**（Grading v1 的 90 次完整基线），需要约 90 次真实模型调用，属于成本决策而非技术难点。之后建议做第 12 步前端 —— 后端能力已远超前端可操作范围，练习历史、错题重练、学习趋势和用户设置都还没有界面。第 7 步 Redis 和第 10 步监控优先级更低，前者是性能优化，后者在单用户 MVP 下收益有限。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

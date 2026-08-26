@@ -1,0 +1,76 @@
+{
+  "dataset_version": "loop-v1",
+  "recorded_at": "2026-08-26T15:09:43.692600+00:00",
+  "purpose": "端到端闭环评测。打真实 API，按学习者实际路径走完讲解→出题→批改→掌握度更新→复习计划，每一步对照真实状态校验后置条件。",
+  "requirements": "需要运行中的 StudyPilot、已配置模型密钥，以及一门已完成资料入库的课程。会在该课程下创建真实的练习集、作答记录和学习计划。",
+  "stages": [
+    {
+      "stage": "1-explain",
+      "checks": [
+        "routed_to_tutor",
+        "has_citations",
+        "citations_resolve",
+        "evidence_sufficient",
+        "integrity_allowed"
+      ],
+      "passed": true,
+      "latency_ms": 14611
+    },
+    {
+      "stage": "2-practice",
+      "checks": [
+        "practice_created",
+        "requested_count_honoured",
+        "questions_have_sources",
+        "routed_to_quiz"
+      ],
+      "passed": true,
+      "latency_ms": 3687
+    },
+    {
+      "stage": "3-grade",
+      "checks": [
+        "routed_to_evaluator",
+        "graded",
+        "score_reported",
+        "grade_tool_called"
+      ],
+      "passed": true,
+      "latency_ms": 2660
+    },
+    {
+      "stage": "4-mastery",
+      "checks": [
+        "attempt_recorded",
+        "topics_present"
+      ],
+      "passed": true,
+      "latency_ms": null
+    },
+    {
+      "stage": "5-plan",
+      "checks": [
+        "routed_to_planner",
+        "plan_created",
+        "plan_persisted"
+      ],
+      "passed": true,
+      "latency_ms": 1557
+    }
+  ],
+  "metrics": {
+    "stage_count": 5,
+    "stage_pass_rate": 1.0,
+    "check_pass_rate": 1.0,
+    "loop_closed": true,
+    "total_latency_ms": 22515
+  },
+  "regression_rules": [
+    "loop_closed 必须为 true。五个阶段任何一个断裂都意味着核心学习闭环不成立。",
+    "1-explain 的 has_citations 与 citations_resolve 必须通过：无引用的讲解不符合产品定位。",
+    "3-grade 的 grade_tool_called 必须通过：批改必须真实发生，不能只是模型在对话里说了句评价。",
+    "4-mastery 的 attempt_recorded 必须通过：批改结果必须落到掌握度，否则闭环只是表面成立。",
+    "5-plan 的 plan_created 与 plan_persisted 必须通过。",
+    "本评测调用真实模型，指标存在抖动；latency 仅供参考，不作为回归门槛。"
+  ]
+}
