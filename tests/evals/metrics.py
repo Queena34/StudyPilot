@@ -12,14 +12,63 @@ NO_ANSWER_MARKERS = (
     "not found in the",
 )
 
+# Dataset terms represent concepts, not exact answer wording. Each concept can be
+# expressed in either course language without being counted twice.
+TERM_ALIASES: dict[str, tuple[str, ...]] = {
+    "anova": ("anova", "方差分析"),
+    "between": ("between", "组间"),
+    "breakdown": ("breakdown", "故障", "击穿"),
+    "conditional": ("conditional", "条件"),
+    "equal": ("equal", "相等", "相同"),
+    "error": ("error", "error term", "误差", "误差项"),
+    "expectation": ("expectation", "期望", "期望值"),
+    "extrapolation": ("extrapolation", "外推"),
+    "fisher": ("fisher", "费希尔"),
+    "fitted": ("fitted", "拟合值", "预测值"),
+    "geyser": ("geyser", "间歇泉"),
+    "independent": ("independent", "independence", "独立", "独立性"),
+    "intercept": ("intercept", "截距"),
+    "least squares": ("least squares", "最小二乘"),
+    "linear": ("linear", "线性"),
+    "log": ("log", "logarithm", "对数"),
+    "mean": ("mean", "平均", "均值", "期望"),
+    "multiple": ("multiple", "多重比较", "多重检验"),
+    "normal": ("normal", "normality", "正态", "正态性"),
+    "null": ("null", "原假设", "零假设"),
+    "observed": ("observed", "观测值", "实际值"),
+    "p-value": ("p-value", "p value", "p值", "p 值"),
+    "phobic": ("phobic", "恐惧"),
+    "random": ("random", "randomization", "随机", "随机化"),
+    "residual": ("residual", "残差"),
+    "response": ("response", "响应"),
+    "slope": ("slope", "斜率"),
+    "total": ("total", "总变异", "总离差"),
+    "variance": ("variance", "变异", "方差"),
+    "within": ("within", "组内"),
+}
+
+
+def _concept_aliases(term: Any) -> tuple[str, ...]:
+    """Return normalized aliases for a dataset concept or custom alias list."""
+    if isinstance(term, list):
+        aliases = term
+    else:
+        key = str(term).casefold()
+        aliases = TERM_ALIASES.get(key, (str(term),))
+    return tuple(str(alias).casefold() for alias in aliases if str(alias).strip())
+
 
 def score_rag_case(case: dict[str, Any], response: dict[str, Any], latency_ms: int) -> dict[str, Any]:
     answer = str(response.get("answer") or "")
     citations = response.get("citations") or []
     answerable = bool(case["answerable"])
-    expected_terms = [term.casefold() for term in case.get("expected_terms", [])]
+    expected_concepts = [_concept_aliases(term) for term in case.get("expected_terms", [])]
     normalized_answer = answer.casefold()
-    matched_terms = [term for term in expected_terms if term in normalized_answer]
+    matched_terms = [
+        next(alias for alias in aliases if alias in normalized_answer)
+        for aliases in expected_concepts
+        if any(alias in normalized_answer for alias in aliases)
+    ]
     citations_well_formed = all(
         citation.get("document_id")
         and citation.get("filename")
@@ -53,7 +102,7 @@ def score_rag_case(case: dict[str, Any], response: dict[str, Any], latency_ms: i
         "document_scope_adherence": document_scope_adherence,
         "section_scope_adherence": section_scope_adherence,
         "no_answer_correct": no_answer_correct,
-        "keyword_coverage": len(matched_terms) / max(1, len(expected_terms)),
+        "keyword_coverage": len(matched_terms) / max(1, len(expected_concepts)),
         "matched_terms": matched_terms,
         "citation_count": len(citations),
         "fallback": bool(response.get("fallback_reason")),

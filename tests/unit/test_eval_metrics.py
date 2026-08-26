@@ -64,6 +64,33 @@ def test_score_no_answer_case_accepts_grounded_refusal_without_citations() -> No
     assert result["no_answer_correct"] is True
 
 
+def test_keyword_coverage_accepts_chinese_aliases_and_custom_groups() -> None:
+    case = {
+        "id": "case-bilingual",
+        "answerable": True,
+        "document": "notes.pdf",
+        "section_contains": None,
+        "expected_terms": ["error", ["ordinary least squares", "普通最小二乘法"]],
+    }
+    response = {
+        "answer": "误差项可以通过普通最小二乘法进行估计。",
+        "citations": [
+            {
+                "document_id": "doc-1",
+                "filename": "notes.pdf",
+                "page_number": 1,
+                "chunk_id": "chunk-1",
+            }
+        ],
+        "evidence_status": "sufficient",
+    }
+
+    result = score_rag_case(case, response, 100)
+
+    assert result["keyword_coverage"] == 1
+    assert result["matched_terms"] == ["误差", "普通最小二乘法"]
+
+
 def test_aggregate_rag_scores() -> None:
     results = [
         {
