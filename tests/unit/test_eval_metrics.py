@@ -64,6 +64,33 @@ def test_score_no_answer_case_accepts_grounded_refusal_without_citations() -> No
     assert result["no_answer_correct"] is True
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "根据指定资料，没有给出贝叶斯先验选择方法。",
+        "指定资料不包含神经网络反向传播算法。",
+        "资料完全没有涉及 ARIMA 季节性建模。",
+    ],
+)
+def test_score_no_answer_case_accepts_common_negative_phrases(answer: str) -> None:
+    case = {
+        "id": "case-negative-phrase",
+        "answerable": False,
+        "document": "notes.pdf",
+        "section_contains": None,
+        "expected_terms": [],
+    }
+
+    result = score_rag_case(
+        case,
+        {"answer": answer, "citations": [], "evidence_status": "partial"},
+        80,
+    )
+
+    assert result["no_answer_correct"] is True
+    assert result["no_answer_scored"] is True
+
+
 def test_keyword_coverage_accepts_chinese_aliases_and_custom_groups() -> None:
     case = {
         "id": "case-bilingual",
@@ -98,7 +125,9 @@ def test_aggregate_rag_scores() -> None:
             "citation_validity": True,
             "document_scope_adherence": True,
             "section_scope_adherence": True,
+            "section_scored": True,
             "no_answer_correct": True,
+            "no_answer_scored": False,
             "keyword_coverage": 1.0,
             "fallback": False,
             "latency_ms": 100,
@@ -108,7 +137,9 @@ def test_aggregate_rag_scores() -> None:
             "citation_validity": True,
             "document_scope_adherence": True,
             "section_scope_adherence": True,
+            "section_scored": False,
             "no_answer_correct": False,
+            "no_answer_scored": True,
             "keyword_coverage": 0.0,
             "fallback": True,
             "latency_ms": 300,
@@ -118,13 +149,16 @@ def test_aggregate_rag_scores() -> None:
     metrics = aggregate_rag_scores(results)
 
     assert metrics["case_count"] == 2
-    assert metrics["no_answer_accuracy"] == 0.5
+    assert metrics["section_scored_count"] == 1
+    assert metrics["no_answer_count"] == 1
+    assert metrics["section_scope_adherence"] == 1
+    assert metrics["no_answer_accuracy"] == 0
     assert metrics["keyword_coverage"] == 1.0
     assert metrics["fallback_rate"] == 0.5
     assert metrics["average_latency_ms"] == 200
 
 
-def test_rag_v1_dataset_contract_and_unmeasured_baseline() -> None:
+def test_rag_v1_dataset_contract_and_measured_baseline() -> None:
     dataset = ROOT / "tests/evals/datasets/rag_questions_v1.jsonl"
     cases = [json.loads(line) for line in dataset.read_text().splitlines() if line]
 
@@ -135,8 +169,9 @@ def test_rag_v1_dataset_contract_and_unmeasured_baseline() -> None:
     assert all(required <= case.keys() for case in cases)
 
     baseline = json.loads((ROOT / "tests/evals/baselines/rag_v1.json").read_text())
-    assert baseline["status"] == "not_run"
-    assert baseline["metrics"] is None
+    assert baseline["status"] == "measured"
+    assert baseline["metrics"]["case_count"] == len(cases)
+    assert baseline["model_name"]
 
 
 def test_aggregate_rejects_empty_results() -> None:

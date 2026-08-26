@@ -1,8 +1,26 @@
 {
   "dataset_version": "rag-v1",
-  "status": "not_run",
-  "model_name": null,
-  "generated_at": null,
-  "metrics": null,
-  "note": "Run the complete dataset before replacing this placeholder. Do not enter estimated results."
+  "status": "measured",
+  "model_name": "deepseek-v4-flash",
+  "generated_at": "2026-08-26T10:18:46.887071+00:00",
+  "run_config": {
+    "case_count": 30,
+    "response_language": "zh",
+    "mode": "deep",
+    "document_scope": "dataset-specified"
+  },
+  "metrics": {
+    "case_count": 30,
+    "answerable_count": 25,
+    "section_scored_count": 13,
+    "no_answer_count": 5,
+    "citation_validity": 1.0,
+    "document_scope_adherence": 1.0,
+    "section_scope_adherence": 1.0,
+    "no_answer_accuracy": 1.0,
+    "keyword_coverage": 0.98,
+    "fallback_rate": 0.0,
+    "average_latency_ms": 6690.37
+  },
+  "note": "Measured from a complete rag-v1 run. Raw responses remain in ignored local artifacts."
 }

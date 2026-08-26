@@ -7,9 +7,18 @@ from typing import Any
 NO_ANSWER_MARKERS = (
     "没有找到足够证据",
     "资料中没有",
+    "没有给出",
+    "没有介绍",
+    "没有教授",
+    "没有涉及",
+    "未涉及",
+    "不包含",
+    "完全没有",
     "无法从",
     "insufficient evidence",
     "not found in the",
+    "does not contain",
+    "not included",
 )
 
 # Dataset terms represent concepts, not exact answer wording. Each concept can be
@@ -85,15 +94,17 @@ def score_rag_case(case: dict[str, Any], response: dict[str, Any], latency_ms: i
         else not answerable
     )
     expected_section = (case.get("section_contains") or "").casefold()
+    section_scored = answerable and bool(expected_section)
     section_scope_adherence = (
         any(expected_section in str(citation.get("section_title") or "").casefold() for citation in citations)
-        if answerable and expected_section
+        if section_scored
         else True
     )
     refusal = response.get("evidence_status") == "insufficient" or any(
         marker in normalized_answer for marker in NO_ANSWER_MARKERS
     )
-    no_answer_correct = refusal if not answerable else not refusal
+    no_answer_scored = not answerable
+    no_answer_correct = refusal if no_answer_scored else True
     return {
         "id": case["id"],
         "answerable": answerable,
@@ -101,7 +112,9 @@ def score_rag_case(case: dict[str, Any], response: dict[str, Any], latency_ms: i
         "citation_validity": citation_validity,
         "document_scope_adherence": document_scope_adherence,
         "section_scope_adherence": section_scope_adherence,
+        "section_scored": section_scored,
         "no_answer_correct": no_answer_correct,
+        "no_answer_scored": no_answer_scored,
         "keyword_coverage": len(matched_terms) / max(1, len(expected_concepts)),
         "matched_terms": matched_terms,
         "citation_count": len(citations),
@@ -114,17 +127,21 @@ def aggregate_rag_scores(results: list[dict[str, Any]]) -> dict[str, Any]:
     if not results:
         raise ValueError("results cannot be empty")
 
-    def rate(field: str) -> float:
-        return mean(1.0 if item[field] else 0.0 for item in results)
+    def rate(field: str, items: list[dict[str, Any]] = results) -> float:
+        return mean(1.0 if item[field] else 0.0 for item in items) if items else 0.0
 
     answerable = [item for item in results if item["answerable"]]
+    section_scored = [item for item in results if item.get("section_scored")]
+    no_answer_scored = [item for item in results if item.get("no_answer_scored")]
     return {
         "case_count": len(results),
         "answerable_count": len(answerable),
+        "section_scored_count": len(section_scored),
+        "no_answer_count": len(no_answer_scored),
         "citation_validity": rate("citation_validity"),
         "document_scope_adherence": rate("document_scope_adherence"),
-        "section_scope_adherence": rate("section_scope_adherence"),
-        "no_answer_accuracy": rate("no_answer_correct"),
+        "section_scope_adherence": rate("section_scope_adherence", section_scored),
+        "no_answer_accuracy": rate("no_answer_correct", no_answer_scored),
         "keyword_coverage": mean(item["keyword_coverage"] for item in answerable) if answerable else 0.0,
         "fallback_rate": mean(1.0 if item["fallback"] else 0.0 for item in results),
         "average_latency_ms": round(mean(item["latency_ms"] for item in results), 2),

@@ -83,7 +83,7 @@ class LearningIntentRouter:
             top_k=8,
         )
 
-        if _matches(normalized, _DOCUMENT_TERMS, _INVENTORY_TERMS):
+        if _is_catalog_request(normalized):
             return IntentDecision(
                 LearningIntent.DOCUMENT_MANAGEMENT,
                 RouteTarget.COURSE_CATALOG,
@@ -144,10 +144,6 @@ def _contains(message: str, terms: tuple[str, ...]) -> bool:
     return any(term in message for term in terms)
 
 
-def _matches(message: str, first: tuple[str, ...], second: tuple[str, ...]) -> bool:
-    return _contains(message, first) and _contains(message, second)
-
-
 def _is_general(message: str) -> bool:
     exact = {"你好", "嗨", "hello", "hi", "hey", "你是谁", "who are you"}
     return message.strip("！!?？。. ") in exact or _contains(message, _CAPABILITY_TERMS)
@@ -159,15 +155,27 @@ def _is_practice_request(message: str) -> bool:
     )
 
 
-_DOCUMENT_TERMS = (
-    "课程资料", "资料", "文件", "文档", "讲义", "课件",
-    "course material", "document", "file", "lecture note",
-)
-_INVENTORY_TERMS = (
-    "有什么", "有哪些", "哪几", "几份", "上传了什么", "上传过",
-    "清单", "列表", "what do i have", "what materials", "which document",
-    "list", "uploaded",
-)
+def _is_catalog_request(message: str) -> bool:
+    """Match inventory requests without confusing questions about document content."""
+    document = r"(?:课程资料|资料|文件|文档|讲义|课件)"
+    before_document = r"(?:有什么|有哪些|哪几份|几份|上传了什么|上传过哪些)"
+    after_document = r"(?:有什么|有哪些|哪几份|几份|清单|列表)"
+    english = (
+        "what do i have",
+        "what materials",
+        "which document",
+        "list documents",
+        "list files",
+        "uploaded files",
+    )
+    return bool(
+        re.search(rf"{before_document}.{{0,4}}{document}", message)
+        or re.search(rf"{document}.{{0,2}}{after_document}(?:[？?。. ]*)$", message)
+        or re.search(rf"(?:查看|显示|列出).{{0,4}}{document}(?:清单|列表)?", message)
+        or _contains(message, english)
+    )
+
+
 _PROGRESS_TERMS = (
     "学习进度", "掌握度", "掌握得", "薄弱", "弱项", "学得怎么样",
     "progress", "mastery", "weak topic", "weakness",

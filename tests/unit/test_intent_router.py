@@ -30,6 +30,16 @@ def _decision(message: str):
         ("你好", LearningIntent.GENERAL, RouteTarget.GENERAL),
         ("请解释什么是 ANOVA", LearningIntent.CONCEPT_EXPLANATION, RouteTarget.RAG),
         ("ANOVA 的假设条件有哪些？", LearningIntent.COURSE_QA, RouteTarget.RAG),
+        (
+            "根据资料第一章，什么是残差，它和误差有什么区别？",
+            LearningIntent.CONCEPT_EXPLANATION,
+            RouteTarget.RAG,
+        ),
+        (
+            "指定 ANOVA 资料列出的基本假设有哪些？",
+            LearningIntent.COURSE_QA,
+            RouteTarget.RAG,
+        ),
     ],
 )
 def test_routes_learning_intents(message, intent, target) -> None:
