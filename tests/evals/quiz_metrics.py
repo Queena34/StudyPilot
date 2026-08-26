@@ -59,9 +59,16 @@ def score_quiz_case(
         for question in questions
     )
     topic_text = " ".join(
-        str(question.get("content") or "")
-        + " "
-        + " ".join(str(value) for value in question.get("knowledge_points") or [])
+        " ".join(
+            [
+                str(question.get("content") or ""),
+                " ".join(str(value) for value in question.get("knowledge_points") or []),
+                " ".join(
+                    str(option.get("text") or "")
+                    for option in question.get("options") or []
+                ),
+            ]
+        )
         for question in questions
     ).casefold()
     concepts = [_concept_aliases(term) for term in case.get("expected_terms", [])]
@@ -132,17 +139,29 @@ def aggregate_quiz_scores(results: list[dict[str, Any]]) -> dict[str, Any]:
         "rejection_accuracy": (
             rate("generation_success", rejection_cases) if rejection_cases else None
         ),
-        "question_count_adherence": rate("question_count_adherence", generated),
-        "question_type_adherence": rate("question_type_adherence", generated),
-        "difficulty_adherence": rate("difficulty_adherence", generated),
-        "options_format_validity": rate("options_format_valid", generated),
-        "question_completeness": rate("question_completeness", generated),
-        "citation_validity": rate("citation_validity", generated),
-        "document_scope_adherence": rate("document_scope_adherence", generated),
+        "question_count_adherence": (
+            rate("question_count_adherence", generated) if generated else None
+        ),
+        "question_type_adherence": (
+            rate("question_type_adherence", generated) if generated else None
+        ),
+        "difficulty_adherence": rate("difficulty_adherence", generated) if generated else None,
+        "options_format_validity": (
+            rate("options_format_valid", generated) if generated else None
+        ),
+        "question_completeness": (
+            rate("question_completeness", generated) if generated else None
+        ),
+        "citation_validity": rate("citation_validity", generated) if generated else None,
+        "document_scope_adherence": (
+            rate("document_scope_adherence", generated) if generated else None
+        ),
         "page_scope_adherence": (
             rate("page_scope_adherence", page_scored) if page_scored else None
         ),
-        "topic_coverage": mean(item["topic_coverage"] for item in generated) if generated else 0.0,
-        "fallback_rate": rate("fallback", generated),
+        "topic_coverage": (
+            mean(item["topic_coverage"] for item in generated) if generated else None
+        ),
+        "fallback_rate": rate("fallback", generated) if generated else None,
         "average_latency_ms": round(mean(item["latency_ms"] for item in results), 2),
     }

@@ -1,8 +1,31 @@
 {
   "dataset_version": "quiz-v1",
-  "status": "not_run",
-  "model_name": null,
-  "generated_at": null,
-  "metrics": null,
-  "note": "Run the complete dataset before replacing this placeholder. Do not enter estimated results."
+  "status": "measured",
+  "model_name": "deepseek-v4-flash",
+  "generated_at": "2026-08-26T10:56:39.882895+00:00",
+  "run_config": {
+    "case_count": 30,
+    "response_language": "zh",
+    "document_scope": "dataset-specified",
+    "topic_support_check": "two-negative-confirmation"
+  },
+  "metrics": {
+    "case_count": 30,
+    "generated_case_count": 27,
+    "rejection_case_count": 2,
+    "generation_success_rate": 0.9666666666666667,
+    "rejection_accuracy": 1.0,
+    "question_count_adherence": 1.0,
+    "question_type_adherence": 1.0,
+    "difficulty_adherence": 1.0,
+    "options_format_validity": 1.0,
+    "question_completeness": 1.0,
+    "citation_validity": 1.0,
+    "document_scope_adherence": 1.0,
+    "page_scope_adherence": 1.0,
+    "topic_coverage": 0.9629629629629629,
+    "fallback_rate": 0.0,
+    "average_latency_ms": 8275.27
+  },
+  "note": "Measured from a complete quiz-v1 run. Raw responses remain in ignored local artifacts."
 }

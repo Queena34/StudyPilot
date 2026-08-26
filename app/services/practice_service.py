@@ -39,10 +39,11 @@ class PracticeService:
         if await self.course_repository.get(user_id, course_id) is None:
             raise ResourceNotFoundError("课程")
         scope = data.scope
+        retrieval_topic = await self.gateway.expand_query(data.topic, data.language.value)
         evidence = await self.retriever.retrieve(
             user_id=user_id,
             course_id=course_id,
-            query=data.topic or "important course concepts definitions and relationships",
+            query=retrieval_topic or "important course concepts definitions and relationships",
             top_k=max(8, data.question_count * 2),
             document_types=[item.value for item in scope.document_types] or None,
             document_ids=scope.document_ids or None,
@@ -60,9 +61,15 @@ class PracticeService:
             difficulty=data.difficulty,
             count=data.question_count,
             language=data.language.value,
-            topic=data.topic,
+            topic=retrieval_topic,
             evidence=evidence,
         )
+        if not generated:
+            raise AppError(
+                "INSUFFICIENT_EVIDENCE",
+                "选定范围内的课程资料不支持该练习主题",
+                status_code=422,
+            )
         _validate_questions(generated, data, len(evidence))
         source_map = _source_map(evidence)
         practice_set = PracticeSet(

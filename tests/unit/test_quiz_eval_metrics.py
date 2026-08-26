@@ -124,7 +124,23 @@ def test_unexpected_server_error_is_not_a_correct_rejection() -> None:
     assert result["generation_success"] is False
 
 
-def test_quiz_v1_dataset_contract_and_unmeasured_baseline() -> None:
+def test_rejection_only_aggregate_marks_generation_metrics_not_available() -> None:
+    rejected = score_quiz_case(
+        _case(expected_rejection=True, expected_terms=[]),
+        None,
+        50,
+        "INSUFFICIENT_EVIDENCE",
+    )
+
+    metrics = aggregate_quiz_scores([rejected])
+
+    assert metrics["rejection_accuracy"] == 1
+    assert metrics["question_type_adherence"] is None
+    assert metrics["citation_validity"] is None
+    assert metrics["topic_coverage"] is None
+
+
+def test_quiz_v1_dataset_contract_and_measured_baseline() -> None:
     dataset = ROOT / "tests/evals/datasets/quiz_generation_v1.jsonl"
     cases = [json.loads(line) for line in dataset.read_text().splitlines() if line]
 
@@ -148,5 +164,6 @@ def test_quiz_v1_dataset_contract_and_unmeasured_baseline() -> None:
     assert {case["question_count"] for case in cases} >= {1, 3, 5}
 
     baseline = json.loads((ROOT / "tests/evals/baselines/quiz_v1.json").read_text())
-    assert baseline["status"] == "not_run"
-    assert baseline["metrics"] is None
+    assert baseline["status"] == "measured"
+    assert baseline["metrics"]["case_count"] == len(cases)
+    assert baseline["model_name"]

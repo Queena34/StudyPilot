@@ -94,10 +94,21 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/evals"))
     parser.add_argument("--limit", type=int)
     parser.add_argument("--smoke", action="store_true", help="Run the three tagged smoke cases")
+    parser.add_argument(
+        "--case-id",
+        action="append",
+        help="Run only this case ID; repeat the option to select multiple cases",
+    )
     args = parser.parse_args()
 
     cases = _load_cases(args.dataset)
-    if args.smoke:
+    if args.case_id:
+        requested = set(args.case_id)
+        cases = [case for case in cases if case["id"] in requested]
+        missing_cases = sorted(requested - {case["id"] for case in cases})
+        if missing_cases:
+            raise ValueError(f"unknown quiz case IDs: {', '.join(missing_cases)}")
+    elif args.smoke:
         cases = [case for case in cases if "smoke" in case.get("tags", [])]
         if len(cases) != 3:
             raise ValueError("quiz smoke suite must contain exactly three tagged cases")
