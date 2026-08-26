@@ -290,3 +290,10 @@ def _answer_format_mismatch_answer(question, language: str) -> str:
         f"当前待作答的是选择题，请直接回复选项编号（{options}）。"
         f"\n\n> {question.content[:160]}"
     )
+
+
+def _with_integrity_notice(answer: str, integrity) -> str:
+    """PRD 8.7: the notice must be brief and must not replace the help itself."""
+
+    notice = getattr(integrity, "notice", "")
+    return f"> {notice}\n\n{answer}" if notice else answer

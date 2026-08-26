@@ -76,6 +76,8 @@ class TutorMessageRead(BaseModel):
     intent: str = "course_qa"
     route: str = "rag"
     query_plan: dict = Field(default_factory=dict)
+    #: Academic integrity ruling applied to this turn (PRD 8.7).
+    integrity: dict = Field(default_factory=dict)
     #: Agent orchestration trace: route, agent order, tool calls and degradations.
     trace: dict = Field(default_factory=dict)
     #: Full structured RoutingDecision, for tracing and offline router evaluation.

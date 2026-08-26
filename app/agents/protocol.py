@@ -40,6 +40,8 @@ class LearningContext:
     practice_options: Any = None
     #: The only route agents have to course data, practice, grading and planning.
     tools: Any = None
+    #: Academic integrity ruling for this turn, decided before any agent runs.
+    integrity: Any = None
     #: Topic recovered from earlier turns, when the learner referred back to it.
     learned_topic: str | None = None
     #: Filled by the primary agent so supporting agents can build on its output.

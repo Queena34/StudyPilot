@@ -9,6 +9,7 @@ in the services that are already covered by tests and offline evaluations.
 from app.agents.presenters import (
     _attempt_feedback_answer,
     _document_inventory_answer,
+    _with_integrity_notice,
     _evidence_status,
     _general_answer,
     _practice_configuration,
@@ -30,6 +31,7 @@ from app.agents.protocol import (
     LearningContext,
 )
 from app.agents.routing import AgentName
+from app.agents.skills import get_skill_library
 from app.core.exceptions import AppError
 from app.llm.gateway import GeneratedAnswer, TutorAnswerGateway, _extractive_answer
 
@@ -68,15 +70,21 @@ class TutorAgent:
                 tool_calls=tools.calls,
             )
 
+        integrity = context.integrity
         generated = await self.gateway.answer(
             question=context.message,
             language=context.language,
             mode=context.mode,
             evidence=evidence,
             history=context.history_pairs(),
+            answer_constraint=getattr(integrity, "answer_constraint", ""),
+            teaching_guidance=get_skill_library().prompt_section(
+                message=context.message, agent=self.name.value
+            ),
         )
+        answer = _with_integrity_notice(generated.answer, integrity)
         return AgentResult(
-            answer=generated.answer,
+            answer=answer,
             status=AgentStatus.DEGRADED if generated.fallback_reason else AgentStatus.OK,
             evidence_status=status,
             evidence=evidence,
@@ -267,4 +275,18 @@ class ClarifyAgent:
             answer=context.decision.clarification or _general_answer(context.language),
             evidence_status="clarification",
             model_name="intent-router",
+        )
+
+
+class IntegrityGuardAgent:
+    """Answers when the guard blocks a direct answer, so no course agent runs."""
+
+    name = AgentName.GENERAL
+
+    async def run(self, task: AgentTask, context: LearningContext) -> AgentResult:
+        return AgentResult(
+            answer=context.integrity.notice,
+            status=AgentStatus.SKIPPED,
+            evidence_status="integrity_blocked",
+            model_name="integrity-guard",
         )

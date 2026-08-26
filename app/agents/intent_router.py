@@ -285,7 +285,9 @@ def _is_answer_submission(message: str) -> bool:
     """Only explicit submissions, so ordinary questions are never graded by mistake."""
 
     return bool(
-        re.search(r"(?:我的答案|我的回答|我答|我选)\s*(?:是|为|：|:)?", message)
+        # "我答" must introduce an answer, not appear inside "给我答案".
+        re.search(r"(?:我的答案|我的回答)\s*(?:是|为)?\s*[：:]?\s*\S", message)
+        or re.search(r"(?:^|[，,。.；;\s])(?:我答|我选)\s*(?:是|为)?\s*[：:]?\s*\S", message)
         or re.search(r"^(?:答案|answer)\s*[：:]\s*\S", message)
         or _contains(message, _SUBMISSION_TERMS)
     )

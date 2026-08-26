@@ -29,6 +29,8 @@ class TutorAnswerGateway:
         mode: str,
         evidence: list[RetrievedEvidence],
         history: list[tuple[str, str]] | None = None,
+        answer_constraint: str = "",
+        teaching_guidance: str = "",
     ) -> GeneratedAnswer:
         settings = get_settings()
         if not settings.anthropic_api_key:
@@ -49,6 +51,11 @@ class TutorAnswerGateway:
             "in the sources and finish with a concise chapter summary. If the student says continue, "
             "resume from the exact stopping point in the recent assistant answer without repeating it."
         )
+        if teaching_guidance:
+            system = f"{system}\n\n{teaching_guidance}"
+        if answer_constraint:
+            # Academic integrity constraints must outrank the student's phrasing.
+            system = f"{system}\n\nACADEMIC INTEGRITY CONSTRAINT: {answer_constraint}"
         prompt = (
             f"Requested language: {language}\nExplanation mode: {mode}\n"
             f"Recent conversation:\n{_history_text(history or [])}\n\n"

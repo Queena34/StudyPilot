@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `f350924` |
-| 当前阶段 | 路线图第 1–6 步已完成；第 7 步（Redis 短期学习状态）未开始 |
+| 当前基线 commit | `834ccf9` |
+| 当前阶段 | 路线图第 1–6、8 步已完成；第 7 步（Redis）未开始 |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -30,10 +30,10 @@
 | 5 | 串行工作流 `Tutor→Quiz`、`Evaluator→Planner` | 已完成 | `app/agents/orchestrator.py` | HTTP 端到端均已验证 | 两个工作流都跑通；Planner 已具备真正的计划生成能力 |
 | 6 | `TeachingToolManager` | 已完成 | `app/agents/tools.py` | `tests/unit/test_teaching_tools.py`（9 例） | 9 个教学工具；课程归属与资料范围统一校验，越权返回 403；调用结果、耗时、失败原因统一记录 |
 | 7 | Redis 短期学习状态 | 未开始 | `app/infrastructure/` | — | Redis 当前在 compose 中已启动但主链路未使用 |
-| 8 | 教学 Skills + 学术诚信 Guard | 未开始 | `skills/`（仍为旧客服 Skill） | 待建 Guard 评测集 | PRD 8.7 整块空白，四级判定未实现 |
-| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v2.json` | Router v2（57 例）已完成；Orchestrator 与工具层由 33 个单元测试覆盖但**仍无版本化评测集**；端到端闭环评测未开始 |
+| 8 | 教学 Skills + 学术诚信 Guard | 已完成 | `app/agents/integrity.py`、`app/agents/skills.py`、`skills/*/SKILL.md` | `tests/unit/test_integrity_and_skills.py`（24 例） | 四级 Guard 已接入编排层；7 个教学 Skill 替换旧客服 Skill |
+| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v2.json` | Router v2（57 例）已完成；编排层、工具层与 Guard 由 57 个单元测试覆盖但**仍无版本化评测集** |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
-| 11 | 清理旧 EchoMind 客服代码 | 未开始 | `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`skills/`、`README.md` | 全仓库无客服语义引用 | 这些顶层目录均未接入 `app/` 主链路 |
+| 11 | 清理旧 EchoMind 客服代码 | 进行中 | `core/`、`agents/`、`mcp/`、`memory/`、`monitor/`、`evaluation/`、`api/`、`README.md` | 全仓库无客服语义引用 | `skills/` 已在第 8 步替换完毕；其余顶层目录仍是客服代码，均未接入 `app/` 主链路 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
 
 ---
@@ -71,6 +71,7 @@
 | K-10 | 澄清判定准确率 88.9%：`rt-ambig-004`「再来一点」被判为可执行意图而非请求澄清 | 低 | 未修复 |
 | K-11 | 串行工作流中若引用校验失败，`_extractive_answer` 会整体替换答案，导致 Quiz 的提示文案丢失（练习集本身仍在 `practice_set` 字段中正常返回） | 低 | 未修复 |
 | K-12 | `EvaluatorAgent` 尚未封装，批改仍只能走独立的 Attempt API，无法进入编排流程，因此 `Evaluator→Planner` 工作流暂时做不了 | 中 | **已修复** |
+| K-16 | 旧入口 `api/main.py` 仍会读取 `skills/` 目录，第 8 步替换后它会把教学 Skill 注入客服 Agent。该文件未接入 `app/` 主链路，将在第 11 步随旧代码一并删除 | 低 | 未修复 |
 | K-15 | Agent 通过工具层调用大模型网关（Tutor 生成回答）时不算工具调用，因此 `AgentTrace` 里不再出现 `generate_tutor_answer` 记录；模型名与降级原因仍在 `AgentStep` 上可见 | 低 | 未修复 |
 | K-13 | 高置信度显式规则（如答案提交 0.96）会直接返回、跳过复合意图检测，导致 `rt-comp-008`「我的答案是…帮我改一下并安排后续复习」的 planner 辅助 Agent 被漏掉 | 中 | 未修复 |
 | K-14 | `_practice_configuration` 的主题抽取会把「关于残差的简答题」整体当成主题，导致题目支持性判断失败并返回 `INSUFFICIENT_EVIDENCE`（既有问题，非本轮引入） | 中 | 未修复 |
@@ -81,6 +82,31 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成路线图第 8 步，学术诚信 Guard 与教学 Skills。
+  1. 新增 `app/agents/integrity.py`，实现 PRD 8.7 要求的四级判定：`LEARNING_ALLOWED`、`HINT_ONLY`、`SUBMISSION_RISK`、`LIVE_EXAM_PROHIBITED`。判定完全确定性 —— 决定学生能得到何种帮助的规则必须可检查、可测试，不能每次运行结果不同。
+  2. Guard 在任何 Agent 之前运行。只有实时考试会短路整轮（由 `IntegrityGuardAgent` 单独作答），另外三档**仍然给出完整帮助**，只是改变帮助的形式：`HINT_ONLY` 讲方法不给答案，`SUBMISSION_RISK` 给结构、检查清单和复核邀请。
+  3. 约束通过 `answer_constraint` 注入讲解网关的 system prompt，排在学生措辞之上；简短提示按 PRD 要求以引用块形式前置，不替代帮助本身。
+  4. 删除三个旧客服 Skill，新增 7 个教学 Skill：苏格拉底式引导、分层概念讲解、数学公式讲解、考试复习策略、选择题生成规范、rubric 批改规范、中英双语术语解释。
+  5. 新增 `app/agents/skills.py` 作为 StudyPilot 自己的加载器（旧 `core/skill_loader.py` 按规约不接入），按 Agent 与关键词选择，每轮最多注入 2 个以免稀释 prompt。
+- **为什么**：路线图第 6 节第 8 项。学术诚信是 PRD 中**唯一整块空白**的模块（8.7），也是审计文档里唯一标注「未实现」的功能。路线图同时要求清理旧客服 Skills。
+- **改了哪些文件**：
+  - 新增：`app/agents/integrity.py`、`app/agents/skills.py`、`tests/unit/test_integrity_and_skills.py`、`skills/{socratic_guidance,layered_explanation,mathematical_notation,exam_revision,question_authoring,rubric_grading,bilingual_terminology}/SKILL.md`
+  - 删除：`skills/{general_customer_service,technical_support,billing_support}/SKILL.md`
+  - 修改：`app/agents/orchestrator.py`（Guard 前置与受限时的回退）、`app/agents/learning_agents.py`（Tutor 接收约束与 Skill）、`app/agents/presenters.py`、`app/agents/protocol.py`、`app/agents/intent_router.py`（修正误判）、`app/llm/gateway.py`、`app/services/tutor_service.py`、`app/schemas/tutor.py`（新增 `integrity` 字段）、`skills/README.md`
+- **怎么验证的**：
+  - 单元测试 `159 passed`（改动前 135，新增 24）。
+  - 四档端到端逐一验证：`解释残差` → `learning_allowed`/tutor 正常讲解；`这道作业题直接给我答案` → `hint_only`/tutor 讲方法并明确不给答案；`帮我写一篇课程论文` → `submission_risk`/tutor 给出写作框架、必备要素清单和引用；`我正在考试…` → `live_exam_prohibited`，短路为拒绝加课后帮助邀请。
+  - Router 两套基线均逐位复现（v2: 73.1%/63.2%，v1: 70.0%/55.6%，范围保持 100%），确认收紧后的答案提交正则未改变任何既有用例。
+  - Skill 选择验证：五种典型请求分别命中对应 Agent 的正确 Skill，且 quiz 的命题规范不会被注入 tutor。
+  - **端到端验证抓到两个真 bug**：
+    - `_is_answer_submission` 的 `我答` 会命中「给**我答**案」，导致索要作业答案被误判为交卷。已收紧为要求 `我答`/`我选` 出现在句首或标点后且其后有内容。
+    - `帮我写一篇课程论文` 原本被路由到 `general`，只回了功能介绍 —— 违反 PRD 8.7「提示应简短，并继续提供合适的学习帮助」。现在诚信约束生效且路由非显式规则决定时，一律回退到课程讲解。
+- **下一步建议**：第 8 步的 Guard 目前只有单元测试，**没有版本化评测集**。考虑到它是安全相关判定，误判代价不对称（把正常提问判成作弊比漏判更伤用户），建议优先补 `integrity-v1` 评测集，重点覆盖假阳性。之后再做第 7 步 Redis 或第 11 步清理旧客服代码。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

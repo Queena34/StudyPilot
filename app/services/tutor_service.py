@@ -7,6 +7,7 @@ from app.agents.learning_agents import (
     CatalogAgent,
     ClarifyAgent,
     EvaluatorAgent,
+    IntegrityGuardAgent,
     GeneralAgent,
     PlannerAgent,
     ProgressAgent,
@@ -15,6 +16,7 @@ from app.agents.learning_agents import (
 )
 from app.agents.orchestrator import LearningAgentOrchestrator
 from app.agents.presenters import _followups, _remove_unknown_citations
+from app.agents.integrity import AcademicIntegrityGuard
 from app.agents.protocol import LearningContext
 from app.agents.tools import TeachingToolManager
 from app.agents.routing import AgentName
@@ -49,6 +51,7 @@ class TutorService:
         intent_router: LearningIntentRouter | None = None,
         orchestrator: LearningAgentOrchestrator | None = None,
         tools: TeachingToolManager | None = None,
+        integrity_guard: AcademicIntegrityGuard | None = None,
     ) -> None:
         self.course_repository = course_repository
         self.conversation_repository = conversation_repository
@@ -81,7 +84,9 @@ class TutorService:
                 AgentName.GENERAL: GeneralAgent(),
             },
             clarify_agent=ClarifyAgent(),
+            integrity_agent=IntegrityGuardAgent(),
         )
+        self.integrity_guard = integrity_guard or AcademicIntegrityGuard()
 
     async def answer(
         self, user_id: UUID, course_id: UUID, data: TutorMessageCreate
@@ -151,6 +156,11 @@ class TutorService:
             practice_options=data.practice_options,
             learned_topic=learned_topic,
             tools=self.tools,
+            integrity=self.integrity_guard.evaluate(
+                data.message,
+                language=data.response_language.value,
+                history=history,
+            ),
         )
         result, trace = await self.orchestrator.run(context)
         evidence = result.evidence
@@ -224,6 +234,7 @@ class TutorService:
             route=decision.target.value,
             query_plan=decision.query_plan.as_dict(),
             routing=decision.as_dict(),
+            integrity=context.integrity.as_dict(),
             trace=trace.as_dict(),
             practice_set=(practice_set.model_dump(mode="json") if practice_set else None),
             fallback_reason=generated.fallback_reason,

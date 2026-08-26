@@ -15,7 +15,8 @@ from app.agents.protocol import (
     LearningContext,
     timer,
 )
-from app.agents.routing import AgentName, ExecutionMode, RouteTarget
+from app.agents.integrity import IntegrityLevel
+from app.agents.routing import AgentName, ExecutionMode, RouteTarget, RoutingSource
 
 #: Supporting agents only run when the primary agent produced what they consume.
 _SUPPORTING_DEPENDENCIES: dict[AgentName, str] = {
@@ -25,6 +26,11 @@ _SUPPORTING_DEPENDENCIES: dict[AgentName, str] = {
 
 #: Supporting agents that must build something rather than read existing state.
 _SUPPORTING_CREATES: frozenset[AgentName] = frozenset({AgentName.PLANNER})
+
+#: Agents that produce course answers or graded practice, so the guard applies.
+_INTEGRITY_GUARDED: frozenset[AgentName] = frozenset(
+    {AgentName.TUTOR, AgentName.QUIZ, AgentName.EVALUATOR}
+)
 
 _OBJECTIVES: dict[AgentName, str] = {
     AgentName.TUTOR: "Answer the learner's question from the course material with citations.",
@@ -40,16 +46,39 @@ _OBJECTIVES: dict[AgentName, str] = {
 class LearningAgentOrchestrator:
     """Dispatches one learning turn across one or more agents."""
 
-    def __init__(self, registry: dict[AgentName, object], clarify_agent: object) -> None:
+    def __init__(
+        self,
+        registry: dict[AgentName, object],
+        clarify_agent: object,
+        integrity_agent: object | None = None,
+    ) -> None:
         self.registry = registry
         self.clarify_agent = clarify_agent
+        self.integrity_agent = integrity_agent
 
     async def run(self, context: LearningContext) -> tuple[AgentResult, AgentTrace]:
         decision = context.decision
         trace = AgentTrace(route=decision.as_dict())
 
         with timer() as total:
-            if decision.target == RouteTarget.CLARIFY:
+            integrity = context.integrity
+            if (
+                integrity is not None
+                and integrity.blocks_direct_answer
+                and self.integrity_agent is not None
+                and decision.primary_agent in _INTEGRITY_GUARDED
+            ):
+                # No course agent runs: the turn is answered by the guard alone.
+                trace.route = {**trace.route, "integrity": integrity.as_dict()}
+                result = await self._step(
+                    self.integrity_agent,
+                    AgentName.GENERAL,
+                    "integrity_guard",
+                    AgentTask(AgentName.GENERAL, "Decline to answer during a live exam."),
+                    context,
+                    trace,
+                )
+            elif decision.target == RouteTarget.CLARIFY:
                 result = await self._step(
                     self.clarify_agent,
                     AgentName.GENERAL,
@@ -59,6 +88,8 @@ class LearningAgentOrchestrator:
                     trace,
                 )
             else:
+                if integrity is not None:
+                    trace.route = {**trace.route, "integrity": integrity.as_dict()}
                 result = await self._run_workflow(context, trace)
 
         trace.total_latency_ms = total.elapsed_ms
@@ -69,6 +100,16 @@ class LearningAgentOrchestrator:
     ) -> AgentResult:
         decision = context.decision
         primary_name = decision.primary_agent
+        integrity = context.integrity
+        if (
+            integrity is not None
+            and integrity.level is not IntegrityLevel.LEARNING_ALLOWED
+            and decision.source is not RoutingSource.RULE
+        ):
+            # PRD 8.7 requires the notice to arrive with real help, so a restricted
+            # turn is answered from the course material rather than deflected. An
+            # explicit rule match still wins: "我选 C" really is a submission.
+            primary_name = AgentName.TUTOR
         primary_agent = self.registry.get(primary_name)
         if primary_agent is None:
             # An intent with no registered agent must not break the turn.

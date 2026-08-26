@@ -1,62 +1,35 @@
-# EchoMind Skills 文档
+# StudyPilot 教学 Skills
 
-EchoMind 启动时会从 `ECHOMIND_SKILLS_DIR` 读取 Skills，并在匹配用户请求时注入到对应 Agent 的 system prompt。Skills 适合维护业务处理规范、客服话术、技术排障 SOP、账单审核边界、升级规则和禁止事项。
+Skill 是一段可独立维护的教学策略说明，用来补充 Agent 的行为规范。它适合放置讲解结构、命题标准、批改边界和语言处理规则——这些内容需要能被非工程人员审阅和调整，不适合硬编码在 prompt 字符串里。
 
-当前内置三类 Skills：
-
-```text
-skills/general_customer_service/SKILL.md  # 通用客服：接待、澄清、分流、投诉和转人工
-skills/technical_support/SKILL.md         # 技术支持：故障排查、接口错误、部署配置和安全边界
-skills/billing_support/SKILL.md           # 账单服务：扣款、退款、发票、订阅和财务审核
-```
-
-## Skill 文件格式
-
-推荐每个 Skill 使用独立目录，并将主文件命名为 `SKILL.md`：
+## 当前 Skills
 
 ```text
-skills/<skill_name>/SKILL.md
+skills/socratic_guidance/SKILL.md       # 苏格拉底式引导：分级提示，不直接给答案
+skills/layered_explanation/SKILL.md     # 分层概念讲解：定义—展开—例子—误解—边界
+skills/mathematical_notation/SKILL.md   # 数学公式讲解：LaTeX 规范与逐符号拆解
+skills/exam_revision/SKILL.md           # 考试复习策略：排序原则与时间分配
+skills/question_authoring/SKILL.md      # 命题规范：干扰项设计与难度分档
+skills/rubric_grading/SKILL.md          # rubric 批改：不可变原则与反馈结构
+skills/bilingual_terminology/SKILL.md   # 中英双语术语：对照、翻译陷阱与语言选择
 ```
 
-文件顶部使用简单 front matter：
+`agents` 字段对应 `app/agents/routing.py` 中的 `AgentName`：`tutor`、`quiz`、`evaluator`、`planner`。
 
-```markdown
+## 文件格式
+
+每个 Skill 一个目录，主文件为 `SKILL.md`，开头是 YAML frontmatter：
+
+```yaml
 ---
-name: 技术支持处理规范
-description: 适用于 TechnicalAgent 的故障排查和升级处理规范
-keywords: 报错,错误,接口,API,部署,超时,500,401,日志
-agents: technical
+name: 显示名称
+description: 一句话说明适用场景
+keywords: 逗号分隔，命中任一关键词才注入；留空表示对该 Agent 始终注入
+agents: 逗号分隔的 AgentName；留空表示适用于所有 Agent
 enabled: true
 ---
 ```
 
-字段说明：
+## 与旧客服 Skills 的关系
 
-- `name`：Skill 展示名称，会出现在注入给模型的 prompt 中。
-- `description`：简短说明，方便 `/skills` 接口排查。
-- `keywords`：触发关键词，用户消息命中后才注入；多个关键词用英文逗号或中文逗号分隔均可。
-- `agents`：适用 Agent，可填 `general`、`technical`、`billing`，多个值用逗号分隔。
-- `enabled`：是否启用，支持 `true/false`。
-
-## 编写要求
-
-- 重要规则放在文档前半部分，因为过长内容会按 prompt 预算截断。
-- 一类 Skill 只描述一类职责，不要把技术、账单、通用客服规则混在一个文件里。
-- 必须包含“角色定位”“处理流程”“升级条件”“禁止事项”等稳定章节。
-- 对用户隐私、支付、密码、验证码、API Key、Token 等敏感信息必须写明禁止收集或禁止公开。
-- 对无法保证的事项使用保守措辞，例如“通常”“预计”“需要核验后确认”。
-- 对需要人工、财务、二线技术处理的场景要明确写出升级条件。
-
-## 热加载
-
-修改 Skill 文件后，不需要重启服务，调用：
-
-```bash
-curl -X POST http://localhost:8000/skills/reload
-```
-
-查看加载结果和解析错误：
-
-```bash
-curl http://localhost:8000/skills
-```
+原 EchoMind 的 `general_customer_service`、`technical_support`、`billing_support` 三个客服 Skill 已在路线图第 8 步中删除。顶层 `core/skill_loader.py` 是旧加载器，未接入 `app/` 主链路，不要直接启用。StudyPilot 的加载器是 `app/agents/skills.py`。
