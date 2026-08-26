@@ -26,6 +26,7 @@ class RouteTarget(str, Enum):
     PROGRESS = "progress"
     STUDY_PLAN = "study_plan"
     PRACTICE = "practice"
+    EVALUATE = "evaluate"
     GENERAL = "general"
     CLARIFY = "clarify"
 
@@ -64,7 +65,7 @@ INTENT_TARGETS: dict[LearningIntent, RouteTarget] = {
     LearningIntent.COURSE_QA: RouteTarget.RAG,
     LearningIntent.CONCEPT_EXPLANATION: RouteTarget.RAG,
     LearningIntent.PRACTICE_GENERATION: RouteTarget.PRACTICE,
-    LearningIntent.ANSWER_EVALUATION: RouteTarget.PRACTICE,
+    LearningIntent.ANSWER_EVALUATION: RouteTarget.EVALUATE,
     LearningIntent.STUDY_PLANNING: RouteTarget.STUDY_PLAN,
     LearningIntent.PROGRESS_REVIEW: RouteTarget.PROGRESS,
     LearningIntent.DOCUMENT_MANAGEMENT: RouteTarget.COURSE_CATALOG,

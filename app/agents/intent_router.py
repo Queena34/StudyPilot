@@ -231,6 +231,12 @@ def _rule_matches(message: str) -> list[tuple[LearningIntent, float, str]]:
             0.93,
             "The user asked about a study or revision plan.",
         ))
+    if _is_answer_submission(message):
+        matches.append((
+            LearningIntent.ANSWER_EVALUATION,
+            0.96,
+            "The user submitted an answer for grading.",
+        ))
     if _is_practice_request(message):
         matches.append((
             LearningIntent.PRACTICE_GENERATION,
@@ -275,6 +281,16 @@ def _is_practice_request(message: str) -> bool:
     )
 
 
+def _is_answer_submission(message: str) -> bool:
+    """Only explicit submissions, so ordinary questions are never graded by mistake."""
+
+    return bool(
+        re.search(r"(?:我的答案|我的回答|我答|我选)\s*(?:是|为|：|:)?", message)
+        or re.search(r"^(?:答案|answer)\s*[：:]\s*\S", message)
+        or _contains(message, _SUBMISSION_TERMS)
+    )
+
+
 def _is_catalog_request(message: str) -> bool:
     """Match inventory requests without confusing questions about document content."""
     document = r"(?:课程资料|资料|文件|文档|讲义|课件)"
@@ -307,6 +323,10 @@ _PLAN_TERMS = (
 _PRACTICE_TERMS = (
     "给我出题", "出几道题", "生成练习", "开始练习", "测试我", "自测",
     "generate questions", "create a quiz", "quiz me", "practice questions",
+)
+_SUBMISSION_TERMS = (
+    "帮我批改", "帮我改一下", "看看我答得对不对", "评一下我的答案", "给我打分",
+    "grade my answer", "check my answer", "mark my answer", "how did i do on",
 )
 _CAPABILITY_TERMS = (
     "你能做什么", "怎么用", "使用帮助", "what can you do", "how to use",

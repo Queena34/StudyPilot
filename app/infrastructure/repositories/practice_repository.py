@@ -32,6 +32,29 @@ class PracticeRepository:
         )
         return result.scalar_one_or_none()
 
+    async def latest_pending_question(
+        self, user_id: UUID, course_id: UUID
+    ) -> Question | None:
+        """The first still-unanswered question of the newest practice set.
+
+        Used by the chat evaluator so a learner can answer in the conversation
+        without having to name a question ID.
+        """
+
+        answered = select(Attempt.question_id).where(Attempt.user_id == user_id)
+        result = await self.session.execute(
+            select(Question)
+            .join(PracticeSet, PracticeSet.id == Question.practice_set_id)
+            .where(
+                PracticeSet.user_id == user_id,
+                PracticeSet.course_id == course_id,
+                Question.id.not_in(answered),
+            )
+            .order_by(PracticeSet.created_at.desc(), Question.created_at.asc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def create_attempt(self, attempt: Attempt) -> Attempt:
         self.session.add(attempt)
         await self.session.commit()

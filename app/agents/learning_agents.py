@@ -7,14 +7,22 @@ in the services that are already covered by tests and offline evaluations.
 """
 
 from app.agents.presenters import (
+    _attempt_feedback_answer,
     _document_inventory_answer,
     _evidence_status,
     _general_answer,
     _practice_configuration,
     _practice_created_answer,
+    _answer_format_mismatch_answer,
+    _no_pending_question_answer,
     _progress_answer,
+    _requests_new_plan,
     _study_plan_answer,
+    _study_plan_configuration,
+    _study_plan_created_answer,
+    _extract_submitted_answer,
 )
+from app.schemas.attempt import AttemptCreate
 from app.agents.protocol import (
     AgentResult,
     AgentStatus,
@@ -24,6 +32,7 @@ from app.agents.protocol import (
     timer,
 )
 from app.agents.routing import AgentName
+from app.core.exceptions import AppError
 from app.llm.gateway import GeneratedAnswer, TutorAnswerGateway, _extractive_answer
 from app.rag.retrieval import CourseRetriever
 
@@ -209,14 +218,48 @@ class ProgressAgent:
 
 
 class PlannerAgent:
-    """Reads existing study plans. Plan generation is still roadmap step 5."""
+    """Reads existing study plans, and builds a new one when asked to.
+
+    `StudyPlanService.create` already orders topics by recorded mastery, so plan
+    generation here is a matter of invoking it with the learner's weak topics
+    rather than duplicating the scheduling logic.
+    """
 
     name = AgentName.PLANNER
 
-    def __init__(self, study_plan_repository) -> None:
+    def __init__(self, study_plan_repository, study_plan_service=None) -> None:
         self.study_plan_repository = study_plan_repository
+        self.study_plan_service = study_plan_service
 
     async def run(self, task: AgentTask, context: LearningContext) -> AgentResult:
+        wants_new_plan = task.inputs.get("create") or _requests_new_plan(context.message)
+        if wants_new_plan and self.study_plan_service is not None:
+            return await self._create(task, context)
+        return await self._list(context)
+
+    async def _create(self, task: AgentTask, context: LearningContext) -> AgentResult:
+        configuration = _study_plan_configuration(context.message)
+        with timer() as creation:
+            plan = await self.study_plan_service.create(
+                context.user_id, context.course_id, configuration
+            )
+        weak_topics = task.inputs.get("weak_topics") or []
+        return AgentResult(
+            answer=_study_plan_created_answer(plan, weak_topics, context.language),
+            evidence_status="business_data",
+            model_name="study-plan-service",
+            tool_calls=[
+                ToolCall(
+                    "create_study_plan",
+                    ok=True,
+                    latency_ms=creation.elapsed_ms,
+                    detail=f"{len(plan.tasks)} task(s)",
+                )
+            ],
+            shared={"study_plan_id": str(plan.id)},
+        )
+
+    async def _list(self, context: LearningContext) -> AgentResult:
         with timer() as lookup:
             plans = await self.study_plan_repository.list_for_course(
                 context.user_id, context.course_id, offset=0, limit=5
@@ -233,6 +276,95 @@ class PlannerAgent:
                     detail=f"{len(plans)} plan(s)",
                 )
             ],
+        )
+
+
+class EvaluatorAgent:
+    """Grades an answer the learner typed in the conversation.
+
+    The question is resolved from the newest practice set instead of being named
+    by the learner, and grading itself stays in `AttemptService` so the immutable
+    rubric and the recorded evaluation baseline continue to apply unchanged.
+    """
+
+    name = AgentName.EVALUATOR
+
+    def __init__(self, attempt_service, practice_repository) -> None:
+        self.attempt_service = attempt_service
+        self.practice_repository = practice_repository
+
+    async def run(self, task: AgentTask, context: LearningContext) -> AgentResult:
+        with timer() as lookup:
+            question = await self.practice_repository.latest_pending_question(
+                context.user_id, context.course_id
+            )
+        calls = [
+            ToolCall(
+                "find_pending_question",
+                ok=question is not None,
+                latency_ms=lookup.elapsed_ms,
+                detail=None if question else "no unanswered question",
+            )
+        ]
+        if question is None:
+            return AgentResult(
+                answer=_no_pending_question_answer(context.language),
+                status=AgentStatus.SKIPPED,
+                evidence_status="general",
+                model_name="attempt-service",
+                tool_calls=calls,
+            )
+
+        answer_text = _extract_submitted_answer(context.message, question)
+        with timer() as grading:
+            try:
+                attempt = await self.attempt_service.submit(
+                    context.user_id,
+                    question.id,
+                    AttemptCreate(answer=answer_text),
+                )
+            except AppError as error:
+                if error.code not in {"INVALID_OPTION", "EMPTY_ANSWER"}:
+                    raise
+                # Tell the learner how to answer instead of failing the request.
+                calls.append(
+                    ToolCall(
+                        "grade_answer",
+                        ok=False,
+                        latency_ms=grading.elapsed_ms,
+                        detail=error.code,
+                    )
+                )
+                return AgentResult(
+                    answer=_answer_format_mismatch_answer(question, context.language),
+                    status=AgentStatus.SKIPPED,
+                    evidence_status="general",
+                    model_name="attempt-service",
+                    tool_calls=calls,
+                )
+        calls.append(
+            ToolCall(
+                "grade_answer",
+                ok=True,
+                latency_ms=grading.elapsed_ms,
+                detail=f"score {attempt.score}",
+            )
+        )
+        # Topics, not error prose: knowledge_errors describes what went wrong,
+        # while the planner needs subjects it can schedule study time against.
+        feedback = attempt.feedback
+        weak = (
+            list(feedback.recommended_topics or [])
+            or list(feedback.missing_concepts or [])
+            or list(question.knowledge_points_json or [])
+        )
+        return AgentResult(
+            answer=_attempt_feedback_answer(question, attempt, context.language),
+            evidence_status="graded",
+            model_name=attempt.evaluation_model,
+            tool_calls=calls,
+            # A following PlannerAgent should target what was just answered badly.
+            shared={"weak_topics": weak, "last_score": attempt.score},
         )
 
 

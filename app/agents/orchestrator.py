@@ -23,6 +23,9 @@ _SUPPORTING_DEPENDENCIES: dict[AgentName, str] = {
     AgentName.PLANNER: "weak_topics",
 }
 
+#: Supporting agents that must build something rather than read existing state.
+_SUPPORTING_CREATES: frozenset[AgentName] = frozenset({AgentName.PLANNER})
+
 _OBJECTIVES: dict[AgentName, str] = {
     AgentName.TUTOR: "Answer the learner's question from the course material with citations.",
     AgentName.QUIZ: "Create a gradable practice set for the current learning scope.",
@@ -168,7 +171,10 @@ def _supporting_inputs(name: AgentName, context: LearningContext) -> dict:
     if name == AgentName.QUIZ:
         return {"topic": context.shared.get("explained_topic")}
     if name == AgentName.PLANNER:
-        return {"weak_topics": context.shared.get("weak_topics", [])}
+        return {
+            "weak_topics": context.shared.get("weak_topics", []),
+            "create": AgentName.PLANNER in _SUPPORTING_CREATES,
+        }
     return {}
 
 

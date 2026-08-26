@@ -19,7 +19,9 @@ from app.schemas.tutor import (
     TutorMessageCreate,
     TutorMessageRead,
 )
+from app.services.attempt_service import AttemptService
 from app.services.practice_service import PracticeService
+from app.services.study_plan_service import StudyPlanService
 from app.services.tutor_service import TutorService
 
 router = APIRouter()
@@ -33,13 +35,21 @@ async def create_tutor_message(
     user_id: CurrentUserId,
 ) -> TutorMessageRead:
     course_repository = CourseRepository(session)
+    practice_repository = PracticeRepository(session)
+    progress_repository = ProgressRepository(session)
+    study_plan_repository = StudyPlanRepository(session)
     return await TutorService(
         course_repository,
         ConversationRepository(session),
         DocumentRepository(session),
-        ProgressRepository(session),
-        StudyPlanRepository(session),
-        PracticeService(course_repository, PracticeRepository(session)),
+        progress_repository,
+        study_plan_repository,
+        PracticeService(course_repository, practice_repository),
+        attempt_service=AttemptService(practice_repository, progress_repository),
+        study_plan_service=StudyPlanService(
+            course_repository, progress_repository, study_plan_repository
+        ),
+        practice_repository=practice_repository,
     ).answer(user_id, course_id, body)
 
 

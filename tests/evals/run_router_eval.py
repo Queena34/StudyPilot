@@ -22,7 +22,7 @@ from app.schemas.tutor import TutorScope
 from tests.evals.router_metrics import aggregate_router_scores, score_router_case
 
 
-DATASET_VERSION = "router-v1"
+DEFAULT_DATASET_VERSION = "router-v2"
 COURSE_ID = UUID("00000000-0000-0000-0000-0000000000ff")
 
 
@@ -135,9 +135,15 @@ def main() -> None:
         help="Disable the LLM stage; deterministic and free.",
     )
     parser.add_argument("--category", default=None, help="Run one category only.")
+    parser.add_argument(
+        "--dataset-version",
+        default=DEFAULT_DATASET_VERSION,
+        help="Dataset to run, e.g. router-v1 to reproduce the historical baseline.",
+    )
     args = parser.parse_args()
 
-    dataset = Path(__file__).parent / "datasets" / "router_intents_v1.jsonl"
+    suffix = args.dataset_version.replace("router-", "")
+    dataset = Path(__file__).parent / "datasets" / f"router_intents_{suffix}.jsonl"
     cases = _load_cases(dataset)
     if args.category:
         cases = [case for case in cases if case["category"] == args.category]
@@ -155,7 +161,7 @@ def main() -> None:
         model = settings.anthropic_model if settings.anthropic_api_key else "not-configured"
 
     report = {
-        "dataset_version": DATASET_VERSION,
+        "dataset_version": args.dataset_version,
         "mode": "rules-only" if args.rules_only else "hybrid",
         "model": model,
         "generated_at": datetime.now(timezone.utc).isoformat(),

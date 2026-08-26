@@ -1,0 +1,158 @@
+{
+  "dataset_version": "router-v2",
+  "supersedes": "router-v1",
+  "configuration": {
+    "rule_confidence_threshold": 0.8,
+    "clarification_threshold": 0.45,
+    "llm_temperature": 0,
+    "llm_max_tokens": 400,
+    "history_turns_sent": 4,
+    "note": "阈值与 v1 相同，可直接对比"
+  },
+  "modes": {
+    "rules_only": {
+      "model": "rules-only",
+      "recorded_at": "2026-08-26T14:27:52.179132+00:00",
+      "purpose": "确定性、零成本、可在 CI 中运行的回归防线。",
+      "metrics": {
+        "case_count": 57,
+        "decisive_case_count": 52,
+        "composite_case_count": 9,
+        "intent_accuracy": 0.7307692307692307,
+        "execution_mode_accuracy": 0.8421052631578947,
+        "composite_supporting_accuracy": 0.0,
+        "clarification_accuracy": 0.9122807017543859,
+        "scope_preservation_rate": 1.0,
+        "rule_resolution_rate": 0.631578947368421,
+        "llm_invocation_rate": 0.368421052631579,
+        "average_latency_ms": 0.03508771929824561
+      },
+      "by_category": {
+        "ambiguous": {
+          "case_count": 8,
+          "intent_accuracy": 0.0,
+          "rule_resolution_rate": 0.0
+        },
+        "composite": {
+          "case_count": 8,
+          "intent_accuracy": 0.5,
+          "rule_resolution_rate": 0.25
+        },
+        "contextual": {
+          "case_count": 5,
+          "intent_accuracy": 0.2,
+          "rule_resolution_rate": 0.0
+        },
+        "guard": {
+          "case_count": 2,
+          "intent_accuracy": 0.5,
+          "rule_resolution_rate": 1.0
+        },
+        "scope": {
+          "case_count": 3,
+          "intent_accuracy": 0.5,
+          "rule_resolution_rate": 0.3333333333333333
+        },
+        "single": {
+          "case_count": 31,
+          "intent_accuracy": 1.0,
+          "rule_resolution_rate": 1.0
+        }
+      }
+    },
+    "hybrid": {
+      "model": "deepseek-v4-flash",
+      "recorded_at": "2026-08-26T14:28:19.585608+00:00",
+      "purpose": "完整混合路由的真实能力基线。",
+      "metrics": {
+        "case_count": 57,
+        "decisive_case_count": 52,
+        "composite_case_count": 9,
+        "intent_accuracy": 0.9038461538461539,
+        "execution_mode_accuracy": 0.9473684210526315,
+        "composite_supporting_accuracy": 0.6666666666666666,
+        "clarification_accuracy": 0.9122807017543859,
+        "scope_preservation_rate": 1.0,
+        "rule_resolution_rate": 0.631578947368421,
+        "llm_invocation_rate": 0.368421052631579,
+        "average_latency_ms": 450.7894736842105
+      },
+      "by_category": {
+        "ambiguous": {
+          "case_count": 8,
+          "intent_accuracy": 0.75,
+          "rule_resolution_rate": 0.0
+        },
+        "composite": {
+          "case_count": 8,
+          "intent_accuracy": 0.875,
+          "rule_resolution_rate": 0.25
+        },
+        "contextual": {
+          "case_count": 5,
+          "intent_accuracy": 0.6,
+          "rule_resolution_rate": 0.0
+        },
+        "guard": {
+          "case_count": 2,
+          "intent_accuracy": 0.5,
+          "rule_resolution_rate": 1.0
+        },
+        "scope": {
+          "case_count": 3,
+          "intent_accuracy": 1.0,
+          "rule_resolution_rate": 0.3333333333333333
+        },
+        "single": {
+          "case_count": 31,
+          "intent_accuracy": 1.0,
+          "rule_resolution_rate": 1.0
+        }
+      },
+      "misrouted_cases": [
+        {
+          "id": "rt-ambig-006",
+          "message": "我对第二章不太熟",
+          "expected": "progress_review",
+          "actual": "concept_explanation",
+          "note": "陈述薄弱既可读作 progress_review 也可读作 concept_explanation，两者都是可接受的产品行为。"
+        },
+        {
+          "id": "rt-comp-005",
+          "message": "根据我的掌握度生成一份学习计划",
+          "expected": "progress_review",
+          "actual": "study_planning",
+          "note": "模型把 planner 当作主 Agent、省略了 progress_review；两个 Agent 仍都参与，只是主次标注不同。"
+        },
+        {
+          "id": "rt-ctx-001",
+          "message": "那这个的假设条件呢？",
+          "expected": "course_qa",
+          "actual": "concept_explanation",
+          "note": "course_qa 与 concept_explanation 路由到相同 target，下游行为不变。"
+        },
+        {
+          "id": "rt-ctx-005",
+          "message": "那我接下来该学什么",
+          "expected": "study_planning",
+          "actual": "progress_review",
+          "note": "上下文追问在 progress_review 与 study_planning 之间摇摆，两者都指向学习规划场景。"
+        },
+        {
+          "id": "rt-guard-002",
+          "message": "标准答案里为什么要先做中心化？",
+          "expected": "course_qa",
+          "actual": "concept_explanation",
+          "note": "被判为 concept_explanation 而非 course_qa，两者同为 RAG target；该用例的真实目的是确认不会被误判为 answer_evaluation，这一点已达成。"
+        }
+      ]
+    }
+  },
+  "regression_rules": [
+    "scope_preservation_rate 必须恒为 1.0。任何低于 1.0 的结果都是硬性约束被破坏，不得合入。",
+    "rules_only 模式除 average_latency_ms 外的全部指标必须逐位复现（该模式不调用模型，延迟随机器变化）。出现差异说明规则层被改动，必须在 PROGRESS.md 变更日志中说明。",
+    "rules_only 的 intent_accuracy 不得低于 0.73，rule_resolution_rate 不得低于 0.63。",
+    "hybrid 模式的 intent_accuracy 不得低于 0.88。模型抖动允许小幅波动，连续两次低于阈值须视为回归。",
+    "比较必须使用相同 dataset_version 和相同 configuration 阈值。router-v1 的历史基线保存在 baselines/router_v1.json，可用 --dataset-version router-v1 复现。"
+  ]
+}

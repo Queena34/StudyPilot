@@ -6,6 +6,7 @@ from app.agents.intent_router import LearningIntentRouter
 from app.agents.learning_agents import (
     CatalogAgent,
     ClarifyAgent,
+    EvaluatorAgent,
     GeneralAgent,
     PlannerAgent,
     ProgressAgent,
@@ -39,6 +40,9 @@ class TutorService:
         progress_repository: ProgressRepository,
         study_plan_repository: StudyPlanRepository,
         practice_service: PracticeService,
+        attempt_service=None,
+        study_plan_service=None,
+        practice_repository=None,
         retriever: CourseRetriever | None = None,
         gateway: TutorAnswerGateway | None = None,
         intent_router: LearningIntentRouter | None = None,
@@ -53,15 +57,22 @@ class TutorService:
         self.retriever = retriever or CourseRetriever()
         self.gateway = gateway or TutorAnswerGateway()
         self.intent_router = intent_router or LearningIntentRouter()
+        registry = {
+            AgentName.TUTOR: TutorAgent(self.retriever, self.gateway),
+            AgentName.QUIZ: QuizAgent(practice_service),
+            AgentName.CATALOG: CatalogAgent(document_repository),
+            AgentName.PROGRESS: ProgressAgent(progress_repository),
+            AgentName.PLANNER: PlannerAgent(study_plan_repository, study_plan_service),
+            AgentName.GENERAL: GeneralAgent(),
+        }
+        if attempt_service is not None and practice_repository is not None:
+            # Grading needs both, so an unwired deployment falls back to the
+            # tutor rather than registering an agent that cannot run.
+            registry[AgentName.EVALUATOR] = EvaluatorAgent(
+                attempt_service, practice_repository
+            )
         self.orchestrator = orchestrator or LearningAgentOrchestrator(
-            registry={
-                AgentName.TUTOR: TutorAgent(self.retriever, self.gateway),
-                AgentName.QUIZ: QuizAgent(practice_service),
-                AgentName.CATALOG: CatalogAgent(document_repository),
-                AgentName.PROGRESS: ProgressAgent(progress_repository),
-                AgentName.PLANNER: PlannerAgent(study_plan_repository),
-                AgentName.GENERAL: GeneralAgent(),
-            },
+            registry=registry,
             clarify_agent=ClarifyAgent(),
         )
 

@@ -9,6 +9,7 @@ import re
 from app.core.exceptions import AppError
 from app.domain.models import Document
 from app.schemas.practice import Difficulty, PracticeSetCreate, QuestionType
+from app.schemas.study_plan import StudyPlanCreate
 
 
 def _evidence_status(evidence: list) -> str:
@@ -168,3 +169,124 @@ def _practice_configuration(
     )
 
 
+
+def _requests_new_plan(message: str) -> bool:
+    """Distinguish "make me a plan" from "show me my plan"."""
+
+    normalized = " ".join(message.casefold().split())
+    creation = ("制定", "制订", "生成", "安排一份", "帮我排", "做一份", "新建",
+                "create", "make me", "build me", "generate")
+    if not any(term in normalized for term in creation):
+        return False
+    reading = ("查看", "看一下我的", "我的计划完成", "show me my", "what does my")
+    return not any(term in normalized for term in reading)
+
+
+def _study_plan_configuration(message: str) -> StudyPlanCreate:
+    normalized = " ".join(message.casefold().split())
+    days_match = re.search(r"(\d{1,2})\s*(?:天|days?)", normalized)
+    minutes_match = re.search(r"(\d{2,3})\s*(?:分钟|minutes?|mins?)", normalized)
+    hours_match = re.search(r"(\d)\s*(?:小时|hours?)", normalized)
+    daily_minutes = 60
+    if minutes_match:
+        daily_minutes = int(minutes_match.group(1))
+    elif hours_match:
+        daily_minutes = int(hours_match.group(1)) * 60
+    return StudyPlanCreate(
+        duration_days=min(max(int(days_match.group(1)), 1), 28) if days_match else 7,
+        daily_minutes=min(max(daily_minutes, 15), 480),
+        include_weekends="不含周末" not in normalized and "no weekend" not in normalized,
+    )
+
+
+def _study_plan_created_answer(plan, weak_topics: list, language: str) -> str:
+    focus = "、".join(str(item).strip().rstrip("。.") for item in weak_topics[:3])
+    if language == "en":
+        text = (
+            f'I created "{plan.title}" covering {plan.start_date} to {plan.end_date}, '
+            f"with {len(plan.tasks)} task(s) at {plan.daily_minutes} minutes per day."
+        )
+        return f"{text} It focuses on: {focus}." if focus else text
+    text = (
+        f"已为你生成“{plan.title}”，覆盖 {plan.start_date} 至 {plan.end_date}，"
+        f"共 {len(plan.tasks)} 项任务，每天 {plan.daily_minutes} 分钟。"
+    )
+    return f"{text}重点针对：{focus.rstrip('。.')}。" if focus else text
+
+
+def _no_pending_question_answer(language: str) -> str:
+    if language == "en":
+        return "You have no unanswered practice question right now. Ask me to generate one first."
+    return "你目前没有待作答的练习题。可以先让我生成一组练习，再把答案发给我批改。"
+
+
+def _extract_submitted_answer(message: str, question) -> str:
+    """Strip the submission phrasing so only the answer itself is graded."""
+
+    cleaned = re.sub(
+        r"^\s*(?:答案|answer)\s*[：:]\s*", "", message.strip(), flags=re.I
+    )
+    cleaned = re.sub(
+        r"(?:我的答案|我的回答|我答|我选)\s*(?:是|为)?\s*[：:]?\s*", "", cleaned
+    )
+    cleaned = re.sub(
+        r"^(?:帮我批改|帮我改一下|评一下我的答案|给我打分|grade my answer|check my answer)\s*[，,：:]?\s*",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = cleaned.strip(" ，,。.！!")
+    if question.question_type == QuestionType.SINGLE_CHOICE.value:
+        option = re.search(r"\b([A-D])\b", cleaned.upper())
+        if option:
+            return option.group(1)
+    return cleaned or message.strip()
+
+
+def _attempt_feedback_answer(question, attempt, language: str) -> str:
+    feedback = attempt.feedback
+    lines: list[str] = []
+    if language == "en":
+        lines.append(f"**Score: {attempt.score} / {attempt.max_score}**")
+        lines.append(f"> Question: {question.content[:160]}")
+        if feedback.summary:
+            lines.append(f"\n{feedback.summary}")
+        if feedback.knowledge_errors:
+            lines.append("\n**What went wrong**")
+            lines += [f"- {item}" for item in feedback.knowledge_errors]
+        if feedback.missing_concepts:
+            lines.append("\n**Concepts you did not cover**")
+            lines += [f"- {item}" for item in feedback.missing_concepts]
+        if feedback.recommended_topics:
+            lines.append("\n**Review next**")
+            lines += [f"- {item}" for item in feedback.recommended_topics]
+    else:
+        lines.append(f"**得分：{attempt.score} / {attempt.max_score}**")
+        lines.append(f"> 题目：{question.content[:160]}")
+        if feedback.summary:
+            lines.append(f"\n{feedback.summary}")
+        if feedback.knowledge_errors:
+            lines.append("\n**存在的问题**")
+            lines += [f"- {item}" for item in feedback.knowledge_errors]
+        if feedback.missing_concepts:
+            lines.append("\n**未覆盖的要点**")
+            lines += [f"- {item}" for item in feedback.missing_concepts]
+        if feedback.recommended_topics:
+            lines.append("\n**建议复习**")
+            lines += [f"- {item}" for item in feedback.recommended_topics]
+    return "\n".join(lines)
+
+
+def _answer_format_mismatch_answer(question, language: str) -> str:
+    options = "、".join(
+        str(item.get("id")) for item in (question.options_json or []) if item.get("id")
+    )
+    if language == "en":
+        return (
+            "The question waiting for you is multiple choice, so please reply with one "
+            f"option ({options}).\n\n> {question.content[:160]}"
+        )
+    return (
+        f"当前待作答的是选择题，请直接回复选项编号（{options}）。"
+        f"\n\n> {question.content[:160]}"
+    )

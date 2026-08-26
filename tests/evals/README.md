@@ -67,7 +67,7 @@ python -m tests.evals.run_grading_eval --repeats 3
 
 该运行器直接评测 Evaluator Gateway，不创建 Attempt、不更新学习进度，也不污染课程数据库。原始批改反馈保存在忽略提交的 `artifacts/evals/grading_latest.json`。
 
-## Router v1
+## Router v1 / v2
 
 `datasets/router_intents_v1.jsonl` 包含 45 条路由用例，覆盖路线图要求的四类场景：单意图（23）、模糊意图（8）、复合意图（6）、上下文追问（5），另加 3 条显式范围保持用例。
 
@@ -98,3 +98,17 @@ python -m tests.evals.run_router_eval
 - `modes.hybrid`：完整混合路由的真实能力基线。实测意图准确率 92.5%、执行模式准确率 93.3%、范围保持 100%、LLM 调用率 44.4%、平均延迟 569ms，并逐条记录了 3 条误判用例及其判断说明。
 
 文件中的 `regression_rules` 是这套基线的合入门槛，其中两条是硬性的：`scope_preservation_rate` 必须恒为 1.0；`rules_only` 除 `average_latency_ms` 外的全部指标必须逐位复现。后续比较必须使用相同 `dataset_version` 和相同 `configuration` 阈值。
+
+### Router v2
+
+`datasets/router_intents_v2.jsonl` 在 v1 的 45 条基础上增加 12 条，共 57 条，覆盖新增的 `answer_evaluation` 意图：6 条答案提交、2 条**误判防护**（提到"参考答案""标准答案"但实为提问，不得被当成交卷）、2 条 `Evaluator→Planner` 复合、2 条计划生成。
+
+v2 是默认数据集。v1 保留用于历史对比：
+
+```bash
+python -m tests.evals.run_router_eval --rules-only --dataset-version router-v1
+```
+
+`baselines/router_v2.json` 实测：rules-only 意图准确率 73.1%、规则解决率 63.2%；hybrid 意图准确率 90.4%、执行模式准确率 94.7%、复合辅助 Agent 准确率 66.7%（v1 为 57.1%）、范围保持 100%。5 条误判用例逐条记录了判断说明。
+
+新增答案提交规则后，**v1 的全部指标仍逐位复现**，说明该规则没有在既有用例上产生误判。
