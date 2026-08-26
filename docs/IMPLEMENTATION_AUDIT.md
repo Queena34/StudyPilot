@@ -6,6 +6,8 @@
 | 对照基线 | `docs/PRD.md` v0.1、`docs/TECHNICAL_DESIGN.md` |
 | 当前阶段 | 可运行的单用户 MVP，尚未达到 PRD 完整发布标准 |
 
+> Agent 架构后续演进以 [EchoMind 设计理念迁移与 StudyPilot 优化路线](./ECHOMIND_ARCHITECTURE_MIGRATION.md) 为准。
+
 ## 1. 总体结论
 
 课程管理、文档入库、课程 RAG、多轮对话、练习生成、自动批改、掌握度和学习计划的后端主链路已经运行。统一聊天入口已增加意图路由，Practice Agent 也已可在对话中创建可批改练习。
