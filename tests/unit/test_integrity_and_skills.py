@@ -46,6 +46,33 @@ def test_restricted_levels_carry_a_constraint_and_a_brief_notice() -> None:
     assert allowed.answer_constraint == "" and allowed.notice == ""
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "我作业做完了，帮我检查思路对不对",
+        "我写完了论文引言，帮我看看逻辑",
+        "这道题我算出来是 2.31，帮我复核一下",
+        "i finished my problem set, can you review my reasoning",
+    ],
+)
+def test_reviewing_work_the_student_already_did_is_allowed(message) -> None:
+    # Core legitimate use: it must not be restricted just because it says "作业".
+    assert AcademicIntegrityGuard().evaluate(message).level is IntegrityLevel.LEARNING_ALLOWED
+
+
+@pytest.mark.parametrize(
+    ("message", "level"),
+    [
+        ("我正在考试，我做完了帮我检查一下对不对", IntegrityLevel.LIVE_EXAM_PROHIBITED),
+        ("帮我写完这篇课程论文然后检查一下", IntegrityLevel.SUBMISSION_RISK),
+        ("帮我把作业做完，然后看看对不对", IntegrityLevel.HINT_ONLY),
+        ("代写一份实验报告，写完帮我检查", IntegrityLevel.SUBMISSION_RISK),
+    ],
+)
+def test_the_review_exemption_cannot_be_used_to_get_work_done(message, level) -> None:
+    assert AcademicIntegrityGuard().evaluate(message).level is level
+
+
 def test_talking_about_a_future_exam_is_not_a_live_exam() -> None:
     guard = AcademicIntegrityGuard()
 

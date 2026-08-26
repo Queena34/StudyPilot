@@ -1,0 +1,81 @@
+{
+  "dataset_version": "integrity-v1",
+  "recorded_at": "2026-08-26T15:02:26.921400+00:00",
+  "model": "rules-only",
+  "purpose": "学术诚信 Guard 的确定性评测。不调用任何模型，结果必须完全可复现。",
+  "design_note": "数据集刻意向假阳性倾斜：61 条中 36 条是正当学习请求 —— 8 条普通学习提问，24 条刻意包含「作业」「考试」「论文」「答案」等敏感措辞，4 条是「我做完了帮我检查」这类自有成果复核。另有 4 条 review_exemption_abuse 用例验证复核豁免不能被用来让助手代做作业。这样加权是因为：拒绝帮助一个正当提问的学生，比漏判一次作弊更伤害产品的核心用途。",
+  "metrics": {
+    "case_count": 61,
+    "legitimate_case_count": 36,
+    "restricted_case_count": 25,
+    "level_accuracy": 1.0,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.0,
+    "wrong_severity_rate": 0.0,
+    "blocking_precision": 1.0,
+    "blocking_recall": 1.0,
+    "help_retention_rate": 1.0,
+    "notice_brevity_rate": 1.0
+  },
+  "by_category": {
+    "answer_wording": {
+      "case_count": 4,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "exam_wording": {
+      "case_count": 8,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "hint_only": {
+      "case_count": 7,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "homework_wording": {
+      "case_count": 7,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "live_exam": {
+      "case_count": 7,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "own_work_review": {
+      "case_count": 4,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "plain_study": {
+      "case_count": 8,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "review_exemption_abuse": {
+      "case_count": 4,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "submission_risk": {
+      "case_count": 7,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    },
+    "writing_wording": {
+      "case_count": 5,
+      "level_accuracy": 1.0,
+      "false_positive_rate": 0.0
+    }
+  },
+  "regression_rules": [
+    "false_positive_rate 必须为 0.0。任何正当学习请求被限制都不得合入 —— 这是本评测集存在的首要理由。",
+    "blocking_precision 必须为 1.0。只有实时考试才允许短路整轮，误封任何其他请求都不可接受。",
+    "help_retention_rate 必须为 1.0。PRD 8.7 要求非阻断的每一档都必须继续提供帮助。",
+    "notice_brevity_rate 必须为 1.0，提示不得超过 120 字符。",
+    "level_accuracy 不得低于 0.95。",
+    "review_exemption_abuse 类别必须全部正确：该类用例专门验证「我做完了帮我检查」的豁免不能被用来让助手代做作业。",
+    "该评测不调用模型，全部指标必须逐位复现。出现差异说明 Guard 规则被改动，必须在 PROGRESS.md 变更日志中说明。"
+  ]
+}

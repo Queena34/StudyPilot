@@ -9,7 +9,7 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `b60bfa1` |
+| 当前基线 commit | `8d47745` |
 | 当前阶段 | 路线图第 1–6、8、11 步已完成；剩 7（Redis）、9（评测集）、10（监控）、12（前端） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
@@ -30,8 +30,8 @@
 | 5 | 串行工作流 `Tutor→Quiz`、`Evaluator→Planner` | 已完成 | `app/agents/orchestrator.py` | HTTP 端到端均已验证 | 两个工作流都跑通；Planner 已具备真正的计划生成能力 |
 | 6 | `TeachingToolManager` | 已完成 | `app/agents/tools.py` | `tests/unit/test_teaching_tools.py`（9 例） | 9 个教学工具；课程归属与资料范围统一校验，越权返回 403；调用结果、耗时、失败原因统一记录 |
 | 7 | Redis 短期学习状态 | 未开始 | `app/infrastructure/` | — | Redis 当前在 compose 中已启动但主链路未使用 |
-| 8 | 教学 Skills + 学术诚信 Guard | 已完成 | `app/agents/integrity.py`、`app/agents/skills.py`、`skills/*/SKILL.md` | `tests/unit/test_integrity_and_skills.py`（24 例） | 四级 Guard 已接入编排层；7 个教学 Skill 替换旧客服 Skill |
-| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `tests/evals/run_router_eval.py`、`router_metrics.py` | `baselines/router_v2.json` | Router v2（57 例）已完成；编排层、工具层与 Guard 由 57 个单元测试覆盖但**仍无版本化评测集** |
+| 8 | 教学 Skills + 学术诚信 Guard | 已完成 | `app/agents/integrity.py`、`app/agents/skills.py`、`skills/*/SKILL.md` | `tests/evals/run_integrity_eval.py`（61 例，假阳性率 0%）+ 32 个单元测试 | 四级 Guard 已接入编排层；7 个教学 Skill 替换旧客服 Skill |
+| 9 | Router / Orchestrator / 端到端评测 | 进行中 | `run_router_eval.py`、`run_integrity_eval.py` | `baselines/router_v2.json`、`integrity_v1.json` | Router v2（57 例）与 Integrity v1（61 例）已完成；**Orchestrator 与端到端闭环仍无版本化评测集** |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 已完成 | 已删除全部旧目录；`README.md`、`MIGRATION.md` 已重写 | 159 测试通过 + 应用冒烟 + 评测基线复现 | 约 4100 行 Python、3 个部署脚本、1 个旧 env 模板已移除 |
 | 12 | 补齐前端学习闭环 | 未开始 | `app/web/` | — | 详见 `IMPLEMENTATION_AUDIT.md` 第 4 节 P1 |
@@ -82,6 +82,27 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：建立 `integrity-v1` 评测集，并修复它抓到的一个真实缺陷。
+  1. 新增 61 条学术诚信判定用例，覆盖四个级别与十个类别。
+  2. 新增 `integrity_metrics.py`：把两类错误**分开报告**，不合并成单一准确率。核心指标是 `false_positive_rate`（正当请求被限制）、`blocking_precision`（只有实时考试才允许拒答）、`help_retention_rate`（非阻断轮次仍提供帮助）、`notice_brevity_rate`。
+  3. 新增 `run_integrity_eval.py`，进程内运行、不调用模型、逐位可复现。
+  4. **修复评测抓到的缺陷**：「我作业做完了，帮我检查思路对不对」原本被判为 `hint_only` —— 学生做完作业请人复核反而被限制。原因是 `_is_graded_work_request` 里「作业」+「做完」同时命中，但「做完了」描述的是学生已完成，不是要求助手代做。新增 `_is_own_work_review()` 豁免，置于实时考试检查之后、其余检查之前。
+  5. 为新豁免补 4 条对抗性用例（`review_exemption_abuse`）和 8 个单元测试，验证它不能被反过来用于让助手代做作业。
+- **为什么**：第 8 步只有单元测试，没有可比较基线。Guard 是安全相关判定，且**两类错误代价不对称** —— 拒绝帮助一个正当提问的学生直接损害产品核心用途，漏判一次作弊则不然。因此数据集刻意向假阳性倾斜：36 条正当请求中有 24 条刻意包含「作业」「考试」「论文」「答案」等敏感措辞。
+- **改了哪些文件**：
+  - 新增：`tests/evals/datasets/integrity_requests_v1.jsonl`、`tests/evals/integrity_metrics.py`、`tests/evals/run_integrity_eval.py`、`tests/evals/baselines/integrity_v1.json`
+  - 修改：`app/agents/integrity.py`（新增自有成果复核豁免）、`tests/unit/test_integrity_and_skills.py`（+8 例）、`tests/evals/README.md`
+- **怎么验证的**：
+  - 单元测试 `167 passed`（改动前 159，新增 8）。
+  - Integrity v1 基线：`level_accuracy 100%`、**`false_positive_rate 0%`**、`false_negative_rate 0%`、`wrong_severity_rate 0%`、`blocking_precision 100%`、`blocking_recall 100%`、`help_retention_rate 100%`、`notice_brevity_rate 100%`。
+  - 修复前的实测是 `level_accuracy 98.1%`、`false_positive_rate 3.1%`（1/32）—— 缺陷是评测集建立后立刻暴露的，不是事后补测。
+  - 4 条对抗性用例确认豁免无法被滥用：「我正在考试，我做完了帮我检查」仍判实时考试（考试检查在最前）；「帮我写完这篇论文然后检查」仍判 `submission_risk`；「帮我把作业做完，然后看看对不对」仍判 `hint_only`。
+- **下一步建议**：第 9 步现在只剩 **Orchestrator 与端到端闭环评测**。编排层有 33 个单元测试但没有版本化基线，无法回答「换了模型或改了 prompt 之后，讲解→出题→批改→更新薄弱点→生成计划这条链路还成立吗」。另一条路是第 12 步前端 —— 后端能力已远超前端可操作范围。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

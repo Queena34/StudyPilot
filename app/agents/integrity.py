@@ -59,6 +59,13 @@ class AcademicIntegrityGuard:
                 "The learner says they are sitting an exam or timed test right now.",
                 notice=_LIVE_EXAM_NOTICE[language == "en"],
             )
+        if _is_own_work_review(normalized):
+            # Reviewing work the student has already done is core legitimate use,
+            # and must not be restricted just because it mentions an assignment.
+            return IntegrityDecision(
+                IntegrityLevel.LEARNING_ALLOWED,
+                "The learner finished the work themselves and asked for a review.",
+            )
         if _is_submission_request(normalized):
             return IntegrityDecision(
                 IntegrityLevel.SUBMISSION_RISK,
@@ -93,6 +100,24 @@ def _is_live_exam(message: str) -> bool:
     # "还有 5 分钟交卷" style urgency paired with an answer demand.
     urgency = re.search(r"(?:还有|剩)\s*\d+\s*(?:分钟|秒).{0,10}(?:交卷|结束|考完)", message)
     return bool(urgency)
+
+
+def _is_own_work_review(message: str) -> bool:
+    """The student did the work and wants it checked, not done for them."""
+
+    completed = (
+        "做完了", "写完了", "答完了", "做好了", "算出来", "我的思路", "我的答案",
+        "我的草稿", "我写了", "我算了", "我做了",
+        "i finished", "i've finished", "i have finished", "i wrote", "my draft",
+        "my reasoning", "my attempt", "my answer",
+    )
+    review = (
+        "检查", "看看", "对不对", "复核", "有没有问题", "哪里错", "点评", "反馈",
+        "check", "review", "feedback", "look over", "is this right",
+    )
+    return any(term in message for term in completed) and any(
+        term in message for term in review
+    )
 
 
 def _is_submission_request(message: str) -> bool:
