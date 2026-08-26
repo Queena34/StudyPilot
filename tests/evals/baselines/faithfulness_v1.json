@@ -1,0 +1,29 @@
+{
+  "dataset_version": "faithfulness-v1",
+  "status": "awaiting_review",
+  "reviewer": null,
+  "sampled_at": null,
+  "metrics": null,
+  "purpose": "人工忠实度抽检。其余七套评测衡量的都是机器可判定的代理指标 —— 引用能否解析、是否落在指定文档内、关键词是否出现。没有一项能回答产品真正立足的那个问题：这个回答对它引用的原文忠实吗。该判断只能由人做出。",
+  "protocol": {
+    "sample": "python -m tests.evals.run_faithfulness_sample --course-id <课程ID> --size 12",
+    "review": "本机浏览器打开 artifacts/evals/faithfulness_review.html，逐条判断后导出 JSON",
+    "score": "python -m tests.evals.run_faithfulness_eval --verdicts <导出文件> --reviewer <姓名>",
+    "sampling": "按问题类型分层抽样，含资料外问题；固定随机种子以便复现同一批样本",
+    "scoping": "每题固定到数据集指定的资料，与 RAG 运行器一致，避免跨资料检索失败污染样本"
+  },
+  "judgements": {
+    "grounding": "回答的每个论断都能在引用原文中找到依据吗（supported / partially_supported / unsupported）",
+    "citations": "引用指向的位置准确吗（accurate / imprecise / wrong）",
+    "fabricated": "是否存在资料中根本没有的内容",
+    "admits_gap": "是否明确说明了资料未涵盖某部分"
+  },
+  "regression_rules": [
+    "fabrication_rate 必须为 0。编造内容是最严重的失败，它直接摧毁「答案锚定在你自己的资料上」这一产品前提。",
+    "declined_when_unsupported_rate 必须为 1.0。资料外问题必须被明确指出，不得作答。",
+    "grounding_rate 不得低于 0.90，citation_wrong_rate 不得高于 0.05。",
+    "未评审或判断项缺失的样本一律不评分 —— 半份评审报出的满分比没有评审更有害。",
+    "记录评审者姓名与随机种子；更换评审者或种子后不得与旧结果直接比较。"
+  ],
+  "note": "首次抽样已生成（12 条，种子 20260826），等待人工评审后填入 metrics。"
+}
