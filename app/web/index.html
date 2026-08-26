@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="StudyPilot — 把课程资料变成个性化学习路径">
   <title>StudyPilot · AI 学习教练</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=20260826-2">
 </head>
 <body>
   <div class="app-shell">
@@ -77,7 +77,7 @@
           <div id="chat" class="chat"><div class="coach-message"><span class="bot-avatar">✦</span><div><strong>你好，我是你的学习教练。</strong><p>你可以让我解释课程概念、梳理笔记，或用苏格拉底式提问帮你想清楚。</p></div></div></div>
           <div class="scope-bar">
             <label><span>资料类型</span><select id="chat-document-type"><option value="">全部类型</option><option value="lecture">课堂讲义</option><option value="reading">阅读材料</option><option value="notes">学习笔记</option><option value="assignment">作业</option><option value="past_exam">往年试题</option><option value="other">其他</option></select></label>
-            <label class="scope-document"><span>指定资料</span><select id="chat-document"><option value="">全部资料</option></select></label>
+            <div class="scope-document"><span>指定资料</span><select id="chat-document" class="visually-hidden" tabindex="-1" aria-hidden="true"><option value="">全部资料</option></select><div id="chat-document-choices" class="document-choices" role="radiogroup" aria-label="指定资料"></div></div>
             <label><span>起始页</span><input id="chat-page-from" type="number" min="1" placeholder="不限"></label>
             <label><span>结束页</span><input id="chat-page-to" type="number" min="1" placeholder="不限"></label>
             <p id="scope-hint" class="scope-hint" aria-live="polite"></p>
@@ -149,6 +149,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status"></div>
-  <script src="/static/app.js" defer></script>
+  <script src="/static/app.js?v=20260826-2" defer></script>
 </body>
 </html>

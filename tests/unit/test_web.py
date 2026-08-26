@@ -23,6 +23,7 @@ def test_static_assets_are_available() -> None:
     assert "addChatPractice" in javascript.text
     assert "result.practice_set" in javascript.text
     assert "renderChatDocumentOptions" in javascript.text
+    assert "updateDocumentChoiceState" in javascript.text
     assert "updateScopePageLimits" in javascript.text
     assert "citation-item" in javascript.text
 
@@ -41,6 +42,7 @@ def test_tutor_workspace_has_retrieval_scope_controls() -> None:
 
     assert 'id="chat-document-type"' in response.text
     assert 'id="chat-document"' in response.text
+    assert 'id="chat-document-choices"' in response.text
     assert 'id="chat-page-from"' in response.text
     assert 'id="chat-page-to"' in response.text
     assert 'id="scope-hint"' in response.text

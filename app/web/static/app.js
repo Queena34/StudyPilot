@@ -103,6 +103,7 @@ async function loadDocuments() {
 
 function renderChatDocumentOptions() {
   const select = $("#chat-document");
+  const choices = $("#chat-document-choices");
   const selected = select.value;
   const documentType = $("#chat-document-type").value;
   const ready = state.documents.filter((document) => document.status === "ready" && (!documentType || document.document_type === documentType));
@@ -111,7 +112,18 @@ function renderChatDocumentOptions() {
   select.disabled = ready.length === 0;
   if (ready.some((document) => document.id === selected)) select.value = selected;
   else select.value = "";
+  choices.innerHTML = ready.length ? `<button type="button" class="document-choice" data-document-id="" role="radio">全部（${ready.length}）</button>${ready.map((document) => `<button type="button" class="document-choice" data-document-id="${document.id}" role="radio" title="${escapeHtml(document.filename)}">${escapeHtml(document.filename)}</button>`).join("")}` : `<span class="document-choice-empty">${emptyLabel}</span>`;
+  updateDocumentChoiceState();
   updateScopePageLimits();
+}
+
+function updateDocumentChoiceState() {
+  const selected = $("#chat-document").value;
+  $$("#chat-document-choices [data-document-id]").forEach((button) => {
+    const active = button.dataset.documentId === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-checked", String(active));
+  });
 }
 
 function updateScopePageLimits() {
@@ -272,7 +284,14 @@ $("#chat-document-type").addEventListener("change", () => {
 $("#chat-document").addEventListener("change", () => {
   $("#chat-page-from").value = "";
   $("#chat-page-to").value = "";
+  updateDocumentChoiceState();
   updateScopePageLimits();
+});
+$("#chat-document-choices").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-document-id]");
+  if (!button) return;
+  $("#chat-document").value = button.dataset.documentId;
+  $("#chat-document").dispatchEvent(new Event("change"));
 });
 $("#new-chat").addEventListener("click", resetChat);
 
