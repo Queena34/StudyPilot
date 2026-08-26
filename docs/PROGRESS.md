@@ -9,8 +9,8 @@
 | 字段 | 内容 |
 |---|---|
 | 台账建立日期 | 2026-08-26 |
-| 当前基线 commit | `8c47033` |
-| 当前阶段 | 路线图第 1–6、8、9、11 步完成；第 12 步大部分完成（缺用户偏好设置）；剩 7（Redis）、10（监控） |
+| 当前基线 commit | `d1c8a48` |
+| 当前阶段 | 路线图第 1–6、8、9、11、12 步全部完成；剩 7（Redis）、10（监控） |
 | 参与过的执行者 | Codex（`5a2ac0a` → `47638f7`）、Claude Code（`b54cb51` 起） |
 
 ---
@@ -34,7 +34,7 @@
 | 9 | Router / Orchestrator / 端到端评测 | 已完成 | `run_router_eval.py`、`run_integrity_eval.py`、`run_orchestrator_eval.py`、`run_loop_eval.py`、`run_grading_eval.py` | 七套版本化基线全部记录 | Router v2（57）、Integrity v1（61）、Orchestrator v1（30）、Loop v1（5 阶段）、Grading v1（90 次） |
 | 10 | 链路、成本与降级监控 | 未开始 | `monitor/`、`config/prometheus.yml` | — | Prometheus 已配置，业务指标未接入 |
 | 11 | 清理旧 EchoMind 客服代码 | 已完成 | 已删除全部旧目录；`README.md`、`MIGRATION.md` 已重写 | 159 测试通过 + 应用冒烟 + 评测基线复现 | 约 4100 行 Python、3 个部署脚本、1 个旧 env 模板已移除 |
-| 12 | 补齐前端学习闭环 | 进行中 | `app/web/`、`app/api/v1/routes/practice.py`、`documents.py` | `tests/unit/test_web.py`、`test_practice_history.py`（13 例） | 练习历史/错题重练/rubric 与来源展示、历史对话、课程与资料增删改、学习趋势与常见错误已完成；**用户偏好设置未做**（需新建后端偏好模型） |
+| 12 | 补齐前端学习闭环 | 已完成 | `app/web/`、`app/api/v1/routes/{practice,documents,preferences,progress}.py` | `tests/unit/test_web.py`、`test_practice_history.py`、`test_preferences.py`（33 例） | 练习历史/错题重练/rubric 与来源、历史对话、课程与资料增删改、学习趋势与常见错误、用户偏好设置、单个薄弱点删除 |
 
 ---
 
@@ -65,6 +65,7 @@
 | K-4 | Grading v1 仅冒烟通过，缺 90 次完整基线与人工忠实度报告 | 中 | **已修复**（90 次基线已记录；人工忠实度报告仍缺，另记为 K-18） |
 | K-17 | 批改器偏保守：对答案已明确表述但措辞简短的 rubric 条目只给 0.5，导致 partial 答案绝对分数偏低。三个样本不足以支撑放宽评分标准，需更多样本 | 中 | 未修复 |
 | K-18 | Grading v1 数据集的 partial 答案含"但我没有说明…"这类元评论，是真实学生不会写的人为杂质，会压低已覆盖条目的得分。应在 grading-v2 中移除 | 低 | 未修复 |
+| K-20 | 讲解语言偏好原本不可靠：学生用中文提问但要求英文回答时，模型跟随提问语言而非设定 | 中 | **已修复**（语言指令改为显式压过提问语言） |
 | K-19 | 全部评测集仍缺人工忠实度抽检，当前指标都是可自动判定的代理指标 | 中 | 未修复 |
 | K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | **已修复**（1438 行重写为 131 行 StudyPilot 文档） |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
@@ -85,6 +86,28 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-26 · Claude Code · commit `未提交`
+
+- **做了什么**：完成路线图第 12 步收尾 —— 用户偏好设置与单个薄弱点删除。
+  1. **后端偏好**：`User` 模型原本就有 `explanation_language`、`answer_language`、`explanation_style`，但从未暴露。迁移 `0008` 补上 `default_question_type`、`default_difficulty`、`default_question_count`、`include_language_feedback`，新增 `GET/PATCH /api/v1/preferences`。部分更新只改学习者实际提交的字段，不会静默重置其余设置。
+  2. **删除单个薄弱点**：`DELETE /api/v1/courses/{id}/topics/{topic}`，对应 PRD 8.6「用户可以删除某项薄弱点」。此前只能整体清空进度。
+  3. **设置界面**：新增偏好对话框，覆盖 PRD 8.6 列出的语言、讲解风格和练习默认值，并把语言反馈开关接入批改请求（审计记为「语言反馈开关未接入 Web」）。
+  4. 偏好作为默认值注入对话与练习表单，单次操作仍可临时覆盖。
+  5. 知识点行新增「移除」按钮，带二次确认。
+- **为什么**：路线图第 6 节第 12 项的最后一块，对应 PRD 8.6「用户控制」与审计文档「无用户偏好设置 API/UI；无删除单个薄弱点」。
+- **改了哪些文件**：
+  - 新增：`migrations/versions/0008_user_preferences.py`、`app/schemas/preferences.py`、`app/infrastructure/repositories/user_repository.py`、`app/services/preferences_service.py`、`app/api/v1/routes/preferences.py`、`tests/unit/test_preferences.py`
+  - 修改：`app/domain/models.py`、`app/api/v1/router.py`、`app/api/v1/routes/progress.py`、`app/infrastructure/repositories/progress_repository.py`、`app/llm/gateway.py`、`app/web/index.html`、`app/web/static/app.js`、`app/web/static/styles.css`、`tests/unit/test_web.py`、`tests/unit/test_tutor.py`
+- **怎么验证的**：
+  - 单元测试 `200 passed`（改动前 180，新增 20）。
+  - 迁移 `0007 → 0008` 在运行中的数据库上正常执行。
+  - 接口行为：部分更新 `{"default_question_count":3,"include_language_feedback":true}` 只改这两项，其余六项保持不变；删除薄弱点首次 204、再次 404。
+  - 全部评测回归：Router v2 意图准确率 73.1%、范围保持 100%；Integrity v1 100%；Orchestrator v1 100%；端到端闭环 `loop_closed: true`。
+- **端到端验证抓到一个真缺陷（K-20）**：偏好确实传到了 `query_plan.requested_language`，但**模型没有照做** —— 用中文提问、要求英文回答时，模型跟随了提问语言。四组语言×提问语言组合中失败一组。偏好设不上去就等于没有这个功能，因此把讲解网关的语言指令从 `Requested language: en` 改为显式声明「即使学生用其他语言提问也必须遵守」，并保留公式、符号和原文引用不变。修复后四组组合全部正确。
+- **下一步建议**：只剩第 7 步 Redis 短期学习状态和第 10 步链路与成本监控。两者都不影响功能可用性 —— 第 7 步是性能优化（当前每轮从 PostgreSQL 重建上下文），第 10 步在单用户 MVP 下收益有限。若目标是作品完整度，更值得做的是 K-19（人工忠实度抽检，需要人工判断）和 K-17（批改保守倾向，需要更多样本）。
+
+---
 
 ### 2026-08-26 · Claude Code · commit `未提交`
 

@@ -86,6 +86,20 @@ class ProgressRepository:
         )
         return int(count or 0)
 
+    async def delete_topic(self, user_id: UUID, course_id: UUID, topic: str) -> bool:
+        """Remove one recorded weak topic. PRD 8.6 lets the learner drop a single
+        entry without clearing everything they have practised."""
+
+        result = await self.session.execute(
+            delete(TopicMastery).where(
+                TopicMastery.user_id == user_id,
+                TopicMastery.course_id == course_id,
+                TopicMastery.normalized_topic == _normalize_topic(topic),
+            )
+        )
+        await self.session.commit()
+        return result.rowcount > 0
+
     async def clear(self, user_id: UUID, course_id: UUID) -> None:
         question_ids = select(Question.id).where(Question.course_id == course_id)
         await self.session.execute(

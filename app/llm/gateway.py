@@ -10,6 +10,28 @@ from app.rag.types import RetrievedEvidence
 
 logger = logging.getLogger(__name__)
 
+_LANGUAGE_INSTRUCTIONS = {
+    "zh": "Write the entire answer in Simplified Chinese.",
+    "en": "Write the entire answer in English.",
+    "zh-en": "Write the answer in Simplified Chinese, giving each technical term "
+             "in Chinese followed by its English original on first use.",
+}
+
+
+def _language_instruction(language: str) -> str:
+    """The learner's chosen language wins over the language they happened to type in.
+
+    Without this the model mirrors the question's language and the setting looks
+    broken to a student who asks in Chinese but is preparing an English exam.
+    """
+
+    instruction = _LANGUAGE_INSTRUCTIONS.get(language, _LANGUAGE_INSTRUCTIONS["zh"])
+    return (
+        f"Output language (required): {language}. {instruction} "
+        "Follow this even when the student's message is written in another language. "
+        "Keep formulas, symbols and source quotations unchanged."
+    )
+
 
 @dataclass(frozen=True)
 class GeneratedAnswer:
@@ -57,7 +79,7 @@ class TutorAnswerGateway:
             # Academic integrity constraints must outrank the student's phrasing.
             system = f"{system}\n\nACADEMIC INTEGRITY CONSTRAINT: {answer_constraint}"
         prompt = (
-            f"Requested language: {language}\nExplanation mode: {mode}\n"
+            f"{_language_instruction(language)}\nExplanation mode: {mode}\n"
             f"Recent conversation:\n{_history_text(history or [])}\n\n"
             f"Student question: {question}\n\nCourse sources:\n{evidence_text}"
         )

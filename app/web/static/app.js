@@ -88,7 +88,7 @@ async function loadProgress() {
   $("#mastery").textContent = `${Math.round(progress.overall_mastery * 100)}%`;
   $("#attempts").textContent = progress.total_attempts;
   $("#weak-topics").textContent = `${progress.weak_topics} 个知识点`;
-  $("#topic-list").innerHTML = topics.length ? topics.map((topic) => `<div class="topic-row"><div><strong>${escapeHtml(topic.topic)}</strong><small> · ${topic.attempt_count} 次练习</small></div><div class="progress-bar"><i style="width:${Math.round(topic.mastery_score * 100)}%"></i></div><strong>${Math.round(topic.mastery_score * 100)}%</strong></div>`).join("") : `<div class="empty-inline">完成练习后，这里会显示你的知识点掌握情况。</div>`;
+  $("#topic-list").innerHTML = topics.length ? topics.map((topic) => `<div class="topic-row"><div><strong>${escapeHtml(topic.topic)}</strong><small> · ${topic.attempt_count} 次练习</small></div><div class="progress-bar"><i style="width:${Math.round(topic.mastery_score * 100)}%"></i></div><strong>${Math.round(topic.mastery_score * 100)}%</strong><button class="mini-button danger" type="button" data-delete-topic="${escapeHtml(topic.topic)}" title="移除这个知识点">移除</button></div>`).join("") : `<div class="empty-inline">完成练习后，这里会显示你的知识点掌握情况。</div>`;
   $("#recommendations").innerHTML = recommendations.items.map((item) => `<div class="recommendation"><strong>${escapeHtml(item.topic)}</strong><small>${escapeHtml(item.reason)}<br>${escapeHtml(item.suggested_action)}</small></div>`).join("");
 }
 
@@ -361,7 +361,7 @@ $("#chat-form").addEventListener("submit", async (event) => {
   const scope = { document_types: $("#chat-document-type").value ? [$("#chat-document-type").value] : [], document_ids: $("#chat-document").value ? [$("#chat-document").value] : [], page_from: pageFrom, page_to: pageTo };
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
   const practiceOptions = {question_type:$("#chat-question-type").value, difficulty:$("#chat-difficulty").value, question_count:Number($("#chat-question-count").value)};
-  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); loadConversations().catch(() => {}); if (result.practice_set) loadPracticeHistory().catch(() => {}); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:state.preferences?.explanation_language || "zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); loadConversations().catch(() => {}); if (result.practice_set) loadPracticeHistory().catch(() => {}); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
 });
 
 $("#chat-document-type").addEventListener("change", () => {
@@ -383,12 +383,12 @@ $("#new-chat").addEventListener("click", resetChat);
 
 $("#practice-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; setLoading(button, true, "正在出题…");
-  try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:"zh", prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = practiceQuestionsHtml(result); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:state.preferences?.answer_language || "zh", prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = practiceQuestionsHtml(result); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
 document.addEventListener("submit", async (event) => {
   if (!event.target.matches(".answer-form")) return; event.preventDefault(); const button = event.submitter; setLoading(button, true, "批改中…");
-  try { const result = await request(`/questions/${event.target.dataset.questionId}/attempts`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({answer:event.target.querySelector("input").value})}); const feedback = event.target.nextElementSibling; feedback.classList.remove("hidden"); feedback.innerHTML = `<strong class="score">${Math.round(result.score)} / 100</strong><p>${escapeHtml(result.feedback.summary)}</p>${result.feedback.missing_concepts.length ? `<small>建议补充：${result.feedback.missing_concepts.map(escapeHtml).join("、")}</small>` : ""}`; await loadProgress(); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+  try { const result = await request(`/questions/${event.target.dataset.questionId}/attempts`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({answer:event.target.querySelector("input").value, include_language_feedback:Boolean(state.preferences?.include_language_feedback)})}); const feedback = event.target.nextElementSibling; feedback.classList.remove("hidden"); feedback.innerHTML = `<strong class="score">${Math.round(result.score)} / 100</strong><p>${escapeHtml(result.feedback.summary)}</p>${result.feedback.missing_concepts.length ? `<small>建议补充：${result.feedback.missing_concepts.map(escapeHtml).join("、")}</small>` : ""}`; await loadProgress(); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
 $("#plan-form").addEventListener("submit", async (event) => {
@@ -621,3 +621,90 @@ $("#reset-progress").addEventListener("click", async () => {
     toast(error.message, true);
   }
 });
+
+/* ── Preferences ──────────────────────────────────────────────────────────── */
+
+const PREFERENCE_FIELDS = {
+  explanation_language: "#pref-explanation-language",
+  answer_language: "#pref-answer-language",
+  explanation_style: "#pref-explanation-style",
+  default_question_type: "#pref-question-type",
+  default_difficulty: "#pref-difficulty",
+  default_question_count: "#pref-question-count",
+  include_language_feedback: "#pref-language-feedback",
+};
+
+async function loadPreferences() {
+  state.preferences = await request("/preferences");
+  applyPreferenceDefaults();
+  return state.preferences;
+}
+
+function applyPreferenceDefaults() {
+  const preferences = state.preferences;
+  if (!preferences) return;
+  // Defaults seed the forms; a single turn can still override them.
+  const set = (selector, value) => { const field = $(selector); if (field) field.value = value; };
+  set("#answer-mode", preferences.explanation_style);
+  set("#chat-question-type", preferences.default_question_type);
+  set("#chat-difficulty", preferences.default_difficulty);
+  set("#chat-question-count", preferences.default_question_count);
+  set("#question-type", preferences.default_question_type);
+  set("#difficulty", preferences.default_difficulty);
+  set("#question-count", preferences.default_question_count);
+}
+
+function fillPreferenceDialog() {
+  const preferences = state.preferences;
+  if (!preferences) return;
+  Object.entries(PREFERENCE_FIELDS).forEach(([field, selector]) => {
+    const input = $(selector);
+    if (!input) return;
+    if (input.type === "checkbox") input.checked = Boolean(preferences[field]);
+    else input.value = preferences[field];
+  });
+}
+
+$("#open-settings").addEventListener("click", async () => {
+  try {
+    if (!state.preferences) await loadPreferences();
+    fillPreferenceDialog();
+    $("#settings-dialog").showModal();
+  } catch (error) { toast(error.message, true); }
+});
+
+$('[data-action="close-settings"]').addEventListener("click", () => $("#settings-dialog").close());
+
+$("#settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  setLoading(button, true, "正在保存…");
+  try {
+    const body = {};
+    Object.entries(PREFERENCE_FIELDS).forEach(([field, selector]) => {
+      const input = $(selector);
+      if (!input) return;
+      if (input.type === "checkbox") body[field] = input.checked;
+      else if (input.type === "number") body[field] = Number(input.value);
+      else body[field] = input.value;
+    });
+    state.preferences = await request("/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    applyPreferenceDefaults();
+    $("#settings-dialog").close();
+    toast("偏好已保存");
+  } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+});
+
+$("#topic-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-topic]");
+  if (!button) return;
+  const topic = button.dataset.deleteTopic;
+  if (!confirm(`确定移除知识点「${topic}」的掌握度记录吗？该知识点的得分和错误统计会被清除，且无法恢复。`)) return;
+  try {
+    await request(`/courses/${state.course.id}/topics/${encodeURIComponent(topic)}`, { method: "DELETE" });
+    toast("知识点已移除");
+    await Promise.allSettled([loadProgress(), loadInsights()]);
+  } catch (error) { toast(error.message, true); }
+});
+
+loadPreferences().catch(() => {});

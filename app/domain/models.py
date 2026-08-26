@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from sqlalchemy import BigInteger, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +22,10 @@ class User(Base):
     explanation_language: Mapped[str] = mapped_column(String(16), default="zh")
     answer_language: Mapped[str] = mapped_column(String(16), default="en")
     explanation_style: Mapped[str] = mapped_column(String(32), default="deep")
+    default_question_type: Mapped[str] = mapped_column(String(32), default="single_choice")
+    default_difficulty: Mapped[str] = mapped_column(String(16), default="medium")
+    default_question_count: Mapped[int] = mapped_column(Integer, default=5)
+    include_language_feedback: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

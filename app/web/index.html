@@ -34,6 +34,7 @@
         </div>
         <div class="top-actions">
           <span class="date-pill" id="today"></span>
+          <button id="open-settings" class="ghost-button light" type="button">设置</button>
           <div class="avatar">Q</div>
         </div>
       </header>
@@ -165,7 +166,24 @@
     </main>
   </div>
 
-  <dialog id="course-dialog">
+  <dialog id="settings-dialog">
+      <form id="settings-form" class="dialog-form" method="dialog">
+        <div class="dialog-head"><h2>语言与讲解偏好</h2><button class="icon-button" type="button" data-action="close-settings" aria-label="关闭">×</button></div>
+        <p class="dialog-note">这些是新对话和新练习的默认值，单次操作仍可临时改动。</p>
+        <div class="form-grid">
+          <label><span>讲解语言</span><select id="pref-explanation-language"><option value="zh">中文</option><option value="en">English</option><option value="zh-en">中英对照</option></select></label>
+          <label><span>作答语言</span><select id="pref-answer-language"><option value="zh">中文</option><option value="en">English</option><option value="zh-en">中英对照</option></select></label>
+          <label><span>讲解风格</span><select id="pref-explanation-style"><option value="concise">精简</option><option value="deep">深入</option><option value="socratic">苏格拉底式</option></select></label>
+          <label><span>默认题型</span><select id="pref-question-type"><option value="single_choice">单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
+          <label><span>默认难度</span><select id="pref-difficulty"><option value="basic">基础</option><option value="medium">进阶</option><option value="advanced">挑战</option></select></label>
+          <label><span>默认题目数</span><input id="pref-question-count" type="number" min="1" max="10"></label>
+          <label class="check-label full"><input id="pref-language-feedback" type="checkbox"><span>批改时附带语言表达反馈</span></label>
+        </div>
+        <button class="primary-button full-button" type="submit">保存偏好</button>
+      </form>
+    </dialog>
+
+    <dialog id="course-dialog">
     <form id="course-form" class="dialog-form">
       <div class="dialog-head"><div><p class="eyebrow">NEW COURSE</p><h2>添加课程</h2></div><button class="icon-button" type="button" data-action="close-dialog">×</button></div>
       <div class="form-grid">

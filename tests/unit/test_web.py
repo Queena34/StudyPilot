@@ -104,3 +104,39 @@ def test_irreversible_actions_ask_for_confirmation() -> None:
     # Deleting a course, deleting material and clearing progress cannot be undone.
     assert javascript.count("confirm(") >= 3
     assert "无法恢复" in javascript
+
+
+def test_settings_dialog_covers_the_documented_preferences() -> None:
+    page = TestClient(app).get("/").text
+
+    assert 'id="settings-dialog"' in page
+    assert 'id="open-settings"' in page
+    # PRD 8.6: language, explanation style, and the practice defaults.
+    for element in (
+        "pref-explanation-language",
+        "pref-answer-language",
+        "pref-explanation-style",
+        "pref-question-type",
+        "pref-difficulty",
+        "pref-question-count",
+        "pref-language-feedback",
+    ):
+        assert f'id="{element}"' in page
+
+
+def test_preferences_seed_the_forms_and_reach_the_requests() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    assert "function loadPreferences" in javascript
+    assert "function applyPreferenceDefaults" in javascript
+    # A saved preference is useless unless it actually travels with the request.
+    assert "state.preferences?.explanation_language" in javascript
+    assert "state.preferences?.answer_language" in javascript
+    assert "state.preferences?.include_language_feedback" in javascript
+
+
+def test_a_single_weak_topic_can_be_removed() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    assert "data-delete-topic" in javascript
+    assert "/topics/${encodeURIComponent(topic)}" in javascript

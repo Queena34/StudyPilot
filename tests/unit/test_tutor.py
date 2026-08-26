@@ -283,3 +283,29 @@ def test_document_reference_detection_and_learning_query() -> None:
     assert not _mentions_document_reference("什么是线性模型？")
     query = _document_learning_query("先开始学习资料1", "先开始学习资料1")
     assert "most important concepts" in query
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [("zh", "Simplified Chinese"), ("en", "English"), ("zh-en", "English original")],
+)
+def test_language_instruction_names_the_target_language(language, expected) -> None:
+    from app.llm.gateway import _language_instruction
+
+    assert expected in _language_instruction(language)
+
+
+def test_language_instruction_outranks_the_question_language() -> None:
+    from app.llm.gateway import _language_instruction
+
+    # A student asking in Chinese while preparing an English exam must still get
+    # English, so the instruction has to say so explicitly.
+    instruction = _language_instruction("en")
+    assert "another language" in instruction
+    assert "Keep formulas" in instruction
+
+
+def test_unknown_language_falls_back_rather_than_failing() -> None:
+    from app.llm.gateway import _language_instruction
+
+    assert "Simplified Chinese" in _language_instruction("fr")

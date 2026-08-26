@@ -58,3 +58,9 @@
 .error-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;font-size:12px;color:#4f5d55}
 .error-row b{padding:2px 8px;border-radius:999px;background:#fbe7e2;color:#a84936;font-size:10px}
 @media(max-width:900px){.insight-grid{grid-template-columns:1fr}.course-actions{position:static;margin-bottom:12px}.history-card{grid-template-columns:1fr}}
+.ghost-button.light{border-color:#cfd6d0;background:white;color:#3f5a4d}
+.ghost-button.light:hover{border-color:var(--green);color:var(--green);background:#f2f7f3}
+.dialog-note{margin:-8px 0 18px;color:var(--muted);font-size:12px;line-height:1.6}
+.topic-row .mini-button{padding:5px 10px;font-size:11px}
+.topic-row{grid-template-columns:1fr 2fr 70px auto}
+@media(max-width:560px){.topic-row{grid-template-columns:1fr 60px auto}}
