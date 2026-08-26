@@ -15,7 +15,11 @@ from app.agents.learning_agents import (
     TutorAgent,
 )
 from app.agents.orchestrator import LearningAgentOrchestrator
-from app.agents.presenters import _followups, _remove_unknown_citations
+from app.agents.presenters import (
+    CITATION_SNIPPET_LIMIT,
+    _followups,
+    _remove_unknown_citations,
+)
 from app.agents.integrity import AcademicIntegrityGuard
 from app.agents.protocol import LearningContext
 from app.agents.tools import TeachingToolManager
@@ -186,7 +190,7 @@ class TutorService:
                 filename=item.filename,
                 page_number=item.page_number,
                 section_title=item.section_title,
-                snippet=item.text[:300],
+                snippet=item.text[:CITATION_SNIPPET_LIMIT],
                 chunk_id=item.chunk_id,
                 score=round(item.score, 4),
             )

@@ -20,6 +20,7 @@ from app.schemas.practice import (
     QuestionOption,
     QuestionType,
 )
+from app.agents.presenters import CITATION_SNIPPET_LIMIT
 from app.schemas.tutor import Citation
 
 
@@ -166,7 +167,7 @@ def _source_map(evidence: list[RetrievedEvidence]) -> dict[str, dict]:
             filename=item.filename,
             page_number=item.page_number,
             section_title=item.section_title,
-            snippet=item.text[:300],
+            snippet=item.text[:CITATION_SNIPPET_LIMIT],
             chunk_id=item.chunk_id,
             score=round(item.score, 4),
         ).model_dump(mode="json")

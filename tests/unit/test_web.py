@@ -131,8 +131,11 @@ def test_preferences_seed_the_forms_and_reach_the_requests() -> None:
     assert "function applyPreferenceDefaults" in javascript
     # A saved preference is useless unless it actually travels with the request.
     assert "state.preferences?.explanation_language" in javascript
-    assert "state.preferences?.answer_language" in javascript
     assert "state.preferences?.include_language_feedback" in javascript
+    # The answer language reaches requests by seeding the practice-language
+    # selectors, which the learner can then override for a single set.
+    assert 'set("#practice-language", preferences.answer_language)' in javascript
+    assert 'set("#chat-practice-language", preferences.answer_language)' in javascript
 
 
 def test_a_single_weak_topic_can_be_removed() -> None:
@@ -140,3 +143,18 @@ def test_a_single_weak_topic_can_be_removed() -> None:
 
     assert "data-delete-topic" in javascript
     assert "/topics/${encodeURIComponent(topic)}" in javascript
+
+
+def test_practice_language_can_be_chosen_in_both_places() -> None:
+    page = TestClient(app).get("/").text
+
+    # Taught in Chinese, examined in English is the normal case here.
+    assert 'id="practice-language"' in page
+    assert 'id="chat-practice-language"' in page
+
+
+def test_chosen_practice_language_reaches_the_request() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    assert 'language:$("#chat-practice-language").value' in javascript
+    assert 'language:$("#practice-language").value' in javascript

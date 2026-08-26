@@ -94,7 +94,7 @@
             <div>
               <label><span>题型</span><select id="chat-question-type"><option value="single_choice" selected>单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
               <label><span>难度</span><select id="chat-difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
-              <label><span>题目数</span><input id="chat-question-count" type="number" min="1" max="10" value="5"></label>
+              <label><span>题目数</span><input id="chat-question-count" type="number" min="1" max="10" value="5"></label><label><span>出题语言</span><select id="chat-practice-language"><option value="en">English</option><option value="zh">中文</option><option value="zh-en">中英对照</option></select></label>
               <small>仅在你通过聊天要求出题时使用；“针对已经学的”会自动继承最近学习的资料和章节。</small>
             </div>
           </details>
@@ -122,7 +122,7 @@
             <label><span>练习主题</span><input id="practice-topic" placeholder="留空则根据课程资料生成"></label>
             <label><span>题型</span><select id="question-type"><option value="single_choice" selected>单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
             <label><span>难度</span><select id="difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
-            <label><span>题目数</span><input id="question-count" type="number" min="1" max="10" value="5"></label>
+            <label><span>题目数</span><input id="question-count" type="number" min="1" max="10" value="5"></label><label><span>出题语言</span><select id="practice-language"><option value="en">English</option><option value="zh">中文</option><option value="zh-en">中英对照</option></select></label>
             <label class="check-label"><input id="weak-first" type="checkbox"><span>优先针对薄弱点</span></label>
             <button class="primary-button" type="submit">生成练习</button>
           </form>

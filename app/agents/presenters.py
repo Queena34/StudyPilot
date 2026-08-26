@@ -12,6 +12,13 @@ from app.schemas.practice import Difficulty, PracticeSetCreate, QuestionType
 from app.schemas.study_plan import StudyPlanCreate
 
 
+#: A citation is only useful if it carries the sentence that supports the claim.
+#: At 300 characters it usually did not: passages run to a few thousand and the
+#: supporting line sits as often in the middle as at the start. This matches the
+#: chunker's own ceiling, so a citation carries the whole passage the model saw.
+CITATION_SNIPPET_LIMIT = 3200
+
+
 def _evidence_status(evidence: list) -> str:
     if not evidence:
         return "insufficient"
@@ -134,6 +141,10 @@ def _general_answer(language: str) -> str:
 def _practice_configuration(
     message: str, language, scope, *, options=None, context_topic: str | None = None
 ) -> PracticeSetCreate:
+    # Questions are what the learner will be examined in, which is not always the
+    # language they are being taught in. An explicit choice wins over the
+    # conversation's explanation language.
+    practice_language = getattr(options, "language", None) or language
     normalized = " ".join(message.casefold().split())
     number_match = re.search(r"(10|[1-9])\s*(?:道|题|questions?)", normalized)
     chinese_numbers = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
@@ -157,17 +168,45 @@ def _practice_configuration(
     else:
         difficulty = Difficulty(options.difficulty) if options else Difficulty.MEDIUM
     topic_match = re.search(r"(?:关于|针对|topic[:：]?)\s*([^,，。.!?？]{2,80})", message, re.I)
-    topic = context_topic or (topic_match.group(1).strip() if topic_match else None)
+    topic = context_topic or _clean_topic(topic_match.group(1) if topic_match else None)
     return PracticeSetCreate(
         topic=topic,
         question_type=question_type,
         difficulty=difficulty,
         question_count=count,
-        language=language,
+        language=practice_language,
         prioritize_weak_topics=any(term in normalized for term in ("薄弱", "弱项", "weak")),
         scope=scope,
     )
 
+
+
+#: Trailing question-form wording the topic pattern otherwise swallows, so that
+#: "关于残差的简答题" asks about residuals rather than about short-answer questions.
+_TOPIC_TRAILER = re.compile(
+    r"(?:的)?\s*(?:\d+|[一两二三四五六七八九十])?\s*(?:道|个)?\s*"
+    r"(?:单选题|选择题|多选题|简答题|问答题|概念解释题|概念题|练习题|练习|测验|题目|题)\s*$"
+)
+_TOPIC_TRAILER_EN = re.compile(
+    r"[\s,]*(?:\d+\s*)?(?:multiple[- ]choice|short[- ]answer|concept)?\s*"
+    r"(?:questions?|quiz|exercises?|practice)\s*$",
+    re.I,
+)
+
+
+def _clean_topic(topic: str | None) -> str | None:
+    """Keep the subject, drop the request wording wrapped around it."""
+
+    if not topic:
+        return None
+    cleaned = topic.strip()
+    for _ in range(3):
+        stripped = _TOPIC_TRAILER.sub("", cleaned).strip()
+        stripped = _TOPIC_TRAILER_EN.sub("", stripped).strip()
+        if stripped == cleaned:
+            break
+        cleaned = stripped
+    return cleaned or None
 
 
 def _requests_new_plan(message: str) -> bool:

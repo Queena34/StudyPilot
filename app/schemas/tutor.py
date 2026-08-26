@@ -37,6 +37,10 @@ class TutorPracticeOptions(BaseModel):
     question_type: Literal["single_choice", "short_answer", "concept"] = "single_choice"
     difficulty: Literal["basic", "medium", "advanced"] = "medium"
     question_count: int = Field(default=5, ge=1, le=10)
+    #: Language for the questions themselves. International students are often
+    #: taught in one language and examined in another, so this is separate from
+    #: the conversation's response language. Falls back to it when unset.
+    language: ResponseLanguage | None = None
 
 
 class TutorMessageCreate(BaseModel):

@@ -360,7 +360,7 @@ $("#chat-form").addEventListener("submit", async (event) => {
   if (selectedDocument?.page_count && ((pageFrom && pageFrom > selectedDocument.page_count) || (pageTo && pageTo > selectedDocument.page_count))) { toast(`页码不能超过该资料的 ${selectedDocument.page_count} 页`, true); return; }
   const scope = { document_types: $("#chat-document-type").value ? [$("#chat-document-type").value] : [], document_ids: $("#chat-document").value ? [$("#chat-document").value] : [], page_from: pageFrom, page_to: pageTo };
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
-  const practiceOptions = {question_type:$("#chat-question-type").value, difficulty:$("#chat-difficulty").value, question_count:Number($("#chat-question-count").value)};
+  const practiceOptions = {question_type:$("#chat-question-type").value, difficulty:$("#chat-difficulty").value, question_count:Number($("#chat-question-count").value), language:$("#chat-practice-language").value};
   try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:state.preferences?.explanation_language || "zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); loadConversations().catch(() => {}); if (result.practice_set) loadPracticeHistory().catch(() => {}); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
 });
 
@@ -383,7 +383,7 @@ $("#new-chat").addEventListener("click", resetChat);
 
 $("#practice-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; setLoading(button, true, "正在出题…");
-  try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:state.preferences?.answer_language || "zh", prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = practiceQuestionsHtml(result); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:$("#practice-language").value, prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = practiceQuestionsHtml(result); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
 document.addEventListener("submit", async (event) => {
@@ -652,6 +652,8 @@ function applyPreferenceDefaults() {
   set("#question-type", preferences.default_question_type);
   set("#difficulty", preferences.default_difficulty);
   set("#question-count", preferences.default_question_count);
+  set("#practice-language", preferences.answer_language);
+  set("#chat-practice-language", preferences.answer_language);
 }
 
 function fillPreferenceDialog() {
