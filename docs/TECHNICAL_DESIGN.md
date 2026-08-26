@@ -582,7 +582,7 @@ MVP 统一聊天入口使用 `LearningIntentRouter` 执行高精度确定性路�
 | `course_catalog` | PostgreSQL documents | 否 |
 | `progress` | ProgressRepository | 否 |
 | `study_plan` | StudyPlanRepository | 否 |
-| `practice` | Practice 工作流入口 | 否 |
+| `practice` | PracticeService + CourseRetriever + Quiz Agent | 是 |
 | `general` | 产品能力回答 | 否 |
 | `rag` | CourseRetriever + Tutor Agent | 是 |
 

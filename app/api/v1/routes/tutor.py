@@ -8,6 +8,7 @@ from app.infrastructure.repositories.conversation_repository import Conversation
 from app.infrastructure.repositories.course_repository import CourseRepository
 from app.infrastructure.repositories.document_repository import DocumentRepository
 from app.infrastructure.repositories.progress_repository import ProgressRepository
+from app.infrastructure.repositories.practice_repository import PracticeRepository
 from app.infrastructure.repositories.study_plan_repository import StudyPlanRepository
 from app.schemas.tutor import (
     Citation,
@@ -18,6 +19,7 @@ from app.schemas.tutor import (
     TutorMessageCreate,
     TutorMessageRead,
 )
+from app.services.practice_service import PracticeService
 from app.services.tutor_service import TutorService
 
 router = APIRouter()
@@ -30,12 +32,14 @@ async def create_tutor_message(
     session: DbSession,
     user_id: CurrentUserId,
 ) -> TutorMessageRead:
+    course_repository = CourseRepository(session)
     return await TutorService(
-        CourseRepository(session),
+        course_repository,
         ConversationRepository(session),
         DocumentRepository(session),
         ProgressRepository(session),
         StudyPlanRepository(session),
+        PracticeService(course_repository, PracticeRepository(session)),
     ).answer(user_id, course_id, body)
 
 

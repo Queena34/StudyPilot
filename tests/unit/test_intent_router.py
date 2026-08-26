@@ -26,6 +26,7 @@ def _decision(message: str):
         ("我的掌握度和薄弱点怎么样？", LearningIntent.PROGRESS_REVIEW, RouteTarget.PROGRESS),
         ("我的学习计划完成了多少？", LearningIntent.STUDY_PLANNING, RouteTarget.STUDY_PLAN),
         ("给我出题测试一下", LearningIntent.PRACTICE_GENERATION, RouteTarget.PRACTICE),
+        ("给我出3道基础选择题", LearningIntent.PRACTICE_GENERATION, RouteTarget.PRACTICE),
         ("你好", LearningIntent.GENERAL, RouteTarget.GENERAL),
         ("请解释什么是 ANOVA", LearningIntent.CONCEPT_EXPLANATION, RouteTarget.RAG),
         ("ANOVA 的假设条件有哪些？", LearningIntent.COURSE_QA, RouteTarget.RAG),

@@ -20,6 +20,8 @@ def test_static_assets_are_available() -> None:
     assert 'const API = "/api/v1"' in javascript.text
     assert "followDocument" in javascript.text
     assert "30 * 1024 * 1024" in javascript.text
+    assert "addChatPractice" in javascript.text
+    assert "result.practice_set" in javascript.text
 
 
 def test_upload_control_explains_selection_and_progress() -> None:

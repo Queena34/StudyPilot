@@ -10,3 +10,5 @@
 .file-picker>span:last-child{min-width:0}.file-picker strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .upload-status{min-height:20px;margin:8px 4px 0;color:var(--muted);font-size:12px}
 .upload-status.success{color:#347257}.upload-status.error{color:#a84936}
+.chat-practice{margin:12px 42px 24px}.chat-practice .question-card{background:#fffdf8;box-shadow:0 8px 20px rgba(35,52,43,.06)}
+@media(max-width:560px){.chat-practice{margin:12px 0 24px}.answer-form{flex-direction:column}}

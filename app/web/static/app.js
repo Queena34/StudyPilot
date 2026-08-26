@@ -167,6 +167,18 @@ function addMessage(role, content, citations = []) {
   $("#chat").scrollTop = $("#chat").scrollHeight;
 }
 
+function practiceQuestionsHtml(practiceSet) {
+  return practiceSet.questions.map((q, index) => `<article class="question-card"><h4>${index + 1}. ${escapeHtml(q.content)}</h4>${q.options ? `<div class="options">${q.options.map((o) => `<label><input type="radio" name="q-${q.id}" value="${escapeHtml(o.id)}"> ${escapeHtml(o.id)}. ${escapeHtml(o.text)}</label>`).join("")}</div>` : ""}<small>知识点：${q.knowledge_points.map(escapeHtml).join("、")}</small><form class="answer-form" data-question-id="${q.id}"><input required maxlength="12000" placeholder="输入你的答案${q.options ? "（如 A）" : ""}"><button class="primary-button" type="submit">提交批改</button></form><div class="feedback hidden"></div></article>`).join("");
+}
+
+function addChatPractice(practiceSet) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-practice question-list";
+  wrapper.innerHTML = practiceQuestionsHtml(practiceSet);
+  $("#chat").appendChild(wrapper);
+  $("#chat").scrollTop = $("#chat").scrollHeight;
+}
+
 $("#course-list").addEventListener("click", (event) => {
   const button = event.target.closest("[data-course-id]");
   if (button) selectCourse(state.courses.find((course) => course.id === button.dataset.courseId));
@@ -218,16 +230,16 @@ $("#document-file").addEventListener("change", (event) => {
 $("#chat-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; const message = $("#chat-input").value.trim(); if (!message) return;
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
-  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope:{}})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:"zh", mode:$("#answer-mode").value, scope:{}})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
 });
 $("#new-chat").addEventListener("click", resetChat);
 
 $("#practice-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const button = event.submitter; setLoading(button, true, "正在出题…");
-  try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:"zh", prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = result.questions.map((q, index) => `<article class="question-card"><h4>${index + 1}. ${escapeHtml(q.content)}</h4>${q.options ? `<div class="options">${q.options.map((o) => `<label><input type="radio" name="q-${q.id}" value="${escapeHtml(o.id)}"> ${escapeHtml(o.id)}. ${escapeHtml(o.text)}</label>`).join("")}</div>` : ""}<small>知识点：${q.knowledge_points.map(escapeHtml).join("、")}</small><form class="answer-form" data-question-id="${q.id}"><input required maxlength="12000" placeholder="输入你的答案${q.options ? "（如 A）" : ""}"><button class="primary-button" type="submit">提交批改</button></form><div class="feedback hidden"></div></article>`).join(""); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:"zh", prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = practiceQuestionsHtml(result); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
-$("#practice-result").addEventListener("submit", async (event) => {
+document.addEventListener("submit", async (event) => {
   if (!event.target.matches(".answer-form")) return; event.preventDefault(); const button = event.submitter; setLoading(button, true, "批改中…");
   try { const result = await request(`/questions/${event.target.dataset.questionId}/attempts`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({answer:event.target.querySelector("input").value})}); const feedback = event.target.nextElementSibling; feedback.classList.remove("hidden"); feedback.innerHTML = `<strong class="score">${Math.round(result.score)} / 100</strong><p>${escapeHtml(result.feedback.summary)}</p>${result.feedback.missing_concepts.length ? `<small>建议补充：${result.feedback.missing_concepts.map(escapeHtml).join("、")}</small>` : ""}`; await loadProgress(); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });

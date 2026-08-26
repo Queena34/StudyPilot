@@ -13,6 +13,8 @@ from app.infrastructure.repositories.study_plan_repository import StudyPlanRepos
 from app.llm.gateway import GeneratedAnswer, TutorAnswerGateway, _extractive_answer
 from app.rag.retrieval import CourseRetriever
 from app.schemas.tutor import Citation, TokenUsage, TutorMessageCreate, TutorMessageRead
+from app.schemas.practice import Difficulty, PracticeSetCreate, QuestionType
+from app.services.practice_service import PracticeService
 
 
 class TutorService:
@@ -23,6 +25,7 @@ class TutorService:
         document_repository: DocumentRepository,
         progress_repository: ProgressRepository,
         study_plan_repository: StudyPlanRepository,
+        practice_service: PracticeService,
         retriever: CourseRetriever | None = None,
         gateway: TutorAnswerGateway | None = None,
         intent_router: LearningIntentRouter | None = None,
@@ -32,6 +35,7 @@ class TutorService:
         self.document_repository = document_repository
         self.progress_repository = progress_repository
         self.study_plan_repository = study_plan_repository
+        self.practice_service = practice_service
         self.retriever = retriever or CourseRetriever()
         self.gateway = gateway or TutorAnswerGateway()
         self.intent_router = intent_router or LearningIntentRouter()
@@ -61,6 +65,7 @@ class TutorService:
             )
 
         started = monotonic()
+        practice_set = None
         standalone_query = _standalone_query(data.message, history)
         decision = self.intent_router.analyze(
             message=data.message,
@@ -99,11 +104,17 @@ class TutorService:
                 model_name="study-plan-service",
             )
         elif decision.target == RouteTarget.PRACTICE:
+            configuration = _practice_configuration(
+                data.message, data.response_language, data.scope
+            )
+            practice_set = await self.practice_service.create(
+                user_id, course_id, configuration
+            )
             evidence = []
-            status = "action_required"
+            status = "practice_created"
             generated = GeneratedAnswer(
-                answer=_practice_route_answer(data.response_language.value),
-                model_name="practice-router",
+                answer=_practice_created_answer(practice_set, data.response_language.value),
+                model_name=practice_set.model_name,
             )
         elif decision.target == RouteTarget.GENERAL:
             evidence = []
@@ -192,6 +203,7 @@ class TutorService:
             intent=decision.intent.value,
             route=decision.target.value,
             query_plan=decision.query_plan.as_dict(),
+            practice_set=(practice_set.model_dump(mode="json") if practice_set else None),
         )
 
 
@@ -219,8 +231,8 @@ def _followups(status: str) -> list[str]:
         return ["请概括这些资料的主题。", "这些资料有哪些共同知识点？"]
     if status == "business_data":
         return ["我下一步应该学什么？", "帮我安排一份复习计划。"]
-    if status == "action_required":
-        return ["我想练习薄弱知识点。", "请先解释一个核心概念。"]
+    if status == "practice_created":
+        return ["批改后解释我的错误。", "再生成一组更难的题。"]
     if status == "general":
         return ["我现在有哪些课程资料？", "帮我解释一个课程概念。"]
     if status == "insufficient":
@@ -305,10 +317,44 @@ def _study_plan_answer(plans: list, language: str) -> str:
     return f"你最新的学习计划已完成 {completed}/{total} 项（{completion_rate:.0%}）。{next_text}"
 
 
-def _practice_route_answer(language: str) -> str:
+def _practice_configuration(message: str, language, scope) -> PracticeSetCreate:
+    normalized = " ".join(message.casefold().split())
+    number_match = re.search(r"(10|[1-9])\s*(?:道|题|questions?)", normalized)
+    chinese_numbers = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+    chinese_match = re.search(r"([一两二三四五六七八九十])\s*道", normalized)
+    count = int(number_match.group(1)) if number_match else (
+        chinese_numbers[chinese_match.group(1)] if chinese_match else 3
+    )
+    if any(term in normalized for term in ("选择题", "单选", "multiple choice")):
+        question_type = QuestionType.SINGLE_CHOICE
+    elif any(term in normalized for term in ("概念题", "概念解释", "concept question")):
+        question_type = QuestionType.CONCEPT
+    else:
+        question_type = QuestionType.SHORT_ANSWER
+    if any(term in normalized for term in ("基础", "简单", "basic", "easy")):
+        difficulty = Difficulty.BASIC
+    elif any(term in normalized for term in ("困难", "挑战", "高级", "advanced", "hard")):
+        difficulty = Difficulty.ADVANCED
+    else:
+        difficulty = Difficulty.MEDIUM
+    topic_match = re.search(r"(?:关于|针对|topic[:：]?)\s*([^,，。.!?？]{2,80})", message, re.I)
+    topic = topic_match.group(1).strip() if topic_match else None
+    return PracticeSetCreate(
+        topic=topic,
+        question_type=question_type,
+        difficulty=difficulty,
+        question_count=count,
+        language=language,
+        prioritize_weak_topics=any(term in normalized for term in ("薄弱", "弱项", "weak")),
+        scope=scope,
+    )
+
+
+def _practice_created_answer(practice_set, language: str) -> str:
+    count = len(practice_set.questions)
     if language == "en":
-        return "I recognized a practice-generation request. Open Practice Quiz to choose the topic, question type, difficulty, and count so the questions and grading rubric are saved correctly."
-    return "我已识别到你想生成练习。请打开“练习自测”，选择主题、题型、难度和数量，这样系统会正确保存题目和批改标准。"
+        return f'I created and saved "{practice_set.title}" with {count} question(s). Answer them below for grading.'
+    return f"已为你生成并保存“{practice_set.title}”，共 {count} 道题。请直接在下方作答，提交后会自动批改。"
 
 
 def _general_answer(language: str) -> str:

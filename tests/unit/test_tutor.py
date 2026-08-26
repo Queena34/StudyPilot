@@ -7,11 +7,13 @@ from pydantic import ValidationError
 from app.llm.gateway import _extractive_answer
 from app.domain.models import Message
 from app.rag.types import RetrievedEvidence
-from app.schemas.tutor import TutorScope
+from app.schemas.practice import Difficulty, QuestionType
+from app.schemas.tutor import ResponseLanguage, TutorScope
 from app.services.tutor_service import (
     _conversation_title,
     _document_inventory_answer,
     _evidence_status,
+    _practice_configuration,
     _remove_unknown_citations,
     _standalone_query,
 )
@@ -105,3 +107,16 @@ def test_document_inventory_answer_includes_every_document() -> None:
     assert "first.pdf" in answer
     assert "second.pdf" in answer
     assert "146 个知识片段" in answer
+
+
+def test_practice_configuration_is_parsed_from_natural_language() -> None:
+    configuration = _practice_configuration(
+        "针对薄弱点给我出 5 道困难选择题",
+        ResponseLanguage.ZH,
+        TutorScope(),
+    )
+
+    assert configuration.question_count == 5
+    assert configuration.question_type == QuestionType.SINGLE_CHOICE
+    assert configuration.difficulty == Difficulty.ADVANCED
+    assert configuration.prioritize_weak_topics is True

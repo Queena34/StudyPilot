@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+import re
 from uuid import UUID
 
 from app.schemas.tutor import TutorScope
@@ -106,7 +107,7 @@ class LearningIntentRouter:
                 "The user asked about a study or revision plan.",
                 plan,
             )
-        if _contains(normalized, _PRACTICE_TERMS):
+        if _is_practice_request(normalized):
             return IntentDecision(
                 LearningIntent.PRACTICE_GENERATION,
                 RouteTarget.PRACTICE,
@@ -150,6 +151,12 @@ def _matches(message: str, first: tuple[str, ...], second: tuple[str, ...]) -> b
 def _is_general(message: str) -> bool:
     exact = {"你好", "嗨", "hello", "hi", "hey", "你是谁", "who are you"}
     return message.strip("！!?？。. ") in exact or _contains(message, _CAPABILITY_TERMS)
+
+
+def _is_practice_request(message: str) -> bool:
+    return _contains(message, _PRACTICE_TERMS) or bool(
+        re.search(r"(?:出|生成|创建).{0,12}(?:题|练习|测验)", message)
+    )
 
 
 _DOCUMENT_TERMS = (
