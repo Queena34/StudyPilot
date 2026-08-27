@@ -1,0 +1,14 @@
+{"id":"xl-001","zh":"解释一下什么是残差","en":"what is a residual","terms":["residual"],"answerable":true}
+{"id":"xl-002","zh":"最小二乘法的目标是什么","en":"what is the goal of least squares estimation","terms":["least squares","squares"],"answerable":true}
+{"id":"xl-003","zh":"多重共线性怎么诊断","en":"how to diagnose multicollinearity","terms":["multicollinearity","vif"],"answerable":true}
+{"id":"xl-004","zh":"什么是杠杆点","en":"what is a leverage point","terms":["leverage"],"answerable":true}
+{"id":"xl-005","zh":"解释一下方差分析里的组间平方和","en":"explain the between-group sum of squares in ANOVA","terms":["sum of squares","between"],"answerable":true}
+{"id":"xl-006","zh":"回归系数的置信区间怎么算","en":"how is a confidence interval for a regression coefficient computed","terms":["confidence interval","confidence"],"answerable":true}
+{"id":"xl-007","zh":"什么是交互作用项","en":"what is an interaction term","terms":["interaction"],"answerable":true}
+{"id":"xl-008","zh":"逐步回归是怎么做的","en":"how does stepwise regression work","terms":["stepwise"],"answerable":true}
+{"id":"xl-009","zh":"Cook 距离用来做什么","en":"what is Cook's distance used for","terms":["cook"],"answerable":true}
+{"id":"xl-010","zh":"误差项需要满足哪些假设","en":"what assumptions must the error terms satisfy","terms":["error","variance"],"answerable":true}
+{"id":"xl-011","zh":"对响应变量取对数有什么影响","en":"what is the effect of a log transformation of the response","terms":["transformation","log"],"answerable":true}
+{"id":"xl-012","zh":"多重比较里的 Bonferroni 方法","en":"the Bonferroni procedure for multiple comparisons","terms":["bonferroni"],"answerable":true}
+{"id":"xl-013","zh":"资料里讲了贝叶斯先验怎么选吗","en":"does the material cover how to choose a Bayesian prior","terms":[],"answerable":false}
+{"id":"xl-014","zh":"资料里有讲随机森林吗","en":"does the material cover random forests","terms":[],"answerable":false}

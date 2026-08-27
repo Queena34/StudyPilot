@@ -24,12 +24,21 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
+# 把嵌入模型烘进依赖层：运行时不再下载，构建结果可复现。
+ENV FASTEMBED_CACHE_PATH=/opt/fastembed
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5', cache_dir='/opt/fastembed')"
+
 # 文档解析与向量入库依赖仅安装在后台 Worker 镜像中。
 FROM base AS rag-dependencies
 
 COPY requirements.txt requirements-rag.txt ./
 RUN pip install --upgrade pip && \
     pip install -r requirements-rag.txt
+
+# 把嵌入模型烘进依赖层：运行时不再下载，构建结果可复现。
+ENV FASTEMBED_CACHE_PATH=/opt/fastembed
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5', cache_dir='/opt/fastembed')"
+
 
 # ── 阶段 3：生产镜像 ──────────────────────────────────────────────────────────
 FROM base AS production
@@ -40,6 +49,8 @@ RUN useradd -m -u 1000 studypilot
 # 从依赖阶段复制已安装的包
 COPY --from=dependencies /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=dependencies /usr/local/bin /usr/local/bin
+COPY --from=dependencies --chown=studypilot:studypilot /opt/fastembed /opt/fastembed
+ENV FASTEMBED_CACHE_PATH=/opt/fastembed
 # 复制应用代码
 COPY --chown=studypilot:studypilot . .
 
@@ -62,6 +73,8 @@ RUN useradd -m -u 1000 studypilot
 
 COPY --from=rag-dependencies /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=rag-dependencies /usr/local/bin /usr/local/bin
+COPY --from=rag-dependencies --chown=studypilot:studypilot /opt/fastembed /opt/fastembed
+ENV FASTEMBED_CACHE_PATH=/opt/fastembed
 COPY --chown=studypilot:studypilot . .
 
 RUN mkdir -p /app/data/uploads /app/logs && \

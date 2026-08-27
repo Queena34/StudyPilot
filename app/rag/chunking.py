@@ -4,7 +4,10 @@ from app.rag.types import ParsedDocument, TextChunk
 
 
 class TextChunker:
-    def __init__(self, max_chars: int = 3200, overlap_chars: int = 400) -> None:
+    #: The embedding model truncates at 512 tokens, roughly 1600 English
+    #: characters. Chunks were 3200, so two thirds of every passage was invisible
+    #: to search — present in the citation, absent from the index.
+    def __init__(self, max_chars: int = 1200, overlap_chars: int = 200) -> None:
         if max_chars <= 0 or overlap_chars < 0 or overlap_chars >= max_chars:
             raise ValueError("invalid chunk size configuration")
         self.max_chars = max_chars

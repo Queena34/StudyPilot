@@ -96,10 +96,21 @@ class QueryPlan:
     top_k: int
     #: Optional, like the page range: absent means the whole scope applies.
     chapter: int | None = None
+    #: Language the material is written in, and the query rewritten into it.
+    #: Retrieval uses `retrieval_query`; `standalone_query` stays as the learner
+    #: wrote it, for anything shown back to them.
+    material_language: str = "en"
+    retrieval_query: str = ""
+
+    @property
+    def search_query(self) -> str:
+        return self.retrieval_query or self.standalone_query
 
     def as_dict(self) -> dict:
         return {
             "standalone_query": self.standalone_query,
+            "retrieval_query": self.search_query,
+            "material_language": self.material_language,
             "course_id": str(self.course_id),
             "document_types": self.document_types,
             "document_ids": [str(value) for value in self.document_ids],

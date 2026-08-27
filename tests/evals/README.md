@@ -256,3 +256,19 @@ python -m tests.evals.run_faithfulness_eval --verdicts faithfulness_verdicts.jso
 - **`declined_when_unsupported_rate` 必须为 1.0** —— 资料外问题必须被明确指出，不得作答。
 
 评分脚本会**拒绝给未填完的评审表打分**：半份评审报出的满分比没有评审更有害。基线中同时记录评审者姓名与随机种子，更换任一项后不得与旧结果直接比较。
+
+## Cross-lingual v1（跨语言检索）
+
+`datasets/retrieval_crosslingual_v1.jsonl` 包含 14 个问题，每个用中文和英文各问一次，共 28 次调用，**不指定资料**运行。
+
+这套评测存在的理由，是它抓的失败被其余八套**全部漏掉**。当时嵌入是确定性散列，中文提问检索英文资料取回的是任意片段（分数 0.045→0.000，噪声水平），而答案看起来仍然正确 —— 模型用先验知识作答，把引用挂在只是恰好共享一个词的片段上。RAG v1 的关键词是对着**答案**校验的，所以照样通过。
+
+**关键差别：关键词在被引用的片段中查找，不在答案中。** 答案可以正确而不接地；引用不可能在不携带其被引用内容的情况下正确。
+
+```bash
+python -m tests.evals.run_retrieval_eval --course-id <课程ID>
+```
+
+`baselines/retrieval_crosslingual_v1.json` 实测：`citation_support_rate` 100%、**`cross_language_parity` 100%**、`ungrounded_claim_rate` 0%、中文提问翻译触发率 91.7%。基线中同时记录了修复前的实测数据以便对照。
+
+六条门槛中两条是硬性的：`ungrounded_claim_rate` 必须为 0（答案声称了主题而引用中没有，等于核心承诺失效）；本评测必须**不指定资料**运行 —— 固定资料会绕开出问题的那条路径。

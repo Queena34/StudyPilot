@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from app.core.config import get_settings
-from app.rag.embeddings import HashEmbedding
+from app.rag.embeddings import get_embedding
 from app.rag.types import TextChunk
 
 
@@ -17,7 +17,7 @@ class CourseVectorStore:
             name=settings.chroma_collection,
             metadata={"hnsw:space": "cosine", "schema_version": 1},
         )
-        self.embedding = HashEmbedding()
+        self.embedding = get_embedding()
 
     def add_document(
         self,
@@ -28,6 +28,7 @@ class CourseVectorStore:
         filename: str,
         document_type: str,
         chunks: list[TextChunk],
+        language: str = "en",
     ) -> None:
         embeddings = self.embedding.embed([chunk.text for chunk in chunks])
         for start in range(0, len(chunks), 100):
@@ -40,6 +41,7 @@ class CourseVectorStore:
                     "document_id": str(document_id),
                     "document_type": document_type,
                     "source_file": filename,
+                    "language": language,
                     "page_number": chunk.page_number,
                     "chunk_index": chunk.chunk_index,
                     "schema_version": 1,

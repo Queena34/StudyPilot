@@ -1,0 +1,39 @@
+{
+  "dataset_version": "retrieval-crosslingual-v1",
+  "status": "recorded",
+  "recorded_at": "2026-08-27T13:07:24.664031+00:00",
+  "configuration": {
+    "embedding": "BAAI/bge-small-en-v1.5 (384d)",
+    "chunk_max_chars": 1200,
+    "chunk_overlap": 200,
+    "collection": "course_materials_v2",
+    "query_translation": true,
+    "scoped": false
+  },
+  "purpose": "跨语言检索评测。存在的理由是它抓的失败被其余七套全部漏掉：中文提问检索英文资料时取回任意片段，而答案看起来仍然正确 —— 模型用先验知识作答，把引用挂在只是恰好共享一个词的片段上。",
+  "key_difference": "关键词在**被引用的片段**中查找，而不是在答案中。答案可以正确而不接地；引用不可能在不携带其被引用内容的情况下正确。",
+  "metrics": {
+    "case_count": 28,
+    "answerable_case_count": 24,
+    "citation_support_rate": 1.0,
+    "citation_support_rate_zh": 1.0,
+    "citation_support_rate_en": 1.0,
+    "cross_language_parity": 1.0,
+    "ungrounded_claim_rate": 0.0,
+    "has_citations_rate": 1.0,
+    "translation_rate_zh": 0.9166666666666666,
+    "average_latency_ms": 12588.57142857143
+  },
+  "before_fix": {
+    "embedding": "HashEmbedding（确定性散列）",
+    "observed": "中文查询 top-5 分数 0.045→0.000（噪声水平），取回 beer-goggles、酒精摄入等无关幻灯片；英文同问 0.428→0.390 命中 Studentized residuals；两者零重叠"
+  },
+  "regression_rules": [
+    "ungrounded_claim_rate 必须为 0。答案声称了主题而引用中没有，等于产品的核心承诺失效。",
+    "cross_language_parity 不得低于 0.90。中文提问的检索质量必须与资料语言下的提问相当。",
+    "citation_support_rate 不得低于 0.90。",
+    "has_citations_rate 必须为 1.0：可回答的问题必须给出引用。",
+    "本评测必须**不指定资料**运行 —— 固定资料会绕开出问题的那条路径。",
+    "更换嵌入模型、分块参数或集合版本后必须重跑，并同时全量重新入库。"
+  ]
+}

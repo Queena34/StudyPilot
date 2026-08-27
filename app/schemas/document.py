@@ -30,6 +30,7 @@ class DocumentRead(BaseModel):
     document_type: str
     status: str
     size_bytes: int
+    language: str = "en"
     page_count: int | None
     chunk_count: int
     error_code: str | None

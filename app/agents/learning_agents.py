@@ -49,7 +49,7 @@ class TutorAgent:
         tools = context.tools.session()
         evidence = await tools.search_course_material(
             context,
-            query=plan.standalone_query,
+            query=plan.search_query,
             top_k=plan.top_k,
             document_types=plan.document_types,
             document_ids=plan.document_ids,
@@ -95,7 +95,7 @@ class TutorAgent:
             fallback_reason=generated.fallback_reason,
             tool_calls=tools.calls,
             # A following QuizAgent should build questions on what was just taught.
-            shared={"explained_topic": plan.standalone_query},
+            shared={"explained_topic": plan.search_query},
         )
 
 

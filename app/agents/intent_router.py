@@ -12,6 +12,7 @@ import re
 from uuid import UUID
 
 from app.agents.llm_router import LLMIntentRouter, LLMRoutingProposal
+from app.agents.query_translation import QueryTranslationGateway
 from app.agents.routing import (
     CLARIFICATION_THRESHOLD,
     INTENT_AGENTS,
@@ -48,8 +49,13 @@ IntentDecision = RoutingDecision
 class LearningIntentRouter:
     """Rule-first router with a structured LLM fallback for unclear messages."""
 
-    def __init__(self, llm_router: LLMIntentRouter | None = None) -> None:
+    def __init__(
+        self,
+        llm_router: LLMIntentRouter | None = None,
+        translator: QueryTranslationGateway | None = None,
+    ) -> None:
         self.llm_router = llm_router or LLMIntentRouter()
+        self.translator = translator or QueryTranslationGateway()
 
     def analyze(
         self,
@@ -74,10 +80,19 @@ class LearningIntentRouter:
         language: str,
         scope: TutorScope,
         history: list[tuple[str, str]] | None = None,
+        material_language: str = "en",
     ) -> RoutingDecision:
         """Full hybrid routing. Falls back to the rule decision on any LLM problem."""
 
-        plan = _build_plan(message, standalone_query, course_id, language, scope)
+        plan = _build_plan(
+            message, standalone_query, course_id, language, scope, material_language
+        )
+        plan = replace(
+            plan,
+            retrieval_query=await self.translator.to_material_language(
+                plan.standalone_query, material_language
+            ),
+        )
         rule = _rule_decision(message, plan, has_history=bool(history))
         if rule.confidence >= RULE_CONFIDENCE_THRESHOLD:
             return rule
@@ -91,7 +106,12 @@ class LearningIntentRouter:
 
 
 def _build_plan(
-    message: str, standalone_query: str, course_id: UUID, language: str, scope: TutorScope
+    message: str,
+    standalone_query: str,
+    course_id: UUID,
+    language: str,
+    scope: TutorScope,
+    material_language: str = "en",
 ) -> QueryPlan:
     """Scope comes only from the learner's explicit selection, never from a model."""
 
@@ -109,6 +129,7 @@ def _build_plan(
         # An explicit choice always wins; otherwise read the chapter the learner
         # named. This is the one place a chapter is derived from a message.
         chapter=scope.chapter if scope.chapter is not None else _resolve_chapter(message),
+        material_language=material_language,
     )
 
 

@@ -11,6 +11,7 @@ from app.infrastructure.database import SessionFactory
 from app.infrastructure.file_storage import LocalFileStorage
 from app.infrastructure.vector_store import CourseVectorStore
 from app.rag.chunking import TextChunker
+from app.rag.language import dominant_language
 from app.rag.parsers import parser_for_suffix
 
 
@@ -93,6 +94,7 @@ class DocumentIngestionService:
                 chunks = self.chunker.split(parsed)
                 if not chunks:
                     raise AppError("EMPTY_DOCUMENT", "文档中没有可索引的文本")
+                document.language = dominant_language([page.text for page in parsed.pages])
                 job.progress = 45
                 await session.commit()
 
@@ -104,6 +106,7 @@ class DocumentIngestionService:
                     document_id=document.id,
                     filename=document.filename,
                     document_type=document.document_type,
+                    language=document.language,
                     chunks=chunks,
                 )
 

@@ -5,7 +5,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.rag.embeddings import HashEmbedding
+from app.rag.embeddings import get_embedding
 from app.rag.types import RetrievedEvidence
 
 
@@ -14,7 +14,7 @@ class CourseRetriever:
         settings = get_settings()
         self.base_url = f"http://{settings.chroma_host}:{settings.chroma_port}/api/v1"
         self.collection_name = settings.chroma_collection
-        self.embedding = HashEmbedding()
+        self.embedding = get_embedding()
 
     async def retrieve(
         self,

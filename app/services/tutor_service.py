@@ -92,6 +92,23 @@ class TutorService:
         )
         self.integrity_guard = integrity_guard or AcademicIntegrityGuard()
 
+    async def _material_language(self, user_id, course_id, scope) -> str:
+        """The language the retrieval query has to be written in.
+
+        Judged from the documents actually in scope, so a course holding both
+        English lectures and Chinese notes still searches the right one.
+        """
+
+        documents = await self.document_repository.list_for_course(
+            user_id, course_id, offset=0, limit=100
+        )
+        selected = set(scope.document_ids or [])
+        in_scope = [item for item in documents if not selected or item.id in selected]
+        languages = [getattr(item, "language", "en") or "en" for item in in_scope]
+        if not languages:
+            return "en"
+        return max(set(languages), key=languages.count)
+
     async def answer(
         self, user_id: UUID, course_id: UUID, data: TutorMessageCreate
     ) -> TutorMessageRead:
@@ -139,6 +156,7 @@ class TutorService:
                     update={"document_ids": resolved_ids}
                 )
                 standalone_query = _document_learning_query(data.message, standalone_query)
+        material_language = await self._material_language(user_id, course_id, effective_scope)
         decision = await self.intent_router.route(
             message=data.message,
             standalone_query=standalone_query,
@@ -146,6 +164,7 @@ class TutorService:
             language=data.response_language.value,
             scope=effective_scope,
             history=[(item.role, item.content) for item in history],
+            material_language=material_language,
         )
         context = LearningContext(
             user_id=user_id,

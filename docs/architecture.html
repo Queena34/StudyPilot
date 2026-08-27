@@ -163,7 +163,7 @@
 <div class="shell">
 <aside class="rail">
   <div class="mark"><span class="mark-badge">S</span><span class="mark-name">StudyPilot</span></div>
-  <p class="rail-sub">实现说明书 · commit 386a812</p>
+  <p class="rail-sub">实现说明书 · 检索重构后</p>
   <nav>
     <a href="#s1"><span class="n">01</span><span>系统是什么</span></a>
     <a href="#s2"><span class="n">02</span><span>整体架构</span></a>
@@ -186,14 +186,14 @@
 <div class="lede">
   <p class="eyebrow">Implementation Specification</p>
   <h1>StudyPilot 实现说明书</h1>
-  <p class="standfirst">面向国际研究生的双语 AI 学习教练。本文逐节说明当前代码<strong>实际是怎么实现的</strong>——每一处数值、函数名与流程都已对照 commit <code>386a812</code> 核对。</p>
+  <p class="standfirst">面向国际研究生的双语 AI 学习教练。本文逐节说明当前代码<strong>实际是怎么实现的</strong>——每一处数值、函数名与流程都已对照当前代码核对。</p>
 </div>
 
 <dl class="facts">
   <div class="fact"><dt>应用代码</dt><dd>7,118<small>行 · app/</small></dd></div>
   <div class="fact"><dt>测试代码</dt><dd>5,535<small>行 · tests/</small></dd></div>
   <div class="fact"><dt>单元测试</dt><dd>241<small>全部通过</small></dd></div>
-  <div class="fact"><dt>离线评测</dt><dd>8<small>套，均有基线</small></dd></div>
+  <div class="fact"><dt>离线评测</dt><dd>9<small>套，均有基线</small></dd></div>
   <div class="fact"><dt>数据迁移</dt><dd>8<small>0001–0008</small></dd></div>
 </dl>
 
@@ -411,8 +411,8 @@ create_practice_set       find_pending_question    grade_answer</pre>
   <thead><tr><th>环节</th><th>实现</th></tr></thead>
   <tbody>
     <tr><td>解析<br><code>parsers.py</code></td><td>PDF 用 PyMuPDF 逐页抽取，识别章节标题并向后继承；无可抽取文本时抛 <code>OCR_REQUIRED</code>（不支持扫描件）</td></tr>
-    <tr><td>分块<br><code>chunking.py</code></td><td>按段落聚合，<code>max_chars=3200</code>、<code>overlap_chars=400</code>；超长段落按步长切分</td></tr>
-    <tr><td>嵌入<br><code>embeddings.py</code></td><td><code>HashEmbedding</code>，384 维、SHA-256 散列 + 符号累加 + L2 归一化。<strong>确定性、无外部依赖</strong>，中文按单字与二元组切分。接口可替换为真实嵌入模型</td></tr>
+    <tr><td>分块<br><code>chunking.py</code></td><td>按段落聚合，<code>max_chars=1200</code>、<code>overlap_chars=200</code>。上限由嵌入模型 512 token 决定 —— 此前 3200，每段约三分之二的内容出现在引用里却不在索引中</td></tr>
+    <tr><td>嵌入<br><code>embeddings.py</code></td><td><code>BAAI/bge-small-en-v1.5</code>，384 维、67MB、ONNX 推理（无需 torch），模型烘进镜像。加载失败降级为确定性散列并告警 —— 服务仍可启动，但跨语言检索失效</td></tr>
     <tr><td>并发</td><td><code>claim_next_job()</code> 用 <code>FOR UPDATE SKIP LOCKED</code> 抢占，多 Worker 安全</td></tr>
   </tbody>
 </table></div>
@@ -424,6 +424,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
 向量分      = max(0, 1 − 距离)
 词汇分      = |查询词 ∩ 片段词| / |查询词|</pre>
 <p>先取 <code>top_k × 3</code>（上限 30）再按融合分重排。</p>
+<div class="note"><p><strong>跨语言检索。</strong>课程资料在自己的语言里被检索，因此提问先被译成资料语言（<code>QueryTranslationGateway</code>），译文写入 <code>QueryPlan.retrieval_query</code>，学习者看到的原问题保持不变。仅在提问语言 ≠ 资料语言时调用模型；翻译失败一律返回原查询 —— 检索退化好过整轮报错。<strong>这条路径替代了多语言嵌入</strong>：代价是一次小模型调用，收益是可以用英文检索专用模型，且翻译错了肉眼可见。</p></div>
 <div class="note"><p><strong>章节检索。</strong><code>chapter</code> 作为<strong>显式参数</strong>传入（来自 <code>QueryPlan</code>，不再从查询字符串嗅探）。命中时改走 <code>get</code> 全量取回 + <code>_chapter_evidence()</code> 按章节标记过滤，且<strong>不要求指定资料</strong> —— where 过滤已限定在该学习者的这门课内。找不到该章则返回空，不退回全课程作答。</p></div>
 </section>
 
@@ -491,7 +492,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
 
 <section id="s7">
 <h2><span class="n">07</span><span>质量保障</span></h2>
-<h3>7.1　八套版本化评测<span class="path">tests/evals/</span></h3>
+<h3>7.1　九套版本化评测<span class="path">tests/evals/</span></h3>
 <div class="tw"><table>
   <thead><tr><th>评测集</th><th>规模</th><th>当前基线</th><th>调用模型</th></tr></thead>
   <tbody>
@@ -503,6 +504,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
     <tr><td>Quiz v1</td><td class="num">30 场景</td><td>生成成功率 96.7%</td><td>是</td></tr>
     <tr><td>Grading v1</td><td class="num">90 次</td><td>排序与重复稳定性 100%，分数区间 90%</td><td>是</td></tr>
     <tr><td>Faithfulness v1</td><td class="num">12 条</td><td>依据／引用／无编造均 100%</td><td>人工</td></tr>
+    <tr><td>Cross-lingual v1</td><td class="num">14 题×2</td><td><strong>跨语言持平率 100%</strong>，无引用不支撑</td><td>是</td></tr>
   </tbody>
 </table></div>
 <p>前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明<strong>合入门槛</strong> —— 例如 Integrity 的 <code>fabrication_rate</code> 必须为 0、Orchestrator 的 <code>answer_preservation_rate</code> 必须为 1.0。</p>
@@ -518,7 +520,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
   <li><strong>无流式输出</strong>；<code>AgentTrace</code> 有 <code>trace_id</code>，但没有贯穿 HTTP 层的 trace ID。</li>
   <li><strong>无业务指标接入 Prometheus</strong>（配置已就绪）。</li>
   <li><strong>单用户 MVP</strong>：<code>get_current_user_id()</code> 返回配置中的固定 UUID，未接入认证。</li>
-  <li><strong>嵌入是确定性散列</strong>，非语义嵌入模型；接口可替换。</li>
+  <li><strong>嵌入是英文检索模型 + 查询翻译</strong>，不是多语言嵌入。上传非中英文资料时语言检测只会返回 <code>en</code>，检索质量取决于该语言与英文模型的距离。</li>
   <li><strong><code>PlannerAgent</code> 已能生成计划</strong>，但计划内容由规则排程产生，非模型生成。</li>
   <li><strong><code>EvaluatorAgent</code> 只处理最新练习集中最早的未作答题</strong>，不支持指定任意题目。</li>
 </ul>

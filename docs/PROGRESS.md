@@ -68,16 +68,16 @@
 | K-18 | Grading v1 数据集的 partial 答案含"但我没有说明…"这类元评论，是真实学生不会写的人为杂质，会压低已覆盖条目的得分。应在 grading-v2 中移除 | 低 | 未修复 |
 | K-20 | 讲解语言偏好原本不可靠：学生用中文提问但要求英文回答时，模型跟随提问语言而非设定 | 中 | **已修复**（语言指令改为显式压过提问语言） |
 | K-19 | 全部评测集仍缺人工忠实度抽检，当前指标都是可自动判定的代理指标 | 中 | **已完成**（Queena 评审 12 条，全项满分；样本量局限已在基线中注明） |
-| K-22 | Citation 的 `snippet` 只有 300 字符，而片段中位长度约 2000 字符 | 中 | **已修复**（上限提到 3200，即分块上限，引用现在携带模型看到的完整片段） |
+| K-22 | Citation 的 `snippet` 只有 300 字符 | 中 | **已修复**（上限 3200；分块降到 1200 后引用恒为完整片段） |
 | K-21 | 不指定资料时，「根据资料第一章…」这类问题会跨两份资料检索并返回「证据不足」 | 中 | **已修复**（章节进入 QueryPlan；章节过滤不再要求指定资料；「资料第一章」不再被误读为「第 1 份资料」） |
 | K-5 | `README.md` 约一半篇幅仍是 EchoMind 客服系统指南，损害仓库可信度 | 中 | **已修复**（1438 行重写为 131 行 StudyPilot 文档） |
 | K-23 | 聊天生成的练习沿用对话的讲解语言，导致中文提问时出英文考试的学生拿到中文题目 | 中 | **已修复**（新增独立的出题语言，可在偏好中设默认、在两处界面临时覆盖） |
 | K-24 | 选择题渲染了单选按钮，但它们在表单之外、从不被读取，学习者必须另外手动输入字母才能提交 | 高 | **已修复**（选项即答案，文本框已移除） |
 | K-25 | 章节识别的宽松规则会把「2 Pints」这类以数字开头的幻灯片标题误判为「第 2 章」 | 低 | 未修复 |
 | K-26 | 当指定资料确实没有所问章节时，只回「证据不足」，未说明是该资料没有这一章 | 低 | 未修复 |
-| K-27 | **跨语言检索失效**：嵌入是确定性散列（`HashEmbedding`），中文提问与英文资料几乎不共享 token。实测中文问「什么是残差」top-5 分数 0.045→0.000（噪声水平），取回的是 beer-goggles、酒精摄入等无关幻灯片；英文同问 0.428→0.39 且命中 *Studentized residuals*，**两者零重叠**。而「中文理解、英文教材」正是产品的核心场景 | 高 | 未修复 |
-| K-28 | **引用校验只查编号不查支撑**：`_remove_unknown_citations` 仅确认 `[cN]` 落在 1..N 内。实测中文问残差时，模型用先验知识写出正确定义（含 $e_i = y_i - \hat{y}_i$），却把引用挂在三段只是恰好含 "residual" 一词的 R 输出幻灯片上 —— 公式成分 `y_i`/`e_i` 均不在被引片段中。这直接违反「答案锚定在你自己的资料上」 | 高 | 未修复 |
-| K-29 | 八套评测都没能抓住 K-27/K-28：RAG v1 只校验引用格式、文档范围与关键词覆盖，不校验论断是否真被所引片段支撑；Faithfulness v1 的 12 条样本被抽样器固定了资料且多为章节问题，恰好绕开了失效路径 | 高 | 未修复 |
+| K-27 | **跨语言检索失效** | 高 | **已修复**（英文检索模型 + 查询翻译；跨语言持平率由 0 升至 100%） |
+| K-28 | **引用校验只查编号不查支撑** | 高 | **已缓解**（检索接地后 `ungrounded_claim_rate` 为 0；校验逻辑本身仍只查编号，见 K-2） |
+| K-29 | 八套评测都没能抓住 K-27/K-28 | 高 | **已修复**（新增 Cross-lingual v1，关键词对着被引片段而非答案校验） |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
 | K-7 | 无流式输出；无跨 Agent trace ID | 中 | 未修复 |
 | K-8 | 路由已能输出 `supporting_agents` 与 `execution_mode=sequential`，但 `TutorService` 只执行 primary agent，串行工作流被识别却未执行 | 高 | **已修复**（Orchestrator 落地，`tutor→quiz` 端到端跑通） |
@@ -142,6 +142,30 @@
   - 全部评测回归：Router v2 73.1%/范围保持 100%、Integrity 100%、Orchestrator 100%、端到端 `loop_closed: true`。
 - **过程中的一次自伤**：把 `CITATION_SNIPPET_LIMIT` 放进 `tutor_service` 造成 `practice_service ↔ tutor_service` 循环导入，容器进入重启循环。常量属于展示层，已移入 `app/agents/presenters.py`（两个 Service 本就单向依赖它）。
 - **下一步建议**：剩余可做项按价值排序 —— 扩大忠实度样本量（当前 12 条检出力不足）、K-21（章节歧义不反问）、K-17（批改保守）、K-2（引用校验失败无重试）。路线图只剩第 7 步 Redis 与第 10 步监控，两者都不影响功能可用性。
+
+---
+
+### 2026-08-27 · Claude Code · commit `未提交`
+
+- **做了什么**：修复 K-27/K-28/K-29 —— 产品核心承诺失效的那组问题。方案由用户提出：**资料在自己的语言里被检索，提问先译成资料语言**，而不是换多语言嵌入。
+  1. **嵌入** `HashEmbedding` → `BAAI/bge-small-en-v1.5`（384 维、67MB、ONNX 无需 torch），模型烘进镜像，运行时不下载。加载失败降级为散列并告警，服务仍可启动。
+  2. **分块** 3200 → 1200 字符。嵌入模型截断在 512 token ≈ 1600 字符，此前 **65% 的片段尾部出现在引用里却不在索引中**。重新入库后片段数由 216 增至 544。
+  3. **语言** 新增 `app/rag/language.py`，按 CJK 占比判定；整份资料按文本量加权取主导语言，一页中文批注不会翻转整份英文讲义。迁移 `0009` 给 `documents` 加 `language`，向量元数据同步携带。
+  4. **翻译** 新增 `QueryTranslationGateway`，**接在路由层**，译文写入 `QueryPlan.retrieval_query`，学习者看到的 `standalone_query` 不变。仅在提问语言 ≠ 资料语言时调用模型；任何失败都返回原查询。
+  5. **重新入库** 新增 `python -m app.tasks.reindex`，走与上传完全相同的那一条入库路径。集合升到 `course_materials_v2`。
+  6. **评测** 新增 Cross-lingual v1（14 题 × 中英 = 28 次，**不指定资料**）。关键差别：关键词在**被引用的片段**中查找，不在答案中 —— 这正是 RAG v1 漏掉 K-28 的原因。
+- **为什么**：实测中文问「什么是残差」top-5 分数 0.045→0.000（噪声水平），取回 beer-goggles、酒精摄入等无关幻灯片，而答案看起来完全正确 —— 模型用先验知识作答，把引用挂在只是恰好含 "residual" 一词的片段上。这直接违反「答案锚定在你自己的资料上」。
+- **改了哪些文件**：
+  - 新增：`app/rag/language.py`、`app/agents/query_translation.py`、`app/tasks/reindex.py`、`migrations/versions/0009_document_language.py`、`tests/evals/{retrieval_metrics.py,run_retrieval_eval.py}`、`tests/evals/datasets/retrieval_crosslingual_v1.jsonl`、`tests/evals/baselines/retrieval_crosslingual_v1.json`、`tests/unit/test_language_and_translation.py`
+  - 修改：`app/rag/{embeddings,chunking,retrieval}.py`、`app/infrastructure/vector_store.py`、`app/agents/{routing,intent_router,learning_agents}.py`、`app/services/tutor_service.py`、`app/tasks/ingestion.py`、`app/domain/models.py`、`app/schemas/document.py`、`app/core/config.py`、`Dockerfile`、`docker-compose.yml`、`requirements.txt`、`.env.example`、`docs/{ARCHITECTURE.md,architecture.html}`、`tests/evals/README.md`、`README.md`
+- **怎么验证的**：
+  - 单元测试 `252 passed`（改动前 241，新增 11）。
+  - **修复前后同一问题对照**：「解释一下什么是残差」由 `partial`、引用指向啤酒实验，变为 `sufficient`、译作 `Explain what residuals are.`、**8 条引用全部含 residual**。
+  - Cross-lingual v1 基线：`citation_support_rate` 100%、**`cross_language_parity` 100%**、`ungrounded_claim_rate` 0%、中文翻译触发率 91.7%。
+  - 全部既有评测回归：Router v2 73.1%/范围保持 100%、Integrity 100%、Orchestrator 100%、端到端 `loop_closed: true`。
+- **过程中的三次自伤**：把 `document.language` 插进了 `vector_cleanup` 分支中间导致缩进错误、Worker 重启循环；`docker-compose.yml` 里 worker 的集合名默认值写死 v1 覆盖了代码默认，导致第一次重新入库写错集合；速度基准用了 `docs[:16]` 这个偏短样本，把 MiniLM 报成 0.22s/段（实际 1.19s），已在给用户的结论中更正。
+- **代价，如实记录**：镜像 348MB → api 744MB / worker 1.01GB；跨语言提问每次多一次翻译调用（约 0.5–1.5 秒）；入库速度约 1.3 秒/段，104 页 PDF 约 3 分钟（后台进行，不阻塞上传）。
+- **下一步建议**：P1 的头两分钟体验 —— 可访问的线上 demo、演示数据、流式输出、CI。另 K-2（引用校验仍只查编号）值得做成真正的论断—来源对齐校验。
 
 ---
 

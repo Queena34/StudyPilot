@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | 文档性质 | 描述**当前代码的实际实现**，不是设计意图 |
-| 对应版本 | commit `386a812` |
+| 对应版本 | commit `123ae25` 之后（检索重构） |
 | 核对日期 | 2026-08-27 |
 | 规模 | `app/` 7118 行，`tests/` 5535 行，241 个单元测试，8 套离线评测 |
 
@@ -130,7 +130,7 @@ flowchart TD
 
 `RoutingDecision` 字段：`intent`、`primary_agent`、`supporting_agents`、`execution_mode`、`confidence`、`reason`、`query_plan`、`source`、`rule_confidence`、`clarification`、`target`。
 
-**`QueryPlan` 是范围的唯一载体**：`standalone_query`、`course_id`、`document_types`、`document_ids`、`page_from`、`page_to`、`chapter`、`requested_language`、`top_k`。
+**`QueryPlan` 是范围的唯一载体**：`standalone_query`、`retrieval_query`、`course_id`、`document_types`、`document_ids`、`page_from`、`page_to`、`chapter`、`material_language`、`requested_language`、`top_k`。
 
 > 范围解析**只发生在路由层**。下游 Agent 与 Service 一律消费 plan 字段，不再对原始消息做正则解析。章节解析复用检索器自己的 `_chapter_number`，两处不会对"第一章"产生分歧。学习者显式选择的范围永远优先于消息解析结果。
 
@@ -237,8 +237,9 @@ flowchart LR
 ```
 
 - **解析** `app/rag/parsers.py`：PDF 用 PyMuPDF 逐页抽取，识别章节标题并向后继承；纯文本无可抽取内容时抛 `OCR_REQUIRED`（不支持扫描件）。
-- **分块** `chunking.py`：按段落聚合，`max_chars=3200`、`overlap_chars=400`；超长段落按步长切分。
-- **嵌入** `embeddings.py`：`HashEmbedding`，384 维、SHA-256 散列 + 符号累加 + L2 归一化。**确定性、无外部依赖**，中文按单字与二元组切分。接口可替换为真实嵌入模型。
+- **分块** `chunking.py`：按段落聚合，`max_chars=1200`、`overlap_chars=200`；超长段落按步长切分。上限由嵌入模型的 512 token 决定 —— 此前是 3200，导致每段约三分之二的内容出现在引用里却不在索引中。
+- **嵌入** `embeddings.py`：`DenseEmbedding`，`BAAI/bge-small-en-v1.5`，384 维、67 MB、ONNX 推理（无需 torch），模型烘进镜像因此运行时不下载。加载失败时降级为 `HashEmbedding`（确定性散列）并记录告警 —— 服务仍可启动，但跨语言检索会失效。
+- **语言** `language.py`：按 CJK 字符占比判定 `zh`/`en`，阈值 10%（技术资料夹杂英文术语是常态）。整份资料按文本量加权取主导语言，一页中文批注不会翻转一整份英文讲义。
 - **并发** `claim_next_job()` 用 `FOR UPDATE SKIP LOCKED` 抢占，多 Worker 安全。
 
 ### 4.2 检索 — `retrieval.py`
@@ -246,6 +247,10 @@ flowchart LR
 Chroma 元数据：`user_id`、`course_id`、`document_id`、`document_type`、`source_file`、`page_number`、`chunk_index`、`section_title`、`schema_version`。
 
 `_where_filter()` 组装 `$and` 条件，**`user_id` 与 `course_id` 恒在其中**，这是数据隔离的底线。
+
+**跨语言检索**：课程资料在自己的语言里被检索，因此提问先被译成资料语言。`QueryTranslationGateway` 只在提问语言 ≠ 资料语言时调用模型；翻译失败、模型未配置或译文语言不对，一律返回原查询 —— 检索退化好过整轮报错。译文写入 `QueryPlan.retrieval_query`，学习者看到的 `standalone_query` 保持原样。
+
+> 这条路径替代了多语言嵌入。代价是每次跨语言提问多一次小模型调用；收益是可以用**英文检索专用**模型（更小更准），且翻译错了肉眼可见，而嵌入对不上是黑箱。
 
 **融合打分**：`score = 0.7 × 向量分 + 0.3 × 词汇分`，向量分 `= max(0, 1 − 距离)`，词汇分 `= |查询词 ∩ 片段词| / |查询词|`。先取 `top_k × 3`（上限 30）再按融合分重排。
 
@@ -337,6 +342,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage
 | Quiz v1 | 30 场景 | 生成成功率 96.7% | 是 |
 | Grading v1 | 90 次 | 排序与重复稳定性 100%，分数区间 90% | 是 |
 | Faithfulness v1 | 12 条人工 | 依据/引用/无编造均 100% | 人工 |
+| Cross-lingual v1 | 14 题 × 中英 | 跨语言持平率 100%，无引用不支撑 | 是 |
 
 前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明**合入门槛**，例如 Integrity 的 `fabrication_rate` 必须为 0、Orchestrator 的 `answer_preservation_rate` 必须为 1.0。
 
@@ -354,7 +360,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage
 - **无流式输出**；`AgentTrace` 有 `trace_id`，但没有贯穿 HTTP 层的 trace ID。
 - **无业务指标接入 Prometheus**（配置已就绪）。
 - **单用户 MVP**：`get_current_user_id()` 返回配置中的固定 UUID，未接入认证。
-- **嵌入是确定性散列**，非语义嵌入模型；接口可替换。
+- **嵌入是英文检索模型 + 查询翻译**，不是多语言嵌入。学习者上传非中英文资料时，语言检测只会返回 `en`，检索质量取决于该语言与英文模型的距离。
 - **`PlannerAgent` 已能生成计划**，但计划内容由规则排程产生，非模型生成。
 - **`EvaluatorAgent` 只处理最新练习集中最早的未作答题**，不支持指定任意题目。
 
