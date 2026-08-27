@@ -20,7 +20,15 @@
     "no_answer_accuracy": 1.0,
     "keyword_coverage": 0.98,
     "fallback_rate": 0.0,
-    "average_latency_ms": 6690.37
+    "average_latency_ms": 9591.5
   },
-  "note": "Measured from a complete rag-v1 run. Raw responses remain in ignored local artifacts."
+  "note": "2026-08-27 重跑：嵌入由确定性散列换为 bge-small-en，分块 3200→1200，并加入查询翻译，旧基线已不可比。首次重跑时 no_answer_accuracy 由 1.0 掉到 0.8、fallback_rate 由 0 升到 0.033，根因是引用校验把「正确拒答」判为失败：资料未覆盖时模型不引用任何片段，答案被替换成原文堆砌，而堆砌不会说「资料里没有」。加入修复重试（K-2）并要求拒答也须引用所查片段后，两项指标均恢复。",
+  "recorded_at": "2026-08-27T14:08:25.189645+00:00",
+  "configuration": {
+    "embedding": "BAAI/bge-small-en-v1.5 (384d)",
+    "chunk_max_chars": 1200,
+    "chunk_overlap": 200,
+    "collection": "course_materials_v2",
+    "query_translation": true
+  }
 }

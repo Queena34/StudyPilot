@@ -87,12 +87,12 @@ class LearningIntentRouter:
         plan = _build_plan(
             message, standalone_query, course_id, language, scope, material_language
         )
-        plan = replace(
-            plan,
-            retrieval_query=await self.translator.to_material_language(
-                plan.standalone_query, material_language
-            ),
-        )
+        decision = await self._decide(plan, message, standalone_query, history)
+        # Translate last, once, on whatever query routing settled on. Doing it
+        # first meant an LLM refinement of the query silently discarded it.
+        return await self._with_retrieval_query(decision, material_language)
+
+    async def _decide(self, plan, message, standalone_query, history) -> RoutingDecision:
         rule = _rule_decision(message, plan, has_history=bool(history))
         if rule.confidence >= RULE_CONFIDENCE_THRESHOLD:
             return rule
@@ -103,6 +103,18 @@ class LearningIntentRouter:
         if proposal.confidence < rule.confidence:
             return _mark_unresolved(rule, RoutingSource.LLM_REJECTED)
         return _merge(rule, proposal, plan, message, standalone_query)
+
+    async def _with_retrieval_query(
+        self, decision: RoutingDecision, material_language: str
+    ) -> RoutingDecision:
+        if decision.target != RouteTarget.RAG:
+            return decision
+        translated = await self.translator.to_material_language(
+            decision.query_plan.standalone_query, material_language
+        )
+        return replace(
+            decision, query_plan=replace(decision.query_plan, retrieval_query=translated)
+        )
 
 
 def _build_plan(
@@ -151,16 +163,11 @@ def _merge(
         and standalone_query.strip() == message.strip()
     ):
         # Only refine the query when nothing upstream already enriched it.
-        merged_plan = QueryPlan(
-            standalone_query=proposal.standalone_query.strip()[:1000],
-            course_id=plan.course_id,
-            document_types=plan.document_types,
-            document_ids=plan.document_ids,
-            page_from=plan.page_from,
-            page_to=plan.page_to,
-            requested_language=plan.requested_language,
-            top_k=plan.top_k,
-        )
+        # `replace` rather than a rebuilt plan: listing fields by hand silently
+        # dropped the chapter and the translated query when either was added.
+        # `replace` rather than a rebuilt plan: listing fields by hand silently
+        # dropped the chapter and the material language when they were added.
+        merged_plan = replace(plan, standalone_query=proposal.standalone_query.strip()[:1000])
 
     decision = decision_for(
         intent,

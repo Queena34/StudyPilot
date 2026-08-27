@@ -92,6 +92,19 @@ class TutorService:
         )
         self.integrity_guard = integrity_guard or AcademicIntegrityGuard()
 
+    async def _retry_with_citations(self, data, evidence, history):
+        try:
+            return await self.gateway.answer(
+                question=data.message,
+                language=data.response_language.value,
+                mode=data.mode.value,
+                evidence=evidence,
+                history=[(item.role, item.content) for item in history],
+                citation_reminder=True,
+            )
+        except Exception:  # noqa: BLE001 - the extractive fallback still applies
+            return _extractive_answer(evidence, reason="citation_retry_failed")
+
     async def _material_language(self, user_id, course_id, scope) -> str:
         """The language the retrieval query has to be written in.
 
@@ -199,9 +212,16 @@ class TutorService:
         answer = _remove_unknown_citations(generated.answer, len(evidence))
         cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         if evidence and not cited:
-            generated = _extractive_answer(evidence, reason="citation_validation_failed")
-            answer = generated.answer
+            # One repair attempt before giving up. Dumping raw passages loses a
+            # correct answer — notably a correct "the material does not cover
+            # this", which legitimately asserts nothing and so cited nothing.
+            generated = await self._retry_with_citations(data, evidence, history)
+            answer = _remove_unknown_citations(generated.answer, len(evidence))
             cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
+            if not cited:
+                generated = _extractive_answer(evidence, reason="citation_validation_failed")
+                answer = generated.answer
+                cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
         citations = [
             Citation(
                 citation_id=f"c{index}",

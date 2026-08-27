@@ -88,3 +88,76 @@ def test_resolution_ignores_a_chapter_number_when_picking_a_document() -> None:
     assert _resolve_document_references("根据资料第一章出题", documents) == []
     # An ordinal that really does name a material still resolves.
     assert _resolve_document_references("资料1讲了什么", documents) == [documents[-1].id]
+
+
+class _RefiningLLM:
+    """An LLM router that rewrites the query, as it does for unclear messages."""
+
+    def __init__(self, refined: str) -> None:
+        self.refined = refined
+
+    async def propose(self, *, message, history=None):
+        from app.agents.llm_router import LLMRoutingProposal
+        from app.agents.routing import LearningIntent as _Intent
+
+        return LLMRoutingProposal(
+            intent=_Intent.COURSE_QA, confidence=0.9, reason="t", standalone_query=self.refined
+        )
+
+
+class _RecordingTranslator:
+    def __init__(self) -> None:
+        self.seen: list[str] = []
+
+    async def to_material_language(self, query, material_language):
+        self.seen.append(query)
+        return f"[{material_language}] {query}"
+
+
+async def _routed(message: str, scope: TutorScope | None = None):
+    translator = _RecordingTranslator()
+    decision = await LearningIntentRouter(
+        llm_router=_RefiningLLM("refined query"), translator=translator
+    ).route(
+        message=message,
+        standalone_query=message,
+        course_id=COURSE_ID,
+        language="zh",
+        scope=scope or TutorScope(),
+        material_language="en",
+    )
+    return decision, translator
+
+
+async def test_an_llm_refinement_keeps_the_chapter() -> None:
+    # Rebuilding the plan field by field used to drop everything not listed.
+    decision, _ = await _routed("随便讲讲第一章")
+
+    assert decision.source.value == "llm"
+    assert decision.query_plan.chapter == 1
+
+
+async def test_an_llm_refinement_keeps_the_learner_scope() -> None:
+    document_id = uuid4()
+    decision, _ = await _routed("随便讲讲", TutorScope(document_ids=[document_id], page_from=3))
+
+    assert decision.query_plan.document_ids == [document_id]
+    assert decision.query_plan.page_from == 3
+    assert decision.query_plan.material_language == "en"
+
+
+async def test_the_refined_query_is_the_one_translated() -> None:
+    decision, translator = await _routed("随便讲讲")
+
+    # Translating before the refinement meant the refinement went out untranslated.
+    assert translator.seen == ["refined query"]
+    assert decision.query_plan.retrieval_query == "[en] refined query"
+    assert decision.query_plan.search_query == "[en] refined query"
+
+
+async def test_a_rule_settled_turn_is_still_translated() -> None:
+    decision, translator = await _routed("我现在有什么课程资料？")
+
+    # Catalog answers do not retrieve, so nothing is translated for them.
+    assert decision.source.value == "rule"
+    assert translator.seen == []
