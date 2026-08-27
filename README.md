@@ -108,7 +108,7 @@ docs/                           PRD、技术设计、架构路线、进度台账
 docker compose exec api python -m pytest tests/unit -q
 ```
 
-九套版本化评测集，各自记录了可比较的基线和合入门槛，详见 [tests/evals/README.md](tests/evals/README.md)：
+十套版本化评测集，各自记录了可比较的基线和合入门槛，详见 [tests/evals/README.md](tests/evals/README.md)：
 
 | 评测集 | 规模 | 当前基线 | 需要模型 |
 |---|---|---|---|
@@ -121,6 +121,7 @@ docker compose exec api python -m pytest tests/unit -q
 | Grading v1 | 10 题 × 三档 × 3 次 | 排序与重复稳定性 100%，分数区间 90% | 是 |
 | Faithfulness v1 | 12 条人工抽检 | 依据、引用、无编造均 100%（样本量小，见基线说明） | 人工 |
 | Cross-lingual v1 | 14 题 × 中英 | 跨语言持平率 100%，无引用不支撑 | 是 |
+| Injection v1 | 10 类攻击 | 抵抗率 100%，信标泄漏 0% | 是 |
 
 其中三套完全不调用模型，免费、秒级、逐位可复现，适合进 CI：
 

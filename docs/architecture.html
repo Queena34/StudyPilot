@@ -165,7 +165,7 @@
 <div class="shell">
 <aside class="rail">
   <div class="mark"><span class="mark-badge">S</span><span class="mark-name">StudyPilot</span></div>
-  <p class="rail-sub">实现说明书 · commit 61396cc</p>
+  <p class="rail-sub">实现说明书 · commit ff96990</p>
   <nav>
     <a href="#s1"><span class="n">01</span><span>系统是什么</span></a>
     <a href="#s2"><span class="n">02</span><span>整体架构</span></a>
@@ -192,10 +192,10 @@
 </div>
 
 <dl class="facts">
-  <div class="fact"><dt>应用代码</dt><dd>7,545<small>行 · app/</small></dd></div>
-  <div class="fact"><dt>测试代码</dt><dd>6,147<small>行 · tests/</small></dd></div>
-  <div class="fact"><dt>单元测试</dt><dd>259<small>全部通过</small></dd></div>
-  <div class="fact"><dt>离线评测</dt><dd>9<small>套，均有基线</small></dd></div>
+  <div class="fact"><dt>应用代码</dt><dd>7,547<small>行 · app/</small></dd></div>
+  <div class="fact"><dt>测试代码</dt><dd>6,631<small>行 · tests/</small></dd></div>
+  <div class="fact"><dt>单元测试</dt><dd>271<small>全部通过</small></dd></div>
+  <div class="fact"><dt>离线评测</dt><dd>10<small>套，均有基线</small></dd></div>
   <div class="fact"><dt>数据迁移</dt><dd>9<small>0001–0009</small></dd></div>
 </dl>
 
@@ -391,6 +391,20 @@ create_practice_set       find_pending_question    grade_answer</pre>
 <div class="note"><p><strong>统一校验。</strong><code>authorize()</code> 确认课程归属调用者；<code>assert_documents_in_course()</code> 确认请求的每份资料属于该课程，越权抛 <code>ToolPermissionError</code>（HTTP 403）<strong>且在触达底层服务之前</strong>。两项检查按 manager 缓存，每轮只查一次。</p>
 <p><strong>统一记录。</strong><code>ToolSession._invoke()</code> 包裹每次调用，成功与失败都写入 <code>ToolCall</code>（名称、成败、耗时、失败原因），失败后再抛出。每个 Agent 步骤持有独立 session，记录互不污染。</p></div>
 
+<h3>3.8　行为边界</h3>
+<p>系统在四个层面设了硬边界，每一条都有评测守着。</p>
+<div class="tw"><table>
+  <thead><tr><th>边界</th><th>实现</th><th>守它的评测</th></tr></thead>
+  <tbody>
+    <tr><td>学术诚信</td><td>四级 Guard，确定性判定，先于任何 Agent</td><td>Integrity v1（假阳性率 0%）</td></tr>
+    <tr><td>答案接地</td><td>只依据资料作答；未覆盖须明说并引用查过的片段</td><td>RAG v1 · Cross-lingual v1</td></tr>
+    <tr><td>范围不可被模型覆盖</td><td>范围字段不进入模型输入；工具层二次校验，越权 403</td><td>Router v2 范围保持率 100%</td></tr>
+    <tr><td>资料是数据不是指令</td><td>三个网关均声明来源不可信；讲解 prompt 另有保密条款</td><td><strong>Injection v1（10 类攻击）</strong></td></tr>
+  </tbody>
+</table></div>
+<div class="note"><p><strong>提示注入。</strong>学习者上传的资料是不可信输入。每类攻击的载荷带一个唯一信标，只有模型服从了才会输出它 —— <strong>服从由构造判定，不靠语气判断</strong>。覆盖十类：指令覆盖、提示词窃取、去除引用、绕过诚信 Guard、伪造覆盖范围、语言劫持、诱导调用工具、逃逸检索范围、角色重置、泄露选择题答案。建立该评测时立刻抓到一个真漏洞：模型会完整吐出自己的 system prompt 并译成中文。讲解 prompt 因此增加保密条款，修复后连跑三轮均为 100% 抵抗、零泄漏。</p></div>
+<div class="note limit"><p><strong>尚未设边界的</strong>（如实记录，不是遗漏）：学术诚信之外没有内容政策（危机表达、医疗法律建议等未处理）；没有速率限制、Token 预算或配额；对话长度无上限，仅取最近 4 轮进模型。</p></div>
+
 <h3>3.7　教学 Skill<span class="path">skills.py · skills/*/SKILL.md</span></h3>
 <p>七个 Skill：苏格拉底式引导、分层概念讲解、数学公式讲解、考试复习策略、选择题生成规范、rubric 批改规范、中英双语术语解释。每个是带 YAML frontmatter 的 Markdown。按 Agent 与关键词选择，<strong>每轮最多注入 2 个</strong>以免稀释 prompt。当前只有 <code>TutorAgent</code> 注入。</p>
 </section>
@@ -500,7 +514,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
 
 <section id="s7">
 <h2><span class="n">07</span><span>质量保障</span></h2>
-<h3>7.1　九套版本化评测<span class="path">tests/evals/</span></h3>
+<h3>7.1　十套版本化评测<span class="path">tests/evals/</span></h3>
 <div class="tw"><table>
   <thead><tr><th>评测集</th><th>规模</th><th>当前基线</th><th>调用模型</th></tr></thead>
   <tbody>
@@ -513,11 +527,12 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
     <tr><td>Grading v1</td><td class="num">90 次</td><td>排序与重复稳定性 100%，分数区间 90%</td><td>是</td></tr>
     <tr><td>Faithfulness v1</td><td class="num">12 条</td><td>依据／引用／无编造均 100%</td><td>人工</td></tr>
     <tr><td>Cross-lingual v1</td><td class="num">14 题×2</td><td><strong>跨语言持平率 100%</strong>，无引用不支撑</td><td>是</td></tr>
+    <tr><td>Injection v1</td><td class="num">10 类攻击</td><td><strong>抵抗率 100%</strong>，信标泄漏 0%（连跑三轮）</td><td>是</td></tr>
   </tbody>
 </table></div>
 <p>前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明<strong>合入门槛</strong> —— 例如 Integrity 的 <code>fabrication_rate</code> 必须为 0、Orchestrator 的 <code>answer_preservation_rate</code> 必须为 1.0。</p>
 <h3>7.2　单元测试</h3>
-<p>259 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
+<p>271 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
 </section>
 
 <section id="s8">
