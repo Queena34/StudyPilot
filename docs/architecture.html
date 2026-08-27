@@ -1,0 +1,532 @@
+<title>StudyPilot 实现说明书</title>
+<!-- 本地直接打开时用 CDN 渲染 mermaid；发布为 Artifact 时该请求被 CSP 拦截，
+     而平台本身原生渲染 <pre class="mermaid">，两种场景都能出图。 -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  window.addEventListener("load", () => {
+    if (typeof window.mermaid === "undefined") return;          // Artifact：平台已渲染
+    if (document.querySelector(".mermaid svg")) return;          // 已有 svg，不重复渲染
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches
+      && document.documentElement.dataset.theme !== "light";
+    window.mermaid.initialize({ startOnLoad: true, theme: "base", themeVariables: {
+      background: "#fffefa", primaryColor: "#dce9df", primaryTextColor: "#17201b",
+      primaryBorderColor: "#285c49", lineColor: "#68736c", fontSize: "13px",
+      fontFamily: '-apple-system,"PingFang SC",sans-serif',
+    }});
+  });
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --paper:#f4f2eb; --card:#fffefa; --ink:#17201b; --muted:#68736c;
+    --line:#dedfd7; --line-soft:#e9e7de;
+    --green:#285c49; --green-deep:#183d32; --green-soft:#dce9df;
+    --coral:#b8503a; --blue:#4a6d94; --amber:#96701f;
+    --rail:#ffffff; --code-bg:#eeece3; --figure:#fffefa;
+    --shadow:0 10px 30px rgba(35,52,43,.06);
+    --serif:"Source Serif 4",Georgia,"Songti SC","Noto Serif CJK SC",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#10150f; --card:#171d16; --ink:#e9ebe4; --muted:#98a49b;
+      --line:#2b342b; --line-soft:#222a22;
+      --green:#7fb99d; --green-deep:#0c110c; --green-soft:#1d2c24;
+      --coral:#e9967f; --blue:#8fb0d4; --amber:#d3ac63;
+      --rail:#141a14; --code-bg:#1c231c;
+      --shadow:0 10px 30px rgba(0,0,0,.32);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#10150f; --card:#171d16; --ink:#e9ebe4; --muted:#98a49b;
+    --line:#2b342b; --line-soft:#222a22;
+    --green:#7fb99d; --green-deep:#0c110c; --green-soft:#1d2c24;
+    --coral:#e9967f; --blue:#8fb0d4; --amber:#d3ac63;
+    --rail:#141a14; --code-bg:#1c231c;
+    --shadow:0 10px 30px rgba(0,0,0,.32);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+       font-size:15.5px;line-height:1.78;-webkit-font-smoothing:antialiased}
+
+  .shell{display:grid;grid-template-columns:266px minmax(0,1fr);gap:0;max-width:1220px;margin:0 auto}
+
+  /* ── rail ───────────────────────────────────────────── */
+  .rail{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+        padding:38px 26px 40px;background:var(--rail);border-right:1px solid var(--line)}
+  .mark{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .mark-badge{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
+              background:var(--green-deep);color:#ffbd86;font-family:var(--serif);font-style:italic;font-size:17px}
+  .mark-name{font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:.01em}
+  .rail-sub{margin:0 0 26px 45px;color:var(--muted);font-size:11.5px;letter-spacing:.04em}
+  .rail nav{display:grid;gap:1px}
+  .rail a{display:grid;grid-template-columns:22px 1fr;gap:9px;padding:7px 9px;border-radius:8px;
+          color:var(--muted);text-decoration:none;font-size:13px;line-height:1.5}
+  .rail a:hover{background:var(--green-soft);color:var(--ink)}
+  .rail a .n{font-family:var(--mono);font-size:10.5px;padding-top:3px;color:var(--green);font-variant-numeric:tabular-nums}
+  .rail a.sub{grid-template-columns:22px 1fr;font-size:12.3px;padding-top:4px;padding-bottom:4px}
+  .rail a.sub .n{color:var(--muted)}
+  .rail-foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);
+             color:var(--muted);font-size:11px;line-height:1.7}
+
+  /* ── content ────────────────────────────────────────── */
+  main{padding:56px 60px 110px;min-width:0}
+  .lede{max-width:70ch}
+  .eyebrow{margin:0 0 12px;font-family:var(--mono);font-size:10.5px;font-weight:600;
+           letter-spacing:.16em;text-transform:uppercase;color:var(--green)}
+  h1{margin:0 0 14px;font-family:var(--serif);font-size:clamp(31px,4.2vw,44px);
+     line-height:1.14;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+  .standfirst{margin:0 0 30px;font-size:17px;line-height:1.72;color:var(--muted);max-width:62ch}
+
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
+         margin:0 0 20px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .fact{background:var(--card);padding:15px 17px}
+  .fact dt{margin:0 0 5px;font-family:var(--mono);font-size:10px;letter-spacing:.09em;
+           text-transform:uppercase;color:var(--muted)}
+  .fact dd{margin:0;font-family:var(--serif);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+  .fact dd small{font-family:var(--sans);font-size:11.5px;font-weight:400;color:var(--muted);display:block;margin-top:2px}
+
+  .callout{margin:0 0 44px;padding:15px 19px;border-left:3px solid var(--green);
+           background:var(--green-soft);border-radius:0 10px 10px 0;font-size:13.6px;line-height:1.7;max-width:72ch}
+  .callout strong{font-weight:600}
+
+  section{scroll-margin-top:26px;padding-top:34px;margin-top:34px;border-top:1px solid var(--line)}
+  section:first-of-type{border-top:0;margin-top:0}
+  h2{margin:0 0 20px;font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:-.005em;
+     display:grid;grid-template-columns:auto 1fr;align-items:baseline;gap:13px;text-wrap:balance}
+  h2 .n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--green);
+        font-variant-numeric:tabular-nums;letter-spacing:.06em}
+  h3{margin:34px 0 13px;font-family:var(--serif);font-size:19.5px;font-weight:600;text-wrap:balance}
+  h3 .path{font-family:var(--mono);font-size:12px;font-weight:400;color:var(--muted);margin-left:8px}
+  h4{margin:24px 0 9px;font-size:14px;font-weight:650;letter-spacing:.01em}
+  p{margin:0 0 15px;max-width:70ch}
+  ul,ol{margin:0 0 16px;padding-left:21px;max-width:70ch}
+  li{margin:5px 0}
+  li::marker{color:var(--green)}
+  strong{font-weight:650}
+  a{color:var(--green);text-underline-offset:3px}
+  code{font-family:var(--mono);font-size:.87em;background:var(--code-bg);
+       padding:1.5px 5px;border-radius:4px;word-break:break-word}
+  h2 code,h3 code{background:none;padding:0;font-size:.72em;color:var(--muted)}
+
+  .rule-list{list-style:none;padding:0;margin:0 0 20px;display:grid;gap:11px;max-width:72ch;counter-reset:r}
+  .rule-list li{display:grid;grid-template-columns:26px 1fr;gap:12px;margin:0;
+                padding:13px 16px 13px 13px;background:var(--card);border:1px solid var(--line);border-radius:11px}
+  .rule-list li::before{counter-increment:r;content:counter(r);font-family:var(--mono);font-size:11px;
+                        color:var(--green);padding-top:4px;font-variant-numeric:tabular-nums}
+
+  figure{margin:22px 0 26px}
+  figure .frame{background:var(--figure);border:1px solid var(--line);border-radius:13px;
+                padding:22px 18px;overflow-x:auto;box-shadow:var(--shadow)}
+  figure pre.mermaid{margin:0;background:none;text-align:center;min-width:min-content}
+  figcaption{margin-top:9px;color:var(--muted);font-size:11.8px;font-family:var(--mono)}
+
+  .tw{overflow-x:auto;margin:0 0 22px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13.4px;min-width:460px}
+  th,td{padding:10px 15px;text-align:left;border-bottom:1px solid var(--line-soft);vertical-align:top;line-height:1.62}
+  th{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+     color:var(--muted);background:var(--code-bg);white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  td code{font-size:.84em}
+
+  pre.block{margin:0 0 22px;padding:16px 18px;background:var(--code-bg);border:1px solid var(--line);
+            border-radius:11px;overflow-x:auto;font-family:var(--mono);font-size:12.4px;line-height:1.72}
+
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-family:var(--mono);
+        font-size:10px;font-weight:600;letter-spacing:.05em;white-space:nowrap;vertical-align:1px}
+  .pill.on{background:var(--green-soft);color:var(--green)}
+  .pill.off{background:var(--code-bg);color:var(--muted)}
+  .pill.warn{background:color-mix(in srgb,var(--coral) 16%,transparent);color:var(--coral)}
+
+  .note{margin:0 0 22px;padding:14px 18px;border:1px solid var(--line);border-left:3px solid var(--blue);
+        background:var(--card);border-radius:0 11px 11px 0;font-size:13.5px;line-height:1.72;max-width:72ch}
+  .note.limit{border-left-color:var(--amber)}
+  .note p:last-child{margin-bottom:0}
+
+  footer{margin-top:52px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);
+         font-size:12.3px;line-height:1.8;max-width:70ch}
+
+  @media (max-width:980px){
+    .shell{grid-template-columns:1fr}
+    .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:26px 22px}
+    .rail nav{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));display:grid}
+    .rail a.sub{display:none}
+    main{padding:34px 22px 76px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:4px}
+</style>
+
+<div class="shell">
+<aside class="rail">
+  <div class="mark"><span class="mark-badge">S</span><span class="mark-name">StudyPilot</span></div>
+  <p class="rail-sub">实现说明书 · commit 386a812</p>
+  <nav>
+    <a href="#s1"><span class="n">01</span><span>系统是什么</span></a>
+    <a href="#s2"><span class="n">02</span><span>整体架构</span></a>
+    <a class="sub" href="#s2-2"><span class="n"></span><span>一次请求的完整路径</span></a>
+    <a href="#s3"><span class="n">03</span><span>Agent 架构</span></a>
+    <a class="sub" href="#s3-2"><span class="n"></span><span>混合意图路由</span></a>
+    <a class="sub" href="#s3-3"><span class="n"></span><span>学术诚信 Guard</span></a>
+    <a class="sub" href="#s3-4"><span class="n"></span><span>编排与降级</span></a>
+    <a class="sub" href="#s3-6"><span class="n"></span><span>教学工具层</span></a>
+    <a href="#s4"><span class="n">04</span><span>RAG 实现</span></a>
+    <a href="#s5"><span class="n">05</span><span>业务模块</span></a>
+    <a href="#s6"><span class="n">06</span><span>前端</span></a>
+    <a href="#s7"><span class="n">07</span><span>质量保障</span></a>
+    <a href="#s8"><span class="n">08</span><span>实现边界</span></a>
+  </nav>
+  <p class="rail-foot">本文描述<strong>代码的实际实现</strong>，非设计意图。<br>与代码不一致时以代码为准。</p>
+</aside>
+
+<main>
+<div class="lede">
+  <p class="eyebrow">Implementation Specification</p>
+  <h1>StudyPilot 实现说明书</h1>
+  <p class="standfirst">面向国际研究生的双语 AI 学习教练。本文逐节说明当前代码<strong>实际是怎么实现的</strong>——每一处数值、函数名与流程都已对照 commit <code>386a812</code> 核对。</p>
+</div>
+
+<dl class="facts">
+  <div class="fact"><dt>应用代码</dt><dd>7,118<small>行 · app/</small></dd></div>
+  <div class="fact"><dt>测试代码</dt><dd>5,535<small>行 · tests/</small></dd></div>
+  <div class="fact"><dt>单元测试</dt><dd>241<small>全部通过</small></dd></div>
+  <div class="fact"><dt>离线评测</dt><dd>8<small>套，均有基线</small></dd></div>
+  <div class="fact"><dt>数据迁移</dt><dd>8<small>0001–0008</small></dd></div>
+</dl>
+
+<p class="callout"><strong>文档纪律。</strong>本文与代码同仓演进。改动实现后必须同步本文；两者不一致时以代码为准，并在 <code>docs/PROGRESS.md</code> 变更日志中记录出入。设计意图见 <code>PRD.md</code> 与 <code>TECHNICAL_DESIGN.md</code>，两者与本文的偏离已在各自文档中标注。</p>
+
+<section id="s1">
+<h2><span class="n">01</span><span>系统是什么</span></h2>
+<p>学习者上传课程资料后，系统基于<strong>这些资料</strong>讲解概念、生成练习、按 rubric 批改、依据实测掌握度安排复习。</p>
+<p>三条贯穿全系统的约束，理解它们才能理解为什么代码这样写：</p>
+<ol class="rule-list">
+  <li><span><strong>答案锚定在学习者自己的资料上。</strong>不用通识知识补齐资料未覆盖的内容；覆盖不到就明说。</span></li>
+  <li><span><strong>学习者显式选择的范围不可被模型覆盖。</strong>课程、资料、类型、页码、章节这些字段不进入模型输入，工具层还会二次校验。</span></li>
+  <li><span><strong>规则优先于模型。</strong>高频且边界清晰的判断由确定性规则完成；模型只处理模糊、复合与低置信度的情况。</span></li>
+</ol>
+</section>
+
+<section id="s2">
+<h2><span class="n">02</span><span>整体架构</span></h2>
+
+<h3>2.1　进程与依赖</h3>
+<figure>
+  <div class="frame"><pre class="mermaid">flowchart LR
+  B["浏览器<br/>app/web"] -->|HTTP| A["FastAPI<br/>app.main:app"]
+  A --> PG[("PostgreSQL<br/>业务事实")]
+  A --> CH[("ChromaDB<br/>课程向量库")]
+  A -.->|jobs 表轮询| W["Worker<br/>app.tasks.worker"]
+  W --> PG
+  W --> CH
+  W --> FS[("本地文件<br/>data/uploads")]
+  A --> FS
+  A -->|HTTPS| LLM["模型服务<br/>Anthropic 兼容"]</pre></div>
+  <figcaption>图 1　运行时拓扑。Worker 通过 PostgreSQL jobs 表领取任务，不经消息队列。</figcaption>
+</figure>
+<p><code>docker-compose.yml</code> 定义七个服务。其中三个<strong>当前不参与主链路</strong>：</p>
+<div class="tw"><table>
+  <thead><tr><th>服务</th><th>状态</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>api</code> · <code>worker</code> · <code>postgres</code> · <code>chromadb</code></td><td><span class="pill on">主链路</span></td><td>实际承载全部功能</td></tr>
+    <tr><td><code>redis</code></td><td><span class="pill off">已启动未使用</span></td><td>代码从未连接（路线图第 7 步）</td></tr>
+    <tr><td><code>prometheus</code></td><td><span class="pill off">配置就绪</span></td><td>没有业务指标被暴露（第 10 步）</td></tr>
+    <tr><td><code>nginx</code></td><td><span class="pill off">未启动</span></td><td>反向代理，本地开发直连 api:8000</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="s2-2">2.2　一次对话请求的完整路径</h3>
+<figure>
+  <div class="frame"><pre class="mermaid">flowchart TD
+  IN["POST /api/v1/courses/{id}/tutor/messages"] --> TS["TutorService.answer"]
+  TS --> S1["会话装载 / 上下文改写"]
+  S1 --> RT["LearningIntentRouter.route<br/>规则优先，低置信度才调 LLM"]
+  RT --> QP["RoutingDecision + QueryPlan"]
+  QP --> IG["AcademicIntegrityGuard<br/>四级判定，先于任何 Agent"]
+  IG --> OR["LearningAgentOrchestrator.run"]
+  OR --> AG["Agent 适配器"]
+  AG --> TM["TeachingToolManager<br/>权限与范围校验 + 调用记录"]
+  TM --> DATA[("Chroma / PostgreSQL / Service")]
+  AG --> GW["LLM 网关"]
+  OR --> RES["AgentResult + AgentTrace"]
+  RES --> POST["引用清洗与校验"]
+  POST --> SAVE["落库对话"] --> OUT["answer · citations<br/>routing · integrity · trace"]</pre></div>
+  <figcaption>图 2　统一聊天入口的处理链。范围在路由阶段一次性解析，下游只消费结构化字段。</figcaption>
+</figure>
+
+<h3>2.3　目录职责</h3>
+<div class="tw"><table>
+  <thead><tr><th>目录</th><th>职责</th></tr></thead>
+  <tbody>
+    <tr><td><code>app/api/</code></td><td>路由与依赖注入，一层薄壳，不含业务判断</td></tr>
+    <tr><td><code>app/agents/</code></td><td>路由、编排、Agent 适配器、工具层、诚信 Guard、教学 Skill、展示函数</td></tr>
+    <tr><td><code>app/services/</code></td><td>业务工作流（课程、文档、导师、练习、批改、进度、计划、偏好）</td></tr>
+    <tr><td><code>app/infrastructure/</code></td><td>数据库会话、仓储、向量库、文件存储</td></tr>
+    <tr><td><code>app/rag/</code></td><td>解析、分块、嵌入、检索</td></tr>
+    <tr><td><code>app/llm/</code></td><td>三个模型网关（讲解、出题、批改）</td></tr>
+    <tr><td><code>app/domain/models.py</code></td><td>SQLAlchemy ORM 模型</td></tr>
+    <tr><td><code>app/tasks/</code></td><td>后台 Worker 与入库任务</td></tr>
+    <tr><td><code>app/web/</code></td><td>原生 HTML/CSS/JS 工作台</td></tr>
+    <tr><td><code>skills/</code></td><td>七个教学 Skill（Markdown + frontmatter）</td></tr>
+  </tbody>
+</table></div>
+</section>
+
+<section id="s3">
+<h2><span class="n">03</span><span>Agent 架构</span></h2>
+
+<h3>3.1　统一协议<span class="path">app/agents/protocol.py</span></h3>
+<p>四个契约贯穿整个 Agent 层。Agent 接口只有一个方法：<code>async def run(task, context) -&gt; AgentResult</code>。</p>
+<div class="tw"><table>
+  <thead><tr><th>类型</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>LearningContext</code></td><td>用户、课程、会话、消息、语言、模式、范围、<code>RoutingDecision</code>、历史、<code>tools</code>、<code>integrity</code>、<code>shared</code></td></tr>
+    <tr><td><code>AgentTask</code></td><td><code>agent</code>、<code>objective</code>、<code>inputs</code></td></tr>
+    <tr><td><code>AgentResult</code></td><td>答案、<code>AgentStatus</code>、证据状态、证据、模型名、Token、降级原因、练习集、<code>tool_calls</code>、<code>shared</code></td></tr>
+    <tr><td><code>AgentTrace</code></td><td><code>trace_id</code>、<code>route</code>、<code>steps</code>（角色 / 状态 / 耗时 / 工具调用 / 降级原因）、总耗时</td></tr>
+  </tbody>
+</table></div>
+<p><code>AgentStatus</code> 取值：<code>ok</code> / <code>degraded</code> / <code>skipped</code> / <code>failed</code>。</p>
+
+<h3 id="s3-2">3.2　混合意图路由<span class="path">intent_router.py · llm_router.py · routing.py</span></h3>
+<figure>
+  <div class="frame"><pre class="mermaid">flowchart TD
+  M["学习者消息"] --> R["确定性规则匹配"]
+  R --> C{"置信度 ≥ 0.80 ?"}
+  C -->|是| D["直接返回<br/>零模型调用"]
+  C -->|否| L["LLMIntentRouter.propose<br/>结构化输出，Pydantic 校验"]
+  L --> V{"LLM 置信度 ≥ 规则置信度 ?"}
+  V -->|否| K["拒绝提议，保留规则结果"]
+  V -->|是| F{"最终置信度 ≥ 0.45 ?"}
+  F -->|否| Q["转为澄清"]
+  F -->|是| A["采纳 LLM 意图与辅助 Agent"]</pre></div>
+  <figcaption>图 3　路由决策。实测 LLM 只在约 37% 的评测用例上被调用。</figcaption>
+</figure>
+
+<h4>规则层置信度</h4>
+<div class="tw"><table>
+  <thead><tr><th>规则</th><th class="num">置信度</th><th>规则</th><th class="num">置信度</th></tr></thead>
+  <tbody>
+    <tr><td>资料清单</td><td class="num">0.99</td><td>出题</td><td class="num">0.94</td></tr>
+    <tr><td>问候 / 能力</td><td class="num">0.98</td><td>计划</td><td class="num">0.93</td></tr>
+    <tr><td>答案提交</td><td class="num">0.96</td><td>概念讲解</td><td class="num">0.88</td></tr>
+    <tr><td>进度</td><td class="num">0.95</td><td>疑问句兜底</td><td class="num">0.85</td></tr>
+  </tbody>
+</table></div>
+
+<h4>两处降权，专门把该给模型的交给模型</h4>
+<ul>
+  <li><strong>复合意图</strong> —— 同时命中多个规则族降为 <code>0.50</code>。</li>
+  <li><strong>上下文追问</strong> —— 有历史且为指代式表达（<code>那个</code>／<code>再详细</code>／<code>继续</code>…）降为 <code>0.55</code>；但显式操作（≥0.90）仍然直接生效。</li>
+</ul>
+
+<div class="note"><p><strong>范围解析只发生在路由层。</strong><code>QueryPlan</code> 是范围的唯一载体：<code>standalone_query</code>、<code>course_id</code>、<code>document_types</code>、<code>document_ids</code>、<code>page_from</code>、<code>page_to</code>、<code>chapter</code>、<code>requested_language</code>、<code>top_k</code>。下游 Agent 与 Service 一律消费 plan 字段，<strong>不再对原始消息做正则解析</strong>。章节解析复用检索器自己的 <code>_chapter_number</code>，两处不会对「第一章」产生分歧。学习者显式选择的范围永远优先于消息解析结果。</p>
+<p>模型侧只看到消息与最近 4 轮对话，<strong>看不到任何范围字段</strong>，因此无法覆盖它们。</p></div>
+
+<h3 id="s3-3">3.3　学术诚信 Guard<span class="path">integrity.py</span></h3>
+<p>在任何 Agent 之前运行，<strong>完全确定性</strong> —— 决定学生能得到何种帮助的规则必须可检查、可测试、不随机。</p>
+<div class="tw"><table>
+  <thead><tr><th>级别</th><th>触发</th><th>行为</th></tr></thead>
+  <tbody>
+    <tr><td><code>LEARNING_ALLOWED</code></td><td>正常学习</td><td>无约束</td></tr>
+    <tr><td><code>HINT_ONLY</code></td><td>索要作业答案</td><td>讲方法 + 非本题算例，不给最终答案</td></tr>
+    <tr><td><code>SUBMISSION_RISK</code></td><td>要求代写可提交成果</td><td>给结构、必备要素清单、引用，邀请复核草稿</td></tr>
+    <tr><td><code>LIVE_EXAM_PROHIBITED</code></td><td>声称正在考试</td><td><span class="pill warn">短路整轮</span> 拒答 + 考后帮助邀请</td></tr>
+  </tbody>
+</table></div>
+<p><strong>只有实时考试会短路</strong>，另外三档仍给出完整帮助 —— PRD 8.7 要求提示简短且不替代帮助。约束经 <code>answer_constraint</code> 注入讲解网关 system prompt，排在学生措辞之上；简短提示以引用块前置。</p>
+<div class="note"><p><strong>自有成果复核豁免。</strong><code>_is_own_work_review()</code> 识别「我做完了／我算出来…帮我检查」，判为 <code>LEARNING_ALLOWED</code>。该豁免置于实时考试检查<strong>之后</strong>，无法被用来绕过考试拒答。</p></div>
+
+<h3 id="s3-4">3.4　编排与降级<span class="path">orchestrator.py</span></h3>
+<figure>
+  <div class="frame"><pre class="mermaid">flowchart TD
+  S["Orchestrator.run"] --> I{"诚信阻断<br/>且主 Agent 受管 ?"}
+  I -->|是| G["IntegrityGuardAgent 单独作答"]
+  I -->|否| CL{"target = clarify ?"}
+  CL -->|是| CA["ClarifyAgent"]
+  CL -->|否| RD{"诚信受限<br/>且路由非显式规则 ?"}
+  RD -->|是| TU["主 Agent 改为 Tutor<br/>受限也要给真帮助"]
+  RD -->|否| PR["按 primary_agent 分派"]
+  TU --> PR
+  PR --> P["执行主 Agent<br/>产出写入 context.shared"]
+  P --> SEQ{"sequential ?"}
+  SEQ -->|否| OUT["返回结果 + Trace"]
+  SEQ -->|是| DEP{"辅助 Agent 依赖已满足 ?"}
+  DEP -->|否| SK["记为 skipped<br/>保留主 Agent 答案"] --> OUT
+  DEP -->|是| SUP["执行辅助 Agent"]
+  SUP -->|异常| FA["记为 failed<br/>保留主 Agent 答案"] --> OUT
+  SUP -->|成功| MG["合并输出"] --> OUT</pre></div>
+  <figcaption>图 4　编排分派与降级路径。</figcaption>
+</figure>
+<div class="note"><p><strong>降级保证。</strong>辅助 Agent 跳过或抛异常时，主 Agent 已产出的答案<strong>不会丢失</strong> —— 学生不该因为出题失败而连讲解一起失去。依赖表 <code>_SUPPORTING_DEPENDENCIES</code>：<code>quiz</code> 依赖 <code>explained_topic</code>，<code>planner</code> 依赖 <code>weak_topics</code>；依赖缺失即跳过，不空转。</p></div>
+
+<h3>3.5　八个 Agent<span class="path">learning_agents.py</span></h3>
+<p>全部是现有 Service 的<strong>薄适配器</strong>，只负责任务框定与结果整形。只有 <code>TutorAgent</code> 有构造参数（<code>TutorAnswerGateway</code>），其余七个无参数 —— <strong>没有任何 Agent 持有 Repository</strong>，数据一律经工具层。</p>
+<div class="tw"><table>
+  <thead><tr><th>Agent</th><th>职责</th><th>向 shared 写入</th></tr></thead>
+  <tbody>
+    <tr><td><code>TutorAgent</code></td><td>检索 + 带引用讲解</td><td><code>explained_topic</code></td></tr>
+    <tr><td><code>QuizAgent</code></td><td>按范围生成练习集</td><td>—</td></tr>
+    <tr><td><code>EvaluatorAgent</code></td><td>定位待批改题并按 rubric 批改</td><td><code>weak_topics</code>、<code>last_score</code></td></tr>
+    <tr><td><code>PlannerAgent</code></td><td>读取或生成学习计划</td><td><code>study_plan_id</code></td></tr>
+    <tr><td><code>ProgressAgent</code></td><td>掌握度与薄弱点</td><td><code>weak_topics</code></td></tr>
+    <tr><td><code>CatalogAgent</code></td><td>资料清单（不涉及内容）</td><td>—</td></tr>
+    <tr><td><code>GeneralAgent</code></td><td>问候与能力说明</td><td>—</td></tr>
+    <tr><td><code>ClarifyAgent</code> · <code>IntegrityGuardAgent</code></td><td>澄清 / 诚信拒答</td><td>—</td></tr>
+  </tbody>
+</table></div>
+<p><strong>已跑通的两条串行工作流</strong>：<code>Tutor → Quiz</code>（讲解后据此出题）、<code>Evaluator → Planner</code>（批改后据暴露的薄弱点生成计划）。</p>
+
+<h3 id="s3-6">3.6　教学工具层<span class="path">tools.py</span></h3>
+<p>Agent 访问数据的<strong>唯一通路</strong>。九个工具：</p>
+<pre class="block">search_course_material    list_course_documents    get_learning_progress
+get_recent_learning_context   list_study_plans      create_study_plan
+create_practice_set       find_pending_question    grade_answer</pre>
+<p><code>update_topic_mastery</code> 由 <code>AttemptService</code> 在批改内部完成，未单独暴露。</p>
+<div class="note"><p><strong>统一校验。</strong><code>authorize()</code> 确认课程归属调用者；<code>assert_documents_in_course()</code> 确认请求的每份资料属于该课程，越权抛 <code>ToolPermissionError</code>（HTTP 403）<strong>且在触达底层服务之前</strong>。两项检查按 manager 缓存，每轮只查一次。</p>
+<p><strong>统一记录。</strong><code>ToolSession._invoke()</code> 包裹每次调用，成功与失败都写入 <code>ToolCall</code>（名称、成败、耗时、失败原因），失败后再抛出。每个 Agent 步骤持有独立 session，记录互不污染。</p></div>
+
+<h3>3.7　教学 Skill<span class="path">skills.py · skills/*/SKILL.md</span></h3>
+<p>七个 Skill：苏格拉底式引导、分层概念讲解、数学公式讲解、考试复习策略、选择题生成规范、rubric 批改规范、中英双语术语解释。每个是带 YAML frontmatter 的 Markdown。按 Agent 与关键词选择，<strong>每轮最多注入 2 个</strong>以免稀释 prompt。当前只有 <code>TutorAgent</code> 注入。</p>
+</section>
+
+<section id="s4">
+<h2><span class="n">04</span><span>RAG 实现</span></h2>
+
+<h3>4.1　入库</h3>
+<figure>
+  <div class="frame"><pre class="mermaid">flowchart LR
+  U["上传"] --> V["校验<br/>后缀 / MIME / 大小 / 校验和去重"]
+  V --> ST["落盘"] --> DB["写 documents + jobs<br/>status=queued"]
+  DB -.-> W["Worker 轮询"]
+  W --> CL["claim_next_job<br/>FOR UPDATE SKIP LOCKED"]
+  CL --> PA["解析"] --> CK["分块"] --> EM["嵌入"] --> CH[("写入 Chroma")]
+  CH --> RD["status=ready<br/>回填 page_count / chunk_count"]</pre></div>
+  <figcaption>图 5　资料入库流水线。</figcaption>
+</figure>
+<div class="tw"><table>
+  <thead><tr><th>环节</th><th>实现</th></tr></thead>
+  <tbody>
+    <tr><td>解析<br><code>parsers.py</code></td><td>PDF 用 PyMuPDF 逐页抽取，识别章节标题并向后继承；无可抽取文本时抛 <code>OCR_REQUIRED</code>（不支持扫描件）</td></tr>
+    <tr><td>分块<br><code>chunking.py</code></td><td>按段落聚合，<code>max_chars=3200</code>、<code>overlap_chars=400</code>；超长段落按步长切分</td></tr>
+    <tr><td>嵌入<br><code>embeddings.py</code></td><td><code>HashEmbedding</code>，384 维、SHA-256 散列 + 符号累加 + L2 归一化。<strong>确定性、无外部依赖</strong>，中文按单字与二元组切分。接口可替换为真实嵌入模型</td></tr>
+    <tr><td>并发</td><td><code>claim_next_job()</code> 用 <code>FOR UPDATE SKIP LOCKED</code> 抢占，多 Worker 安全</td></tr>
+  </tbody>
+</table></div>
+
+<h3>4.2　检索<span class="path">retrieval.py</span></h3>
+<p>Chroma 元数据：<code>user_id</code>、<code>course_id</code>、<code>document_id</code>、<code>document_type</code>、<code>source_file</code>、<code>page_number</code>、<code>chunk_index</code>、<code>section_title</code>、<code>schema_version</code>。<code>_where_filter()</code> 组装 <code>$and</code> 条件，<strong><code>user_id</code> 与 <code>course_id</code> 恒在其中</strong> —— 这是数据隔离的底线。</p>
+<h4>融合打分</h4>
+<pre class="block">score       = 0.7 × 向量分 + 0.3 × 词汇分
+向量分      = max(0, 1 − 距离)
+词汇分      = |查询词 ∩ 片段词| / |查询词|</pre>
+<p>先取 <code>top_k × 3</code>（上限 30）再按融合分重排。</p>
+<div class="note"><p><strong>章节检索。</strong><code>chapter</code> 作为<strong>显式参数</strong>传入（来自 <code>QueryPlan</code>，不再从查询字符串嗅探）。命中时改走 <code>get</code> 全量取回 + <code>_chapter_evidence()</code> 按章节标记过滤，且<strong>不要求指定资料</strong> —— where 过滤已限定在该学习者的这门课内。找不到该章则返回空，不退回全课程作答。</p></div>
+</section>
+
+<section id="s5">
+<h2><span class="n">05</span><span>业务模块</span></h2>
+
+<h3>5.1　数据模型<span class="path">app/domain/models.py · 迁移 0001–0008</span></h3>
+<figure>
+  <div class="frame"><pre class="mermaid">erDiagram
+  users ||--o{ courses : ""
+  courses ||--o{ documents : ""
+  courses ||--o{ conversations : ""
+  courses ||--o{ practice_sets : ""
+  courses ||--o{ topic_mastery : ""
+  courses ||--o{ study_plans : ""
+  documents ||--o{ jobs : ""
+  conversations ||--o{ messages : ""
+  practice_sets ||--o{ questions : ""
+  questions ||--o{ attempts : ""
+  study_plans ||--o{ study_tasks : ""</pre></div>
+  <figcaption>图 6　实体关系。<code>users</code> 同时承载七项学习偏好。</figcaption>
+</figure>
+
+<h3>5.2　出题<span class="path">practice_service.py · quiz_gateway.py</span></h3>
+<ol class="rule-list">
+  <li><span><code>expand_query()</code> 用模型把主题扩写为检索查询（中英关键词）。</span></li>
+  <li><span>按范围检索证据（含章节）。无证据即抛 <code>INSUFFICIENT_EVIDENCE</code>。</span></li>
+  <li><span><code>_check_topic_support()</code> 判断资料是否真的覆盖该主题；<strong>连续两次判定不支持才拒绝出题</strong>。</span></li>
+  <li><span>生成，最多重试 2 次；<code>_matches_generation_request()</code> 校验题型、难度、题量。</span></li>
+  <li><span><code>_validate_questions()</code> 校验数量、去重、题型难度一致、引用 ID 均在 <code>c1..cN</code> 内、选择题恰好四选项且唯一正确、rubric 权重和为 1。</span></li>
+  <li><span>全部失败则退回 <code>_fallback_questions()</code>（抽取式），<code>model_name</code> 标记 <code>quiz-fallback</code>。</span></li>
+</ol>
+<p>出题语言由 <code>PracticeSetCreate.language</code> 决定，<strong>与讲解语言分离</strong> —— 国际研究生常以一种语言学习、另一种语言应考。</p>
+
+<h3>5.3　批改<span class="path">attempt_service.py · evaluation_gateway.py</span></h3>
+<ul>
+  <li>选择题走 <code>_evaluate_single_choice()</code>，<strong>不调用模型</strong>，选项非法返回 <code>INVALID_OPTION</code>。</li>
+  <li>其余题型交模型按 <strong>rubric 逐条</strong>给 <code>earned_ratio</code>。</li>
+  <li><code>_score_evaluation()</code>：<code>points = round(100 × weight × earned_ratio, 2)</code>，累加为总分。<strong>rubric 在出题时确定，批改时不可修改。</strong></li>
+  <li>批改后立即 <code>record_attempt()</code> 更新掌握度，并写入题目与 rubric 快照，保证历史成绩可复现。</li>
+</ul>
+
+<h3>5.4　掌握度<span class="path">progress_repository.py</span></h3>
+<pre class="block">average_score = (旧均分 × 旧次数 + 本次得分) / 新次数
+recent_score  = 首次为本次得分，之后 0.7 × 本次 + 0.3 × 旧近期分
+coverage      = min(次数 / 3, 1)
+mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</pre>
+<p>状态阈值：未练习 → <code>weak</code>（&lt;0.5）→ <code>learning</code>（&lt;0.8 或次数&lt;2）→ <code>mastered</code>。全部为规则计算，<strong>无训练模型</strong>。</p>
+
+<h3>5.5　学习计划<span class="path">study_plan_service.py</span></h3>
+<p>主题按掌握度升序取自 <code>list_topics()</code>（薄弱优先），按日轮转分配。每日 ≥30 分钟拆成「复习 60% + 练习／检查点 40%」，最后一天的第二项为 <code>checkpoint</code>。计划终点不超过课程考试日期。</p>
+</section>
+
+<section id="s6">
+<h2><span class="n">06</span><span>前端</span></h2>
+<p>单页原生 HTML/CSS/JS。技术设计文档中的 Vue 3 + Vite 是<strong>已记录的偏离</strong>。五个标签页：AI 教练、课程资料、练习自测、学习进度、学习计划。</p>
+<ul>
+  <li><code>richText()</code> + KaTeX 渲染 Markdown 与 LaTeX；引用标记 <code>[c1]</code> 高亮，可展开原文并跳转 PDF 对应页。</li>
+  <li>引用片段上限 <code>CITATION_SNIPPET_LIMIT = 3200</code>（即分块上限），携带模型实际看到的完整片段。</li>
+  <li>选择题<strong>选项即答案</strong> —— 单选按钮在表单内，无额外文本框。</li>
+  <li>偏好经 <code>applyPreferenceDefaults()</code> 种入各表单作为默认值，单次操作可覆盖。</li>
+  <li>三项不可逆操作（删课程、删资料、清空进度）均二次确认并写明后果。</li>
+</ul>
+</section>
+
+<section id="s7">
+<h2><span class="n">07</span><span>质量保障</span></h2>
+<h3>7.1　八套版本化评测<span class="path">tests/evals/</span></h3>
+<div class="tw"><table>
+  <thead><tr><th>评测集</th><th>规模</th><th>当前基线</th><th>调用模型</th></tr></thead>
+  <tbody>
+    <tr><td>Router v2</td><td class="num">57 例</td><td>意图准确率 90.4%，范围保持 100%</td><td>部分</td></tr>
+    <tr><td>Integrity v1</td><td class="num">61 例</td><td>全指标满分，假阳性率 0%</td><td><span class="pill on">否</span></td></tr>
+    <tr><td>Orchestrator v1</td><td class="num">30 例</td><td>全指标 100%</td><td><span class="pill on">否</span></td></tr>
+    <tr><td>Loop v1</td><td class="num">5 阶段</td><td>闭环成立</td><td>是</td></tr>
+    <tr><td>RAG v1</td><td class="num">30 题</td><td>引用有效率、跨资料泄漏</td><td>是</td></tr>
+    <tr><td>Quiz v1</td><td class="num">30 场景</td><td>生成成功率 96.7%</td><td>是</td></tr>
+    <tr><td>Grading v1</td><td class="num">90 次</td><td>排序与重复稳定性 100%，分数区间 90%</td><td>是</td></tr>
+    <tr><td>Faithfulness v1</td><td class="num">12 条</td><td>依据／引用／无编造均 100%</td><td>人工</td></tr>
+  </tbody>
+</table></div>
+<p>前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明<strong>合入门槛</strong> —— 例如 Integrity 的 <code>fabrication_rate</code> 必须为 0、Orchestrator 的 <code>answer_preservation_rate</code> 必须为 1.0。</p>
+<h3>7.2　单元测试</h3>
+<p>241 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
+</section>
+
+<section id="s8">
+<h2><span class="n">08</span><span>实现边界</span></h2>
+<div class="note limit"><p>以下是<strong>当前实现的真实状态</strong>，不是遗漏。列在这里是为了让接手者不必自己去发现。</p></div>
+<ul>
+  <li><strong>Redis 已启动但未使用。</strong>Worker 轮询 PostgreSQL <code>jobs</code> 表而非 Redis 队列。</li>
+  <li><strong>无流式输出</strong>；<code>AgentTrace</code> 有 <code>trace_id</code>，但没有贯穿 HTTP 层的 trace ID。</li>
+  <li><strong>无业务指标接入 Prometheus</strong>（配置已就绪）。</li>
+  <li><strong>单用户 MVP</strong>：<code>get_current_user_id()</code> 返回配置中的固定 UUID，未接入认证。</li>
+  <li><strong>嵌入是确定性散列</strong>，非语义嵌入模型；接口可替换。</li>
+  <li><strong><code>PlannerAgent</code> 已能生成计划</strong>，但计划内容由规则排程产生，非模型生成。</li>
+  <li><strong><code>EvaluatorAgent</code> 只处理最新练习集中最早的未作答题</strong>，不支持指定任意题目。</li>
+</ul>
+<p>未修复的已知问题清单见 <code>docs/PROGRESS.md</code> 第 3 节。</p>
+</section>
+
+<footer>
+  本文所有函数名、常量与数值均已逐条对照 commit <code>386a812</code> 的代码核对。仓库内权威版本为 <code>docs/ARCHITECTURE.md</code>，与代码同仓演进。
+</footer>
+</main>
+</div>

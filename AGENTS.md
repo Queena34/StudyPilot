@@ -10,7 +10,7 @@
 
 1. **`docs/PROGRESS.md`** —— 进度台账，唯一事实来源。先看第 1 节路线图状态和第 4 节变更日志最新一条。
 2. **`docs/ECHOMIND_ARCHITECTURE_MIGRATION.md`** —— 目标架构与 12 步执行顺序。**所有架构类工作以此文件为准**，不要自行发明架构方案。
-3. **`docs/ARCHITECTURE.md`** —— 当前代码实际是怎么实现的。改动实现后必须同步；与代码不一致时以代码为准。
+3. **`docs/ARCHITECTURE.md`** —— 当前代码实际是怎么实现的。改动实现后必须同步；与代码不一致时以代码为准。同目录的 `architecture.html` 是同一内容的网页版，改了 md 也要改它。
 4. **`docs/IMPLEMENTATION_AUDIT.md`** —— PRD 功能差距矩阵，用于确认某功能是否真的缺失。
 5. `git log --oneline | head -20` —— 确认台账的「当前基线 commit」是否落后于实际。若落后，说明上一位执行者漏更新了台账，请先补齐再开工。
 
