@@ -149,6 +149,18 @@
 
 ### 2026-08-27 · Claude Code · commit `未提交`
 
+- **做了什么**：重跑 Quiz v1 与 Grading v1 —— 它们的基线同样是在旧检索配置下记录的。
+- **Quiz v1（30 场景）**：唯一变化是 `topic_coverage` **0.963 → 1.0**。检索变准后，不再出现「取回的片段不含所指主题」的情形。其余十一项指标与旧基线一致，平均延迟由 8275ms 降至 7505ms。
+- **Grading v1（90 次）**：与前一次基线**逐位一致** —— `score_band_accuracy`、`ordering_accuracy`、`repeatability_within_10_points`、`average_partial_score`、`run_success_rate`、`fallback_rate` 全部相同。这是预期的：批改依据题目自带的不可变 rubric 和数据集内的证据，**不经过检索链路**。因此这次重跑也可作为「检索改动影响面被正确隔离」的旁证。
+- **九套评测现在的状态**：Router v2、Integrity v1、Orchestrator v1、Loop v1、Cross-lingual v1、RAG v1、Quiz v1、Grading v1、Faithfulness v1 —— 全部在当前配置下有可比较基线。
+- **改了哪些文件**：`tests/evals/baselines/{quiz_v1,grading_v1}.json`、`README.md`、`docs/ARCHITECTURE.md`、`docs/architecture.html`
+- **一处自我更正**：我在对比输出里把延迟那行的箭头标反了 —— 7505ms 低于 8275ms 是变快，不是退步。
+- **下一步建议**：K-2 剩余部分（区分「未配置密钥 / Provider 失败 / 引用校验失败」三种情形并分别暴露）；Faithfulness 样本量仍只有 12，扩到 30 条换种子再评一轮的价值最高。
+
+---
+
+### 2026-08-27 · Claude Code · commit `未提交`
+
 - **做了什么**：功能巡检，发现并修复两个高严重度缺陷；重跑因检索重构而失效的 RAG v1 基线。
 - **K-30（我上一轮引入的）**：`_merge` 在 LLM 改写查询时手工逐字段重建 `QueryPlan`，漏掉了新加的 `chapter`、`material_language`、`retrieval_query`。后果是**凡走 LLM 路由的提问同时丢失章节范围和查询翻译** —— 「简要说明多重共线性」的检索查询仍是中文，取回 `GDQJH` 这类乱码 PDF 片段，模型据此回答「资料中并未定义多重共线性」，而资料里明明有。
   - 改为 `replace(plan, ...)`，字段增删不可能再漏。

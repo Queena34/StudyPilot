@@ -23,9 +23,17 @@
     "citation_validity": 1.0,
     "document_scope_adherence": 1.0,
     "page_scope_adherence": 1.0,
-    "topic_coverage": 0.9629629629629629,
+    "topic_coverage": 1.0,
     "fallback_rate": 0.0,
-    "average_latency_ms": 8275.27
+    "average_latency_ms": 7505
   },
-  "note": "Measured from a complete quiz-v1 run. Raw responses remain in ignored local artifacts."
+  "note": "2026-08-27 检索重构后重跑。唯一变化是 topic_coverage 由 0.963 升至 1.0 —— 检索变准后，出题主题不再出现「取回的片段不含所指主题」的情形。其余全部与旧基线一致，平均延迟由 8275ms 降至 7505ms。",
+  "recorded_at": "2026-08-27T14:42:12.288206+00:00",
+  "configuration": {
+    "embedding": "BAAI/bge-small-en-v1.5 (384d)",
+    "chunk_max_chars": 1200,
+    "chunk_overlap": 200,
+    "collection": "course_materials_v2",
+    "query_translation": true
+  }
 }

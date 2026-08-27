@@ -2,7 +2,7 @@
   "dataset_version": "grading-v1",
   "status": "recorded",
   "model_name": "deepseek-v4-flash",
-  "recorded_at": "2026-08-26T15:18:06.822585+00:00",
+  "recorded_at": "2026-08-27T14:42:07.481152+00:00",
   "configuration": {
     "questions": 10,
     "answer_levels": 3,
@@ -37,7 +37,7 @@
     "average_correct_score": 100.0,
     "average_partial_score": 47.6,
     "average_incorrect_score": 0.0,
-    "average_latency_ms": 2393.83
+    "average_latency_ms": 2433.83
   },
   "out_of_band_runs": [
     {
@@ -104,5 +104,6 @@
     "criterion_completeness、evidence_validity、feedback_completeness 必须为 1.0。",
     "score_band_accuracy 不得低于 0.90。低于该值须先判断是模型变化还是数据集问题，再决定动哪一边。",
     "比较必须使用相同 dataset_version、相同分数区间定义和相同 repeats。"
-  ]
+  ],
+  "note": "2026-08-27 检索重构后重跑，结果与前一次基线逐位一致（score_band_accuracy、ordering_accuracy、repeatability_within_10_points、average_partial_score、run_success_rate、fallback_rate 全部相同）。这是预期的：批改依据题目自带的不可变 rubric 和数据集内的证据，不经过检索链路。该次重跑因此也可作为「检索改动影响面被正确隔离」的旁证。诊断与门槛见下方，未变。"
 }
