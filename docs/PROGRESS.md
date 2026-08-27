@@ -149,6 +149,20 @@
 
 ### 2026-08-27 · Claude Code · commit `未提交`
 
+- **做了什么**：按用户要求，说明书网页版不再发布为在线 artifact，改为仓库内可直接打开的独立文件。
+- **发现该文件本来就不适合本地打开**：它是按 artifact 格式写的 —— 平台发布时会补 HTML 骨架，因此文件里**没有 `<!doctype>`、`<html>`、`<head>`、`<body>`，也没有 `<meta charset>`**。中文在部分浏览器会乱码。图表也依赖 CDN 的 mermaid。
+- **改为完全独立**：
+  1. 补齐标准 HTML 结构与 `<meta charset="utf-8">`。
+  2. mermaid vendor 到 `docs/vendor/mermaid.min.js`（3.4MB），与项目已有的 KaTeX vendor 做法一致。
+  3. 去掉 Google Fonts，衬线与等宽退回系统字体栈。
+  4. 结果：**零外部依赖，断网也能完整渲染六张架构图**。
+- **改了哪些文件**：`docs/architecture.html`、`docs/vendor/mermaid.min.js`（新增）、`docs/ARCHITECTURE.md`、`README.md`
+- **怎么验证的**：结构标签八项齐全；`grep https://` 无结果（无任何外部请求）；`test_architecture_doc.py` 5 例通过；已在浏览器打开确认。
+
+---
+
+### 2026-08-27 · Claude Code · commit `未提交`
+
 - **做了什么**：用户问说明书是否同步。核对后发现**没有** —— 检索重构那批写进去了，但最近两个修复和四个统计数字都过时了。补齐，并加了自动核对测试防止再次腐烂。
 - **漏掉的内容**：
   - K-30（翻译时序与 `_merge` 用 `replace`）完全没写。

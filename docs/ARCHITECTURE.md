@@ -8,7 +8,7 @@
 | 规模 | `app/` 7545 行，`tests/` 6147 行，259 个单元测试，9 套离线评测 |
 
 > 本文与代码同仓演进。改动实现后必须同步本文；两者不一致时**以代码为准**，并在 [`PROGRESS.md`](./PROGRESS.md) 变更日志中记录出入。
-> 另有一份可读性更好的网页版 [`architecture.html`](./architecture.html)（含渲染后的架构图，浏览器直接打开即可）。**本文是权威版本**，改动后需同步网页版。
+> 另有一份可读性更好的网页版 [`architecture.html`](./architecture.html)：**双击用浏览器打开即可**，零外部依赖，断网也能完整渲染（mermaid 已 vendor 在 `docs/vendor/`）。**本文是权威版本**，改动后需同步网页版。
 > 设计意图见 [`PRD.md`](./PRD.md) 与 [`TECHNICAL_DESIGN.md`](./TECHNICAL_DESIGN.md)，两者与本文的偏离已在各自文档中标注。
 
 ---

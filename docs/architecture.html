@@ -1,13 +1,14 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StudyPilot 实现说明书</title>
-<!-- 本地直接打开时用 CDN 渲染 mermaid；发布为 Artifact 时该请求被 CSP 拦截，
-     而平台本身原生渲染 <pre class="mermaid">，两种场景都能出图。 -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<!-- 完全离线可读：mermaid 与 KaTeX 同样在仓库内 vendor，字体退回系统字体栈。 -->
+<script src="vendor/mermaid.min.js"></script>
 <script>
   window.addEventListener("load", () => {
-    if (typeof window.mermaid === "undefined") return;          // Artifact：平台已渲染
-    if (document.querySelector(".mermaid svg")) return;          // 已有 svg，不重复渲染
-    const dark = matchMedia("(prefers-color-scheme: dark)").matches
-      && document.documentElement.dataset.theme !== "light";
+    if (typeof window.mermaid === "undefined") return;
     window.mermaid.initialize({ startOnLoad: true, theme: "base", themeVariables: {
       background: "#fffefa", primaryColor: "#dce9df", primaryTextColor: "#17201b",
       primaryBorderColor: "#285c49", lineColor: "#68736c", fontSize: "13px",
@@ -15,7 +16,6 @@
     }});
   });
 </script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
   :root{
     --paper:#f4f2eb; --card:#fffefa; --ink:#17201b; --muted:#68736c;
@@ -24,9 +24,9 @@
     --coral:#b8503a; --blue:#4a6d94; --amber:#96701f;
     --rail:#ffffff; --code-bg:#eeece3; --figure:#fffefa;
     --shadow:0 10px 30px rgba(35,52,43,.06);
-    --serif:"Source Serif 4",Georgia,"Songti SC","Noto Serif CJK SC",serif;
+    --serif:Georgia,"Songti SC","Noto Serif CJK SC","Times New Roman",serif;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   @media (prefers-color-scheme:dark){
     :root:not([data-theme="light"]){
@@ -159,6 +159,8 @@
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   a:focus-visible,summary:focus-visible{outline:2px solid var(--green);outline-offset:3px;border-radius:4px}
 </style>
+</head>
+<body>
 
 <div class="shell">
 <aside class="rail">
@@ -538,3 +540,5 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
 </footer>
 </main>
 </div>
+</body>
+</html>
