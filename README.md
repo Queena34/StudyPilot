@@ -8,6 +8,7 @@
 
 - [产品需求文档](docs/PRD.md)
 - [技术设计文档](docs/TECHNICAL_DESIGN.md)
+- [实现说明书](docs/ARCHITECTURE.md) —— 当前代码的实际实现，含架构图
 - [Agent 架构演进路线](docs/ECHOMIND_ARCHITECTURE_MIGRATION.md)
 - [开发进度台账](docs/PROGRESS.md) —— 跨 AI Agent 交接的唯一事实来源
 - [AI Agent 协作规约](AGENTS.md)

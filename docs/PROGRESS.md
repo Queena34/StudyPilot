@@ -3,6 +3,7 @@
 > **这是项目进度的唯一事实来源。** 任何 AI Agent（Claude Code / Codex / 其他）或人类开发者在开始工作前必须先读本文件，收工前必须更新本文件。
 >
 > 协作规则见 [`AGENTS.md`](../AGENTS.md)。
+> 当前实现见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)。
 > 目标架构与阶段计划见 [`ECHOMIND_ARCHITECTURE_MIGRATION.md`](./ECHOMIND_ARCHITECTURE_MIGRATION.md)。
 > PRD 功能差距见 [`IMPLEMENTATION_AUDIT.md`](./IMPLEMENTATION_AUDIT.md)。
 
