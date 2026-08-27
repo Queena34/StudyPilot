@@ -163,7 +163,7 @@
 <div class="shell">
 <aside class="rail">
   <div class="mark"><span class="mark-badge">S</span><span class="mark-name">StudyPilot</span></div>
-  <p class="rail-sub">实现说明书 · 检索重构后</p>
+  <p class="rail-sub">实现说明书 · commit 61396cc</p>
   <nav>
     <a href="#s1"><span class="n">01</span><span>系统是什么</span></a>
     <a href="#s2"><span class="n">02</span><span>整体架构</span></a>
@@ -190,11 +190,11 @@
 </div>
 
 <dl class="facts">
-  <div class="fact"><dt>应用代码</dt><dd>7,118<small>行 · app/</small></dd></div>
-  <div class="fact"><dt>测试代码</dt><dd>5,535<small>行 · tests/</small></dd></div>
-  <div class="fact"><dt>单元测试</dt><dd>241<small>全部通过</small></dd></div>
+  <div class="fact"><dt>应用代码</dt><dd>7,545<small>行 · app/</small></dd></div>
+  <div class="fact"><dt>测试代码</dt><dd>6,147<small>行 · tests/</small></dd></div>
+  <div class="fact"><dt>单元测试</dt><dd>259<small>全部通过</small></dd></div>
   <div class="fact"><dt>离线评测</dt><dd>9<small>套，均有基线</small></dd></div>
-  <div class="fact"><dt>数据迁移</dt><dd>8<small>0001–0008</small></dd></div>
+  <div class="fact"><dt>数据迁移</dt><dd>9<small>0001–0009</small></dd></div>
 </dl>
 
 <p class="callout"><strong>文档纪律。</strong>本文与代码同仓演进。改动实现后必须同步本文；两者不一致时以代码为准，并在 <code>docs/PROGRESS.md</code> 变更日志中记录出入。设计意图见 <code>PRD.md</code> 与 <code>TECHNICAL_DESIGN.md</code>，两者与本文的偏离已在各自文档中标注。</p>
@@ -268,7 +268,7 @@
     <tr><td><code>app/rag/</code></td><td>解析、分块、嵌入、检索</td></tr>
     <tr><td><code>app/llm/</code></td><td>三个模型网关（讲解、出题、批改）</td></tr>
     <tr><td><code>app/domain/models.py</code></td><td>SQLAlchemy ORM 模型</td></tr>
-    <tr><td><code>app/tasks/</code></td><td>后台 Worker 与入库任务</td></tr>
+    <tr><td><code>app/tasks/</code></td><td>后台 Worker、入库任务与 <code>reindex.py</code> 重建入口</td></tr>
     <tr><td><code>app/web/</code></td><td>原生 HTML/CSS/JS 工作台</td></tr>
     <tr><td><code>skills/</code></td><td>七个教学 Skill（Markdown + frontmatter）</td></tr>
   </tbody>
@@ -414,6 +414,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
     <tr><td>分块<br><code>chunking.py</code></td><td>按段落聚合，<code>max_chars=1200</code>、<code>overlap_chars=200</code>。上限由嵌入模型 512 token 决定 —— 此前 3200，每段约三分之二的内容出现在引用里却不在索引中</td></tr>
     <tr><td>嵌入<br><code>embeddings.py</code></td><td><code>BAAI/bge-small-en-v1.5</code>，384 维、67MB、ONNX 推理（无需 torch），模型烘进镜像。加载失败降级为确定性散列并告警 —— 服务仍可启动，但跨语言检索失效</td></tr>
     <tr><td>并发</td><td><code>claim_next_job()</code> 用 <code>FOR UPDATE SKIP LOCKED</code> 抢占，多 Worker 安全</td></tr>
+    <tr><td>集合</td><td>写入 <code>course_materials_v2</code>。版本号是安全机制：散列向量与稠密向量不可比较，改嵌入或分块必须换集合并全量重建（<code>python -m app.tasks.reindex</code>）</td></tr>
   </tbody>
 </table></div>
 
@@ -424,6 +425,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
 向量分      = max(0, 1 − 距离)
 词汇分      = |查询词 ∩ 片段词| / |查询词|</pre>
 <p>先取 <code>top_k × 3</code>（上限 30）再按融合分重排。</p>
+<div class="note"><p><strong>翻译发生在路由定稿之后</strong>，对最终确定的查询翻译一次。这个顺序不是随意的：翻译原先排在路由之前，而 LLM 路由改写查询后译文就作废了，结果是凡走 LLM 路由的提问都在用未翻译的查询检索。合并 LLM 提议时用 <code>replace(plan, ...)</code> 而非逐字段重建 —— 手工列字段曾静默丢掉后加的 <code>chapter</code> 与 <code>retrieval_query</code>。</p></div>
 <div class="note"><p><strong>跨语言检索。</strong>课程资料在自己的语言里被检索，因此提问先被译成资料语言（<code>QueryTranslationGateway</code>），译文写入 <code>QueryPlan.retrieval_query</code>，学习者看到的原问题保持不变。仅在提问语言 ≠ 资料语言时调用模型；翻译失败一律返回原查询 —— 检索退化好过整轮报错。<strong>这条路径替代了多语言嵌入</strong>：代价是一次小模型调用，收益是可以用英文检索专用模型，且翻译错了肉眼可见。</p></div>
 <div class="note"><p><strong>章节检索。</strong><code>chapter</code> 作为<strong>显式参数</strong>传入（来自 <code>QueryPlan</code>，不再从查询字符串嗅探）。命中时改走 <code>get</code> 全量取回 + <code>_chapter_evidence()</code> 按章节标记过滤，且<strong>不要求指定资料</strong> —— where 过滤已限定在该学习者的这门课内。找不到该章则返回空，不退回全课程作答。</p></div>
 </section>
@@ -431,7 +433,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
 <section id="s5">
 <h2><span class="n">05</span><span>业务模块</span></h2>
 
-<h3>5.1　数据模型<span class="path">app/domain/models.py · 迁移 0001–0008</span></h3>
+<h3>5.1　数据模型<span class="path">app/domain/models.py · 迁移 0001–0009</span></h3>
 <figure>
   <div class="frame"><pre class="mermaid">erDiagram
   users ||--o{ courses : ""
@@ -448,7 +450,11 @@ create_practice_set       find_pending_question    grade_answer</pre>
   <figcaption>图 6　实体关系。<code>users</code> 同时承载七项学习偏好。</figcaption>
 </figure>
 
-<h3>5.2　出题<span class="path">practice_service.py · quiz_gateway.py</span></h3>
+<h3>5.2　引用校验与修复重试<span class="path">tutor_service.py · gateway.py</span></h3>
+<p><code>_remove_unknown_citations()</code> 先剔除超出 <code>c1..cN</code> 范围的引用标记。若检索到了证据而答案<strong>一条引用都没有</strong>，不直接降级，而是<strong>带提示重试一次</strong>；仍无引用才退回抽取式。</p>
+<div class="note"><p>这条重试是必需的，不是保险。资料未覆盖某问题时，正确答案是「资料里没有」—— 这种答案不主张任何内容，因此天然不需要引用，却会被校验判为失败并替换成原文堆砌，而堆砌不会说「资料里没有」。<strong>系统会因此惩罚唯一正确的行为。</strong> 讲解 prompt 现在同时要求：拒答时也须引用查过的片段，让学生能自行核实「不存在」。</p></div>
+
+<h3>5.3　出题<span class="path">practice_service.py · quiz_gateway.py</span></h3>
 <ol class="rule-list">
   <li><span><code>expand_query()</code> 用模型把主题扩写为检索查询（中英关键词）。</span></li>
   <li><span>按范围检索证据（含章节）。无证据即抛 <code>INSUFFICIENT_EVIDENCE</code>。</span></li>
@@ -459,7 +465,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
 </ol>
 <p>出题语言由 <code>PracticeSetCreate.language</code> 决定，<strong>与讲解语言分离</strong> —— 国际研究生常以一种语言学习、另一种语言应考。</p>
 
-<h3>5.3　批改<span class="path">attempt_service.py · evaluation_gateway.py</span></h3>
+<h3>5.4　批改<span class="path">attempt_service.py · evaluation_gateway.py</span></h3>
 <ul>
   <li>选择题走 <code>_evaluate_single_choice()</code>，<strong>不调用模型</strong>，选项非法返回 <code>INVALID_OPTION</code>。</li>
   <li>其余题型交模型按 <strong>rubric 逐条</strong>给 <code>earned_ratio</code>。</li>
@@ -467,14 +473,14 @@ create_practice_set       find_pending_question    grade_answer</pre>
   <li>批改后立即 <code>record_attempt()</code> 更新掌握度，并写入题目与 rubric 快照，保证历史成绩可复现。</li>
 </ul>
 
-<h3>5.4　掌握度<span class="path">progress_repository.py</span></h3>
+<h3>5.5　掌握度<span class="path">progress_repository.py</span></h3>
 <pre class="block">average_score = (旧均分 × 旧次数 + 本次得分) / 新次数
 recent_score  = 首次为本次得分，之后 0.7 × 本次 + 0.3 × 旧近期分
 coverage      = min(次数 / 3, 1)
 mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</pre>
 <p>状态阈值：未练习 → <code>weak</code>（&lt;0.5）→ <code>learning</code>（&lt;0.8 或次数&lt;2）→ <code>mastered</code>。全部为规则计算，<strong>无训练模型</strong>。</p>
 
-<h3>5.5　学习计划<span class="path">study_plan_service.py</span></h3>
+<h3>5.6　学习计划<span class="path">study_plan_service.py</span></h3>
 <p>主题按掌握度升序取自 <code>list_topics()</code>（薄弱优先），按日轮转分配。每日 ≥30 分钟拆成「复习 60% + 练习／检查点 40%」，最后一天的第二项为 <code>checkpoint</code>。计划终点不超过课程考试日期。</p>
 </section>
 
@@ -509,7 +515,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
 </table></div>
 <p>前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明<strong>合入门槛</strong> —— 例如 Integrity 的 <code>fabrication_rate</code> 必须为 0、Orchestrator 的 <code>answer_preservation_rate</code> 必须为 1.0。</p>
 <h3>7.2　单元测试</h3>
-<p>241 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
+<p>259 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
 </section>
 
 <section id="s8">

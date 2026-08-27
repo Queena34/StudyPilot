@@ -3,9 +3,9 @@
 | 字段 | 内容 |
 |---|---|
 | 文档性质 | 描述**当前代码的实际实现**，不是设计意图 |
-| 对应版本 | commit `123ae25` 之后（检索重构） |
+| 对应版本 | commit `61396cc` |
 | 核对日期 | 2026-08-27 |
-| 规模 | `app/` 7118 行，`tests/` 5535 行，241 个单元测试，8 套离线评测 |
+| 规模 | `app/` 7545 行，`tests/` 6147 行，259 个单元测试，9 套离线评测 |
 
 > 本文与代码同仓演进。改动实现后必须同步本文；两者不一致时**以代码为准**，并在 [`PROGRESS.md`](./PROGRESS.md) 变更日志中记录出入。
 > 另有一份可读性更好的网页版 [`architecture.html`](./architecture.html)（含渲染后的架构图，浏览器直接打开即可）。**本文是权威版本**，改动后需同步网页版。
@@ -83,7 +83,7 @@ flowchart TD
 | `app/llm/` | 三个模型网关（讲解、出题、批改） |
 | `app/schemas/` | Pydantic 出入参契约 |
 | `app/domain/models.py` | SQLAlchemy ORM 模型 |
-| `app/tasks/` | 后台 Worker 与入库任务 |
+| `app/tasks/` | 后台 Worker、入库任务与 `reindex.py` 重建入口 |
 | `app/web/` | 原生 HTML/CSS/JS 工作台 |
 | `skills/` | 七个教学 Skill（Markdown + frontmatter） |
 
@@ -127,6 +127,8 @@ flowchart TD
 
 - **复合意图** —— 同时命中多个规则族降为 0.50。
 - **上下文追问** —— 有历史且为指代式表达（`那个`/`再详细`/`继续`…）降为 0.55；但显式操作（≥0.90）仍然直接生效。
+
+> LLM 提议被采纳时，合并用 `replace(plan, ...)` 而非逐字段重建 `QueryPlan`。手工列字段曾静默丢掉后加的 `chapter` 与 `retrieval_query`；`replace` 让字段增删不可能再漏。
 
 `RoutingDecision` 字段：`intent`、`primary_agent`、`supporting_agents`、`execution_mode`、`confidence`、`reason`、`query_plan`、`source`、`rule_confidence`、`clarification`、`target`。
 
@@ -241,6 +243,8 @@ flowchart LR
 - **嵌入** `embeddings.py`：`DenseEmbedding`，`BAAI/bge-small-en-v1.5`，384 维、67 MB、ONNX 推理（无需 torch），模型烘进镜像因此运行时不下载。加载失败时降级为 `HashEmbedding`（确定性散列）并记录告警 —— 服务仍可启动，但跨语言检索会失效。
 - **语言** `language.py`：按 CJK 字符占比判定 `zh`/`en`，阈值 10%（技术资料夹杂英文术语是常态）。整份资料按文本量加权取主导语言，一页中文批注不会翻转一整份英文讲义。
 - **并发** `claim_next_job()` 用 `FOR UPDATE SKIP LOCKED` 抢占，多 Worker 安全。
+- **集合** 向量写入 `course_materials_v2`。版本号是安全机制：散列向量与稠密向量不可比较，改嵌入或分块必须换集合并全量重建。
+- **重建** `python -m app.tasks.reindex` 为所有资料重新排入入库任务，走的是与上传**完全相同**的那一条路径。
 
 ### 4.2 检索 — `retrieval.py`
 
@@ -248,7 +252,9 @@ Chroma 元数据：`user_id`、`course_id`、`document_id`、`document_type`、`
 
 `_where_filter()` 组装 `$and` 条件，**`user_id` 与 `course_id` 恒在其中**，这是数据隔离的底线。
 
-**跨语言检索**：课程资料在自己的语言里被检索，因此提问先被译成资料语言。`QueryTranslationGateway` 只在提问语言 ≠ 资料语言时调用模型；翻译失败、模型未配置或译文语言不对，一律返回原查询 —— 检索退化好过整轮报错。译文写入 `QueryPlan.retrieval_query`，学习者看到的 `standalone_query` 保持原样。
+**跨语言检索**：课程资料在自己的语言里被检索，因此提问先被译成资料语言。`QueryTranslationGateway`（`app/agents/query_translation.py`）只在提问语言 ≠ 资料语言时调用模型；翻译失败、模型未配置或译文语言不对，一律返回原查询 —— 检索退化好过整轮报错。译文写入 `QueryPlan.retrieval_query`，学习者看到的 `standalone_query` 保持原样。
+
+**翻译发生在路由定稿之后**，对最终确定的查询翻译一次。这个顺序不是随意的：翻译原先排在路由之前，而 LLM 路由改写查询后译文就作废了，结果是凡走 LLM 路由的提问都在用未翻译的查询检索。
 
 > 这条路径替代了多语言嵌入。代价是每次跨语言提问多一次小模型调用；收益是可以用**英文检索专用**模型（更小更准），且翻译错了肉眼可见，而嵌入对不上是黑箱。
 
@@ -260,7 +266,7 @@ Chroma 元数据：`user_id`、`course_id`、`document_id`、`document_type`、`
 
 ## 5. 业务模块
 
-### 5.1 数据模型 — `app/domain/models.py`，迁移 0001–0008
+### 5.1 数据模型 — `app/domain/models.py`，迁移 0001–0009
 
 ```mermaid
 erDiagram
@@ -279,7 +285,13 @@ erDiagram
 
 `users` 同时承载偏好：`explanation_language`、`answer_language`、`explanation_style`、`default_question_type`、`default_difficulty`、`default_question_count`、`include_language_feedback`。
 
-### 5.2 出题 — `practice_service.py` + `quiz_gateway.py`
+### 5.2 引用校验与修复重试 — `tutor_service.py` + `gateway.py`
+
+`_remove_unknown_citations()` 先剔除超出 `c1..cN` 范围的引用标记。若检索到了证据而答案**一条引用都没有**，不直接降级，而是**带提示重试一次**；仍无引用才退回抽取式 `_extractive_answer`。
+
+这条重试是必需的，不是保险。资料未覆盖某问题时，正确答案是「资料里没有」—— 这种答案不主张任何内容，因此天然不需要引用，却会被校验判为失败并替换成原文堆砌，而堆砌不会说「资料里没有」。**系统会因此惩罚唯一正确的行为。** 讲解 prompt 现在同时要求：拒答时也须引用查过的片段，让学生能自行核实「不存在」。
+
+### 5.3 出题 — `practice_service.py` + `quiz_gateway.py`
 
 1. `expand_query()` 用模型把主题扩写为检索查询（中英关键词）。
 2. 按范围检索证据（含章节）。无证据即抛 `INSUFFICIENT_EVIDENCE`。
@@ -290,14 +302,14 @@ erDiagram
 
 出题语言由 `PracticeSetCreate.language` 决定，**与讲解语言分离** —— 国际研究生常以一种语言学习、另一种语言应考。
 
-### 5.3 批改 — `attempt_service.py` + `evaluation_gateway.py`
+### 5.4 批改 — `attempt_service.py` + `evaluation_gateway.py`
 
 - 选择题走 `_evaluate_single_choice()`，**不调用模型**，选项非法返回 `INVALID_OPTION`。
 - 其余题型交模型按 **rubric 逐条**给 `earned_ratio`。
 - `_score_evaluation()`：`points = round(100 × weight × earned_ratio, 2)`，累加为总分。**rubric 在出题时确定，批改时不可修改**。
 - 批改后立即 `record_attempt()` 更新掌握度，并写入 `question_snapshot_json` / `rubric_snapshot_json` 快照，保证历史成绩可复现。
 
-### 5.4 掌握度 — `progress_repository.py`
+### 5.5 掌握度 — `progress_repository.py`
 
 ```
 average_score = (旧均分 × 旧次数 + 本次得分) / 新次数
@@ -308,7 +320,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage
 
 状态阈值：未练习 → `weak` (<0.5) → `learning` (<0.8 或次数<2) → `mastered`。全部为规则计算，无训练模型。
 
-### 5.5 学习计划 — `study_plan_service.py`
+### 5.6 学习计划 — `study_plan_service.py`
 
 主题按掌握度升序取自 `list_topics()`（薄弱优先），按日轮转分配。每日 ≥30 分钟拆成"复习 60% + 练习/检查点 40%"，最后一天的第二项为 `checkpoint`。计划终点不超过课程考试日期。
 
@@ -348,7 +360,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage
 
 ### 7.2 单元测试
 
-241 个，位于 `tests/unit/`。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。
+259 个，位于 `tests/unit/`。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、语言检测与查询翻译、引用修复重试、出题校验、批改、掌握度、计划、偏好、Web 契约。
 
 ---
 
