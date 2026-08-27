@@ -94,6 +94,8 @@ class QueryPlan:
     page_to: int | None
     requested_language: str
     top_k: int
+    #: Optional, like the page range: absent means the whole scope applies.
+    chapter: int | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -103,6 +105,7 @@ class QueryPlan:
             "document_ids": [str(value) for value in self.document_ids],
             "page_from": self.page_from,
             "page_to": self.page_to,
+            "chapter": self.chapter,
             "requested_language": self.requested_language,
             "top_k": self.top_k,
         }

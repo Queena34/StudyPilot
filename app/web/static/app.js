@@ -274,8 +274,17 @@ function addMessage(role, content, citations = []) {
   $("#chat").scrollTop = $("#chat").scrollHeight;
 }
 
+function answerFormHtml(question, { placeholder = "" } = {}) {
+  // For a choice question the options are the answer. Asking the learner to also
+  // type the letter made the radios decorative and the typing mandatory.
+  const body = question.options
+    ? `<div class="options">${question.options.map((option) => `<label><input type="radio" name="q-${question.id}" value="${escapeHtml(option.id)}" required> ${escapeHtml(option.id)}. ${escapeHtml(option.text)}</label>`).join("")}</div>`
+    : `<input required maxlength="12000" placeholder="${placeholder || "输入你的答案"}">`;
+  return `<form class="answer-form ${question.options ? "choice" : ""}" data-question-id="${question.id}">${body}<button class="primary-button" type="submit">提交批改</button></form>`;
+}
+
 function practiceQuestionsHtml(practiceSet) {
-  return practiceSet.questions.map((q, index) => `<article class="question-card"><h4>${index + 1}. ${escapeHtml(q.content)}</h4>${q.options ? `<div class="options">${q.options.map((o) => `<label><input type="radio" name="q-${q.id}" value="${escapeHtml(o.id)}"> ${escapeHtml(o.id)}. ${escapeHtml(o.text)}</label>`).join("")}</div>` : ""}<small>知识点：${q.knowledge_points.map(escapeHtml).join("、")}</small><form class="answer-form" data-question-id="${q.id}"><input required maxlength="12000" placeholder="输入你的答案${q.options ? "（如 A）" : ""}"><button class="primary-button" type="submit">提交批改</button></form><div class="feedback hidden"></div></article>`).join("");
+  return practiceSet.questions.map((q, index) => `<article class="question-card"><h4>${index + 1}. ${escapeHtml(q.content)}</h4><small>知识点：${q.knowledge_points.map(escapeHtml).join("、")}</small>${answerFormHtml(q)}<div class="feedback hidden"></div></article>`).join("");
 }
 
 function addChatPractice(practiceSet) {
@@ -386,9 +395,15 @@ $("#practice-form").addEventListener("submit", async (event) => {
   try { const result = await request(`/courses/${state.course.id}/practice-sets`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({topic:$("#practice-topic").value.trim() || null, question_type:$("#question-type").value, difficulty:$("#difficulty").value, question_count:Number($("#question-count").value), language:$("#practice-language").value, prioritize_weak_topics:$("#weak-first").checked, scope:{}})}); $("#practice-result").innerHTML = practiceQuestionsHtml(result); toast("练习已生成"); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
+function selectedAnswer(form) {
+  const chosen = form.querySelector('input[type="radio"]:checked');
+  return chosen ? chosen.value : (form.querySelector('input:not([type="radio"])')?.value ?? "");
+}
+
 document.addEventListener("submit", async (event) => {
-  if (!event.target.matches(".answer-form")) return; event.preventDefault(); const button = event.submitter; setLoading(button, true, "批改中…");
-  try { const result = await request(`/questions/${event.target.dataset.questionId}/attempts`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({answer:event.target.querySelector("input").value, include_language_feedback:Boolean(state.preferences?.include_language_feedback)})}); const feedback = event.target.nextElementSibling; feedback.classList.remove("hidden"); feedback.innerHTML = `<strong class="score">${Math.round(result.score)} / 100</strong><p>${escapeHtml(result.feedback.summary)}</p>${result.feedback.missing_concepts.length ? `<small>建议补充：${result.feedback.missing_concepts.map(escapeHtml).join("、")}</small>` : ""}`; await loadProgress(); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
+  if (!event.target.matches(".answer-form")) return; event.preventDefault();
+  if (!selectedAnswer(event.target)) { toast("请先作答", true); return; } const button = event.submitter; setLoading(button, true, "批改中…");
+  try { const result = await request(`/questions/${event.target.dataset.questionId}/attempts`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({answer:selectedAnswer(event.target), include_language_feedback:Boolean(state.preferences?.include_language_feedback)})}); const feedback = event.target.nextElementSibling; feedback.classList.remove("hidden"); feedback.innerHTML = `<strong class="score">${Math.round(result.score)} / 100</strong><p>${escapeHtml(result.feedback.summary)}</p>${result.feedback.missing_concepts.length ? `<small>建议补充：${result.feedback.missing_concepts.map(escapeHtml).join("、")}</small>` : ""}`; await loadProgress(); } catch (error) { toast(error.message, true); } finally { setLoading(button, false); }
 });
 
 $("#plan-form").addEventListener("submit", async (event) => {
@@ -503,11 +518,10 @@ async function renderPracticeSet(practiceSetId, { onlyIncorrect = false } = {}) 
     const needsWork = best >= 0 && best <= threshold;
     return `<article class="question-card ${needsWork ? "needs-work" : ""}">
       <h4>${index + 1}. ${escapeHtml(question.content)}</h4>
-      ${question.options ? `<div class="options">${question.options.map((option) => `<label><input type="radio" name="q-${question.id}" value="${escapeHtml(option.id)}"> ${escapeHtml(option.id)}. ${escapeHtml(option.text)}</label>`).join("")}</div>` : ""}
       <small>知识点：${question.knowledge_points.map(escapeHtml).join("、")}${best >= 0 ? ` · 最佳得分 ${Math.round(best)}` : " · 未作答"}</small>
       ${sourcesHtml(question)}
       ${rubricHtml(latest)}
-      <form class="answer-form" data-question-id="${question.id}"><input required maxlength="12000" placeholder="${best >= 0 ? "再答一次" : "输入你的答案"}${question.options ? "（如 A）" : ""}"><button class="primary-button" type="submit">提交批改</button></form>
+      ${answerFormHtml(question, { placeholder: best >= 0 ? "再答一次" : "输入你的答案" })}
       <div class="feedback hidden"></div>
     </article>`;
   }).join("");

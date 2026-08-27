@@ -158,3 +158,14 @@ def test_chosen_practice_language_reaches_the_request() -> None:
 
     assert 'language:$("#chat-practice-language").value' in javascript
     assert 'language:$("#practice-language").value' in javascript
+
+
+def test_a_choice_question_is_answered_by_choosing() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    # The options are the answer; typing the letter as well was redundant.
+    assert "function answerFormHtml" in javascript
+    assert "function selectedAnswer" in javascript
+    assert 'input[type="radio"]:checked' in javascript
+    # No separate text box is rendered alongside options.
+    assert '（如 A）' not in javascript

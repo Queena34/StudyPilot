@@ -55,6 +55,7 @@ class TutorAgent:
             document_ids=plan.document_ids,
             page_from=plan.page_from,
             page_to=plan.page_to,
+            chapter=plan.chapter,
         )
 
         status = _evidence_status(evidence)
@@ -105,10 +106,13 @@ class QuizAgent:
 
     async def run(self, task: AgentTask, context: LearningContext) -> AgentResult:
         topic = task.inputs.get("topic") or context.learned_topic
+        plan = context.decision.query_plan
+        # The scope comes from the routed plan, not from re-reading the message.
+        scope = context.scope.model_copy(update={"chapter": plan.chapter})
         configuration = _practice_configuration(
             context.message,
             context.language,
-            context.scope,
+            scope,
             options=context.practice_options,
             context_topic=topic,
         )

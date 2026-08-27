@@ -252,7 +252,9 @@ def _conversation_title(message: str) -> str:
 def _mentions_document_reference(message: str) -> bool:
     normalized = message.casefold()
     ordinal_reference = re.search(
-        r"(?:资料|文件|文档|讲义|课件|pdf)\s*(?:第)?\s*(?:10|[1-9]|[一两二三四五六七八九十])"
+        # "资料第一章" names a chapter, not the first document, so a number
+        # followed by 章/节/页 is never read as a material's ordinal.
+        r"(?:资料|文件|文档|讲义|课件|pdf)\s*(?:第)?\s*(?:10|[1-9]|[一两二三四五六七八九十])(?!\s*[章节页])"
         r"|第\s*(?:10|[1-9]|[一两二三四五六七八九十])\s*(?:份|个|篇)?\s*(?:资料|文件|文档|讲义|课件|pdf)"
         r"|(?:document|file|pdf)\s*(?:#\s*)?(?:10|[1-9])",
         normalized,
@@ -276,7 +278,7 @@ def _resolve_document_references(message: str, documents: list[Document]) -> lis
         return list(dict.fromkeys(matched_by_name))
 
     patterns = (
-        r"(?:资料|文件|文档|讲义|课件|pdf)\s*(?:第)?\s*(10|[1-9]|[一两二三四五六七八九十])",
+        r"(?:资料|文件|文档|讲义|课件|pdf)\s*(?:第)?\s*(10|[1-9]|[一两二三四五六七八九十])(?!\s*[章节页])",
         r"第\s*(10|[1-9]|[一两二三四五六七八九十])\s*(?:份|个|篇)?\s*(?:资料|文件|文档|讲义|课件|pdf)",
         r"(?:document|file|pdf)\s*(?:#\s*)?(10|[1-9])",
     )

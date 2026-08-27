@@ -21,10 +21,15 @@ class ExplanationMode(str, Enum):
 
 
 class TutorScope(BaseModel):
+    """The learner's explicit material scope. Nothing may widen it."""
+
     document_types: list[DocumentType] = Field(default_factory=list, max_length=6)
     document_ids: list[UUID] = Field(default_factory=list, max_length=50)
     page_from: int | None = Field(default=None, ge=1)
     page_to: int | None = Field(default=None, ge=1)
+    #: Chapter the learner named. Set explicitly by the client, or resolved from
+    #: the message by the router — never re-derived further downstream.
+    chapter: int | None = Field(default=None, ge=1, le=99)
 
     @model_validator(mode="after")
     def validate_page_range(self) -> "TutorScope":

@@ -61,6 +61,7 @@ class ToolSession:
         document_ids: list[UUID] | None,
         page_from: int | None,
         page_to: int | None,
+        chapter: int | None = None,
     ):
         await self.manager.authorize(context)
         if document_ids:
@@ -76,6 +77,7 @@ class ToolSession:
                 document_ids=document_ids or None,
                 page_from=page_from,
                 page_to=page_to,
+                chapter=chapter,
             )
 
         return await self._invoke(

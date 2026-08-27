@@ -27,6 +27,7 @@ class CourseRetriever:
         document_ids: list[UUID] | None = None,
         page_from: int | None = None,
         page_to: int | None = None,
+        chapter: int | None = None,
     ) -> list[RetrievedEvidence]:
         where = _where_filter(
             user_id=user_id,
@@ -45,15 +46,19 @@ class CourseRetriever:
                     return []
                 collection_response.raise_for_status()
                 collection_id = collection_response.json()["id"]
-                chapter_number = _chapter_number(query)
-                if chapter_number is not None and document_ids:
+                # The chapter arrives as a resolved field from the QueryPlan; this
+                # layer no longer guesses it from the query text. It is honoured
+                # even without a chosen document, since the where-filter already
+                # scopes to this learner's course and ignoring a named chapter
+                # would silently answer from material outside it.
+                if chapter is not None:
                     chapter_response = await client.post(
                         f"{self.base_url}/collections/{collection_id}/get",
                         json={"where": where, "include": ["documents", "metadatas"]},
                     )
                     chapter_response.raise_for_status()
                     chapter_evidence = _chapter_evidence(
-                        chapter_response.json(), chapter_number, top_k
+                        chapter_response.json(), chapter, top_k
                     )
                     if chapter_evidence:
                         return chapter_evidence

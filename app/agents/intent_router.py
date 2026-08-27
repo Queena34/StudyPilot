@@ -26,6 +26,7 @@ from app.agents.routing import (
     RoutingSource,
     decision_for,
 )
+from app.rag.retrieval import _chapter_number
 from app.schemas.tutor import TutorScope
 
 # Re-exported so existing importers keep working after the protocol move.
@@ -61,7 +62,7 @@ class LearningIntentRouter:
     ) -> RoutingDecision:
         """Deterministic-only routing. Kept synchronous for callers that cannot await."""
 
-        plan = _build_plan(standalone_query, course_id, language, scope)
+        plan = _build_plan(message, standalone_query, course_id, language, scope)
         return _rule_decision(message, plan)
 
     async def route(
@@ -76,7 +77,7 @@ class LearningIntentRouter:
     ) -> RoutingDecision:
         """Full hybrid routing. Falls back to the rule decision on any LLM problem."""
 
-        plan = _build_plan(standalone_query, course_id, language, scope)
+        plan = _build_plan(message, standalone_query, course_id, language, scope)
         rule = _rule_decision(message, plan, has_history=bool(history))
         if rule.confidence >= RULE_CONFIDENCE_THRESHOLD:
             return rule
@@ -90,7 +91,7 @@ class LearningIntentRouter:
 
 
 def _build_plan(
-    standalone_query: str, course_id: UUID, language: str, scope: TutorScope
+    message: str, standalone_query: str, course_id: UUID, language: str, scope: TutorScope
 ) -> QueryPlan:
     """Scope comes only from the learner's explicit selection, never from a model."""
 
@@ -101,8 +102,13 @@ def _build_plan(
         document_ids=scope.document_ids,
         page_from=scope.page_from,
         page_to=scope.page_to,
+        # An explicit choice always wins; otherwise read the chapter the learner
+        # named. This is the one place a chapter is derived from a message.
         requested_language=language,
         top_k=8,
+        # An explicit choice always wins; otherwise read the chapter the learner
+        # named. This is the one place a chapter is derived from a message.
+        chapter=scope.chapter if scope.chapter is not None else _resolve_chapter(message),
     )
 
 
@@ -164,6 +170,13 @@ def _as_clarification(decision: RoutingDecision) -> RoutingDecision:
             "我不确定你想要课程讲解、生成练习、查看进度还是学习计划，能再说得具体一点吗？"
         ),
     )
+
+
+def _resolve_chapter(message: str) -> int | None:
+    """Read a chapter the learner named. Delegates the parsing to the retriever's
+    own chapter reader so the two can never disagree about what "第一章" means."""
+
+    return _chapter_number(message)
 
 
 def _rule_decision(
