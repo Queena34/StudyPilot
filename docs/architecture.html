@@ -193,8 +193,8 @@
 
 <dl class="facts">
   <div class="fact"><dt>应用代码</dt><dd>7,547<small>行 · app/</small></dd></div>
-  <div class="fact"><dt>测试代码</dt><dd>6,631<small>行 · tests/</small></dd></div>
-  <div class="fact"><dt>单元测试</dt><dd>271<small>全部通过</small></dd></div>
+  <div class="fact"><dt>测试代码</dt><dd>6,659<small>行 · tests/</small></dd></div>
+  <div class="fact"><dt>单元测试</dt><dd>273<small>全部通过</small></dd></div>
   <div class="fact"><dt>离线评测</dt><dd>10<small>套，均有基线</small></dd></div>
   <div class="fact"><dt>数据迁移</dt><dd>9<small>0001–0009</small></dd></div>
 </dl>
@@ -403,7 +403,16 @@ create_practice_set       find_pending_question    grade_answer</pre>
   </tbody>
 </table></div>
 <div class="note"><p><strong>提示注入。</strong>学习者上传的资料是不可信输入。每类攻击的载荷带一个唯一信标，只有模型服从了才会输出它 —— <strong>服从由构造判定，不靠语气判断</strong>。覆盖十类：指令覆盖、提示词窃取、去除引用、绕过诚信 Guard、伪造覆盖范围、语言劫持、诱导调用工具、逃逸检索范围、角色重置、泄露选择题答案。建立该评测时立刻抓到一个真漏洞：模型会完整吐出自己的 system prompt 并译成中文。讲解 prompt 因此增加保密条款，修复后连跑三轮均为 100% 抵抗、零泄漏。</p></div>
-<div class="note limit"><p><strong>尚未设边界的</strong>（如实记录，不是遗漏）：学术诚信之外没有内容政策（危机表达、医疗法律建议等未处理）；没有速率限制、Token 预算或配额；对话长度无上限，仅取最近 4 轮进模型。</p></div>
+<h4>明确不在范围内的场景</h4>
+<p>StudyPilot 是一个<strong>基于学习者自己上传的课程资料作答的学习工具</strong>。以下场景<strong>不在产品范围内，系统也不做识别</strong>：</p>
+<ul>
+  <li><strong>心理危机、自伤或情绪求助。</strong>学生表达学业压力、焦虑或更严重的状态时，系统不会识别，会按普通学习提问处理。</li>
+  <li><strong>医疗、法律、财务等专业建议。</strong>即使课程资料涉及相关内容，回答也仅限于资料本身写了什么，不构成任何专业建议。</li>
+  <li><strong>课程资料之外的一切事实性问题。</strong>这不是通用助手；资料没覆盖的问题会被明确拒答。</li>
+</ul>
+<div class="note limit"><p>这是一个<strong>有意识的范围决定，不是遗漏</strong>。这类场景需要专业训练、升级路径和人工介入，而本项目三者都没有 —— 做一个不可靠的危机应对，比明确不做更危险。</p>
+<p><strong>该决定成立的前提是本项目当前只有作者本人本地使用。</strong>一旦面向真实用户，前提失效，必须重新处理：至少要能识别危机表达、停止课程回答并给出求助资源。</p></div>
+<div class="note limit"><p><strong>其余尚未设边界的</strong>（如实记录，不是遗漏）：没有速率限制、Token 预算或配额；对话长度无上限，仅取最近 4 轮进模型。</p></div>
 
 <h3>3.7　教学 Skill<span class="path">skills.py · skills/*/SKILL.md</span></h3>
 <p>七个 Skill：苏格拉底式引导、分层概念讲解、数学公式讲解、考试复习策略、选择题生成规范、rubric 批改规范、中英双语术语解释。每个是带 YAML frontmatter 的 Markdown。按 Agent 与关键词选择，<strong>每轮最多注入 2 个</strong>以免稀释 prompt。当前只有 <code>TutorAgent</code> 注入。</p>
@@ -532,7 +541,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
 </table></div>
 <p>前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明<strong>合入门槛</strong> —— 例如 Integrity 的 <code>fabrication_rate</code> 必须为 0、Orchestrator 的 <code>answer_preservation_rate</code> 必须为 1.0。</p>
 <h3>7.2　单元测试</h3>
-<p>271 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
+<p>273 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
 </section>
 
 <section id="s8">

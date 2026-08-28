@@ -79,3 +79,31 @@ def test_the_web_version_tracks_the_markdown() -> None:
     assert f"max_chars={TextChunker().max_chars}" in page
     for heading in ("引用校验与修复重试", "跨语言检索"):
         assert heading in page, f"网页版缺少「{heading}」一节"
+
+
+def test_the_out_of_scope_declaration_is_present_and_conditional() -> None:
+    """A scope decision has to survive as a written claim, not a memory.
+
+    It is also conditional: it holds because the project is used locally by its
+    author alone. The condition has to stay written down beside the decision, or
+    the decision outlives the reason for it.
+    """
+
+    spec = _spec()
+
+    assert "明确不在范围内的场景" in spec
+    for scenario in ("心理危机", "医疗、法律", "课程资料之外"):
+        assert scenario in spec, f"范围声明缺少「{scenario}」"
+    # The condition that would invalidate the decision.
+    assert "一旦面向真实用户" in spec
+
+    page = PAGE.read_text(encoding="utf-8")
+    assert "明确不在范围内的场景" in page, "网页版缺少范围声明"
+
+
+def test_the_readme_carries_the_scope_limit_too() -> None:
+    # The spec is read by developers; the README is the front door.
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "不在范围内" in readme
+    assert "心理危机" in readme

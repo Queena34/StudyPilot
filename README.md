@@ -131,6 +131,10 @@ docker compose exec api python -m tests.evals.run_integrity_eval
 docker compose exec api python -m tests.evals.run_orchestrator_eval
 ```
 
+## 不在范围内
+
+StudyPilot 只回答学习者上传的课程资料所覆盖的内容。**心理危机与情绪求助、医疗法律财务等专业建议、资料之外的事实性问题，都不在范围内，系统也不做识别** —— 这类场景需要专业训练与人工介入，本项目没有，因此明确不做，而不是做一个不可靠的版本。详见 [实现说明书 §3.8](docs/ARCHITECTURE.md)。
+
 ## 开发状态
 
 这是一个仍在建设中的项目。当前完成度、已知问题和下一步计划以 [docs/PROGRESS.md](docs/PROGRESS.md) 为准 —— 该文件是唯一事实来源，任何参与开发的人或 AI Agent 都应先阅读它。
