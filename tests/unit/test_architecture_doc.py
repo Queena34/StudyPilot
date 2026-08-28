@@ -46,12 +46,14 @@ def test_the_spec_counts_the_migrations_it_claims() -> None:
 
 
 def test_the_spec_counts_the_evaluation_suites_it_claims() -> None:
-    # router_v1 is kept for historical comparison; v2 supersedes it as a suite.
-    superseded = {"router_v1.json"}
+    # Not every baseline file is a suite. router_v1 is kept for historical
+    # comparison after v2 superseded it, and grading_brevity is a one-off
+    # diagnostic recorded so its conclusion survives, not a regression gate.
+    not_suites = {"router_v1.json", "grading_brevity_v1.json"}
     suites = [
         path
         for path in (ROOT / "tests/evals/baselines").glob("*.json")
-        if path.name not in superseded
+        if path.name not in not_suites
     ]
     claimed = re.search(r"(\d+) 套离线评测", _spec())
 
