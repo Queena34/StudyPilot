@@ -196,7 +196,7 @@
   <div class="fact"><dt>测试代码</dt><dd>6,916<small>行 · tests/</small></dd></div>
   <div class="fact"><dt>单元测试</dt><dd>290<small>全部通过</small></dd></div>
   <div class="fact"><dt>离线评测</dt><dd>10<small>套，均有基线</small></dd></div>
-  <div class="fact"><dt>数据迁移</dt><dd>9<small>0001–0009</small></dd></div>
+  <div class="fact"><dt>数据迁移</dt><dd>10<small>0001–0010</small></dd></div>
 </dl>
 
 <p class="callout"><strong>文档纪律。</strong>本文与代码同仓演进。改动实现后必须同步本文；两者不一致时以代码为准，并在 <code>docs/PROGRESS.md</code> 变更日志中记录出入。设计意图见 <code>PRD.md</code> 与 <code>TECHNICAL_DESIGN.md</code>，两者与本文的偏离已在各自文档中标注。</p>
@@ -444,7 +444,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
 </table></div>
 
 <h3>4.2　检索<span class="path">retrieval.py</span></h3>
-<p>Chroma 元数据：<code>user_id</code>、<code>course_id</code>、<code>document_id</code>、<code>document_type</code>、<code>source_file</code>、<code>page_number</code>、<code>chunk_index</code>、<code>section_title</code>、<code>schema_version</code>。<code>_where_filter()</code> 组装 <code>$and</code> 条件，<strong><code>user_id</code> 与 <code>course_id</code> 恒在其中</strong> —— 这是数据隔离的底线。</p>
+<p>Chroma 元数据：<code>user_id</code>、<code>course_id</code>、<code>document_id</code>、<code>document_type</code>、<code>source_file</code>、<code>page_number</code>、<code>chunk_index</code>、<code>section_index</code>、<code>section_name</code>、<code>section_title</code>、<code>schema_version</code>。<code>_where_filter()</code> 组装 <code>$and</code> 条件，<strong><code>user_id</code> 与 <code>course_id</code> 恒在其中</strong> —— 这是数据隔离的底线。</p>
 <h4>融合打分</h4>
 <pre class="block">score       = 0.7 × 向量分 + 0.3 × 词汇分
 向量分      = max(0, 1 − 距离)
@@ -452,15 +452,15 @@ create_practice_set       find_pending_question    grade_answer</pre>
 <p>先取 <code>top_k × 3</code>（上限 30）再按融合分重排。</p>
 <div class="note"><p><strong>翻译发生在路由定稿之后</strong>，对最终确定的查询翻译一次。这个顺序不是随意的：翻译原先排在路由之前，而 LLM 路由改写查询后译文就作废了，结果是凡走 LLM 路由的提问都在用未翻译的查询检索。合并 LLM 提议时用 <code>replace(plan, ...)</code> 而非逐字段重建 —— 手工列字段曾静默丢掉后加的 <code>chapter</code> 与 <code>retrieval_query</code>。</p></div>
 <div class="note"><p><strong>跨语言检索。</strong>课程资料在自己的语言里被检索，因此提问先被译成资料语言（<code>QueryTranslationGateway</code>），译文写入 <code>QueryPlan.retrieval_query</code>，学习者看到的原问题保持不变。仅在提问语言 ≠ 资料语言时调用模型；翻译失败一律返回原查询 —— 检索退化好过整轮报错。<strong>这条路径替代了多语言嵌入</strong>：代价是一次小模型调用，收益是可以用英文检索专用模型，且翻译错了肉眼可见。</p></div>
-<div class="note"><p><strong>章节标记分两级识别，每份资料只用其中一级。</strong>严格级是 <code>Chapter N. Title</code> 或 <code>第 N 章</code>；宽松级仅当整份资料一处严格标记都没有时启用，且要求该章节号<strong>至少横跨两个片段</strong> —— 真章节会带出一串内容，孤立出现的极可能是噪声。宽松规则曾无条件生效，把 R 输出（<code>27 obs. of</code>）、因子水平（<code>2 Pints</code>）当成章节：真正第四章的 13 段被 180 段酒精实验数据淹没。两级分离后误判由 350+ 段降为 0。</p></div>
-<div class="note limit"><p><strong>已知限制：</strong>本机制假设资料用编号表达结构。讲义型 PDF（按标题页分册的 Beamer 讲义）没有编号，会被判为「无章节结构」—— 比错误分组好，但这类资料无法按章节检索。更通用的做法是抽象为 <code>Section(index, title)</code> 并按格式分别识别，尚未实现。</p></div>
-<div class="note"><p><strong>章节检索。</strong><code>chapter</code> 作为<strong>显式参数</strong>传入（来自 <code>QueryPlan</code>，不再从查询字符串嗅探）。命中时改走 <code>get</code> 全量取回 + <code>_chapter_evidence()</code> 按章节标记过滤，且<strong>不要求指定资料</strong> —— where 过滤已限定在该学习者的这门课内。找不到该章则返回空，不退回全课程作答。</p></div>
+<div class="note"><p><strong>章节检索。</strong><code>section</code> 作为<strong>显式参数</strong>传入（来自 <code>QueryPlan</code>），落到 Chroma 的 <code>where</code> 过滤 <code>{"section_index": section}</code>。结构在<strong>入库时</strong>就已识别并落盘，检索时只是一次元数据过滤。找不到该章则返回空，不退回全课程作答。</p></div>
+<div class="note"><p><strong>结构识别</strong>（<code>app/rag/sections.py</code>）。<code>Section(index, title, page_from, page_to)</code>。学习者按章节学、按章节问，但资料表达结构的方式随格式而异，检测器按可信度依次尝试、先命中者胜：① 显式章节 <code>Chapter N. Title</code> / <code>第 N 章</code>；② 标题页分册 —— 统计全文重复出现的<strong>机构行</strong>（Beamer 标题页固定为「标题 / 作者 / 机构」），取其上两行作为该册标题，无需预知作者姓名；③ Markdown <code>#</code> / <code>##</code>；④ 都不命中则整份资料算一个 section（「全文」），明确声明「无结构」而不是猜一个出来。任何一级都要求至少切出 2 个 section，否则让位给下一级。<code>index</code> 优先采用资料自己声明的章号：教材从 <code>Chapter 0</code> 起头时，「第一章」必须落到 <code>Chapter 1</code>。</p></div>
+<div class="note"><p>上一版把章节标记推迟到检索时正则扫描，分严格/宽松两级。宽松级曾把 R 输出（<code>27 obs. of</code>）、因子水平（<code>2 Pints</code>）当成章节：真正第四章的 13 段被 180 段酒精实验数据淹没。改为入库期识别 + 元数据过滤后，这条扫描路径（117 行）整体删除。实测教材切出 10 章，ANOVA 讲义切出 8 册（<code>One-way ANOVA: F-test</code> p.1–10 … <code>Type I, II and III SS</code> p.91–104）—— 此前讲义因无编号完全无法按章节检索。</p></div>
 </section>
 
 <section id="s5">
 <h2><span class="n">05</span><span>业务模块</span></h2>
 
-<h3>5.1　数据模型<span class="path">app/domain/models.py · 迁移 0001–0009</span></h3>
+<h3>5.1　数据模型<span class="path">app/domain/models.py · 迁移 0001–0010</span></h3>
 <figure>
   <div class="frame"><pre class="mermaid">erDiagram
   users ||--o{ courses : ""

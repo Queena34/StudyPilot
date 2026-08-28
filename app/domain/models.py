@@ -102,6 +102,8 @@ class Document(Base):
     status: Mapped[str] = mapped_column(String(32), default=DocumentStatus.UPLOADED.value)
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     language: Mapped[str] = mapped_column(String(8), default="en")
+    #: [{index, title, page_from, page_to}] — the document's own parts.
+    sections_json: Mapped[list] = mapped_column(JSONB, default=list)
     page_count: Mapped[int | None] = mapped_column(Integer)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(80))

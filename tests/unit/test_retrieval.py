@@ -1,7 +1,7 @@
 import pytest
 from uuid import UUID
 
-from app.rag.retrieval import _chapter_evidence, _chapter_number, _search_terms, _where_filter
+from app.rag.retrieval import _chapter_number, _search_terms, _where_filter
 
 
 def test_where_filter_always_enforces_user_and_course() -> None:
@@ -31,130 +31,40 @@ def test_search_terms_support_chinese_and_english() -> None:
 
 
 def test_chapter_number_supports_chinese_and_english() -> None:
-    assert _chapter_number("请讲解第一章") == 1
-    assert _chapter_number("summarize Chapter 12") == 12
+    assert _chapter_number("根据第三章") == 3
+    assert _chapter_number("chapter 12 overview") == 12
+    assert _chapter_number("解释一下残差") is None
 
 
-def test_an_explicit_chapter_marker_is_read() -> None:
-    from app.rag.retrieval import _chapter_marker
+def test_a_named_section_becomes_a_metadata_filter() -> None:
+    """Section filtering is an ordinary where-clause now.
 
-    assert _chapter_marker("Body", "Section 2. Estimation") == (2, "Chapter 2. Estimation")
-    assert _chapter_marker("Chapter 3. Inference\nBody")[0] == 3
-    # A numbered heading with no "Chapter" word is not read by the strict form.
-    assert _chapter_marker("1 Introduction\nLearning goals") is None
-
-
-@pytest.mark.parametrize(
-    "line",
-    [
-        "2 Pints",                        # a factor level in an alcohol study
-        "2 Pints.Male",
-        "4 Pints:Female−2 Pints:Female",  # a contrast label
-        "27 obs. of",                     # R output
-        "92 Mutual",
-        "3 Male",
-        "1 / 53",                         # a slide footer
-    ],
-)
-def test_data_lines_are_not_read_as_headings(line) -> None:
-    """A statistics handout is full of lines shaped like numbered headings.
-
-    Reading them as chapters buried a real chapter's 13 passages under 180 rows
-    of an alcohol experiment.
+    It used to fetch the whole collection and scan it for headings, which is what
+    let R output be mistaken for chapter titles.
     """
-    from app.rag.retrieval import _loose_chapter_marker
 
-    assert _loose_chapter_marker(line) is None
+    where = _where_filter(
+        section=3,
+        user_id=UUID("00000000-0000-0000-0000-000000000001"),
+        course_id=UUID("00000000-0000-0000-0000-000000000002"),
+        document_types=None,
+        document_ids=None,
+        page_from=None,
+        page_to=None,
+    )
 
-
-@pytest.mark.parametrize(
-    ("line", "number"),
-    [
-        ("2 The General Linear Model", 2),
-        ("1 Introduction to ANOVA", 1),
-        ("12 Model diagnostics", 12),
-        ("3 一般线性模型", 3),
-    ],
-)
-def test_real_numbered_headings_are_still_read(line, number) -> None:
-    from app.rag.retrieval import _loose_chapter_marker
-
-    assert _loose_chapter_marker(line) == (number, line)
+    assert {"section_index": 3} in where["$and"]
 
 
-def test_the_loose_form_never_supplements_an_explicit_one() -> None:
-    """A document that says "Chapter" is read only that way.
+def test_no_section_leaves_the_filter_alone() -> None:
+    where = _where_filter(
+        section=None,
+        user_id=UUID("00000000-0000-0000-0000-000000000001"),
+        course_id=UUID("00000000-0000-0000-0000-000000000002"),
+        document_types=None,
+        document_ids=None,
+        page_from=None,
+        page_to=None,
+    )
 
-    Mixing the two let noise outnumber the real headings in the same document.
-    """
-    from app.rag.retrieval import _chapter_evidence
-
-    documents = ["Chapter 1. Simple Regression\nbody", "2 Pints", "more chapter one text"]
-    payload = {
-        "ids": [f"doc:{i}" for i in range(3)],
-        "documents": documents,
-        "metadatas": [
-            {"document_id": "doc", "source_file": "notes.pdf", "page_number": i + 1, "chunk_index": i}
-            for i in range(3)
-        ],
-    }
-
-    evidence = _chapter_evidence(payload, 1, 8)
-
-    # "2 Pints" must not close chapter one.
-    assert [item.page_number for item in evidence] == [1, 2, 3]
-
-
-def test_a_one_off_lookalike_does_not_become_a_chapter() -> None:
-    """A real chapter opens a run of passages; a stray line appears once."""
-    from app.rag.retrieval import _chapter_evidence
-
-    payload = {
-        "ids": [f"doc:{i}" for i in range(3)],
-        "documents": ["intro text", "20 days faster", "closing text"],
-        "metadatas": [
-            {"document_id": "doc", "source_file": "anova.pdf", "page_number": i + 1, "chunk_index": i}
-            for i in range(3)
-        ],
-    }
-
-    evidence = _chapter_evidence(payload, 1, 8)
-
-    assert all(item.section_title == "第一部分（原文未标注章节）" for item in evidence)
-
-
-def test_chapter_evidence_stops_at_next_chapter() -> None:
-    payload = {
-        "ids": ["doc:0", "doc:1", "doc:2", "doc:3"],
-        "documents": [
-            "Chapter 0. Introduction\nOverview",
-            "Chapter 1. Simple Regression\nDefinition",
-            "Slope and intercept",
-            "Chapter 2. Multiple Regression\nDefinition",
-        ],
-        "metadatas": [
-            {"document_id": "doc", "source_file": "lecture.pdf", "page_number": index + 1, "chunk_index": index}
-            for index in range(4)
-        ],
-    }
-
-    evidence = _chapter_evidence(payload, 1, 8)
-
-    assert [item.page_number for item in evidence] == [2, 3]
-    assert all(item.section_title == "Chapter 1. Simple Regression" for item in evidence)
-
-
-def test_first_chapter_uses_whole_document_when_source_has_no_chapter_markers() -> None:
-    payload = {
-        "ids": ["doc:0", "doc:1", "doc:2"],
-        "documents": ["One-way ANOVA", "F test assumptions", "Post-hoc comparisons"],
-        "metadatas": [
-            {"document_id": "doc", "source_file": "anova.pdf", "page_number": index + 1, "chunk_index": index}
-            for index in range(3)
-        ],
-    }
-
-    evidence = _chapter_evidence(payload, 1, 8)
-
-    assert [item.page_number for item in evidence] == [1, 2, 3]
-    assert all(item.section_title == "第一部分（原文未标注章节）" for item in evidence)
+    assert not any("section_index" in condition for condition in where["$and"])

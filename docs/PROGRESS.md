@@ -82,7 +82,8 @@
 | K-31 | 引用校验把「正确拒答」判为失败：资料未覆盖时模型不引用任何片段，答案被替换成原文堆砌，而堆砌不会说「资料里没有」 | 高 | **已修复**（拒答也须引用所查片段 + 修复重试） |
 | K-32 | 批改器按「整道题」评估答案，而非逐条独立评估 rubric | 中 | **已修复**（prompt 增加逐条独立评分指示；Grading v1 分数区间 0.90→1.00，排序与稳定性未变） |
 | K-33 | 批改器对含糊措辞扣分 | 低 | **已缓解**（hedged 0.333→0.700；仍低于清晰表述 0.900，未完全消除） |
-| K-34 | 章节机制假设资料用编号表达结构。ANOVA 那份是按标题页分册的 Beamer 讲义（实测 8 份），没有编号，现被判为「无章节结构」，因此无法按章节检索。更通用的做法是抽象为 `Section(index, title)` 按格式分别识别 | 中 | 未修复（已设计，未实施） |
+| K-34 | 章节机制假设资料用编号表达结构。ANOVA 那份是按标题页分册的 Beamer 讲义（实测 8 份），没有编号，曾被判为「无章节结构」，因此无法按章节检索 | 中 | **已修复**（`app/rag/sections.py` 抽象为 `Section`，入库期按格式分级识别；讲义现可按章节检索） |
+| K-35 | 入库 worker 重启时，已被领走的任务永久停在 `running`：`claim_next_job` 只领 `queued`，没有超时回收，资料就一直卡在 `processing`。恢复要同时把 job 与 document 两行都改回 `queued`（领取条件两者都查），只改 job 无效 | 中 | 未修复（本次实测遇到一次，已手工恢复） |
 | K-6 | Redis 未承担设计中的缓存与任务队列职责 | 中 | 未修复 |
 | K-7 | 无流式输出；无跨 Agent trace ID | 中 | 未修复 |
 | K-8 | 路由已能输出 `supporting_agents` 与 `execution_mode=sequential`，但 `TutorService` 只执行 primary agent，串行工作流被识别却未执行 | 高 | **已修复**（Orchestrator 落地，`tutor→quiz` 端到端跑通） |
@@ -101,6 +102,33 @@
 
 > **格式约定**：最新的写在最上面。每次收工追加一条，五个字段一个都不能少。
 > `commit` 填实际 hash；若尚未提交填 `未提交`。
+
+### 2026-08-28 · Claude Code · commit `未提交`
+
+- **做了什么**：修复 K-34 —— 把「章节」抽象成 `Section`，让不用编号表达结构的资料也能按章节学、按章节问。这是两步方案的第二步（第一步止血已于本日早些时候完成）。
+- **为什么**：用户的原话是「一般用户是希望按照章节去学习和问的」。此前章节机制假设资料自带 `Chapter N` 编号，ANOVA 那份是 8 份 Beamer 讲义拼接、通篇无编号，于是「无章节结构」—— 也就是这份资料根本没法按章节用。编号只是**一种**表达结构的方式，不是结构本身。
+- **改了哪些文件**：
+  - 新增 `app/rag/sections.py`：`Section(index, title, page_from, page_to)` + `detect_sections()` + `section_for_page()` + `chapter_number()`。检测器按可信度排序、先命中者胜：显式章节 → 标题页分册（统计重复出现的机构行定位 Beamer 标题页，取其上两行为册名）→ Markdown 标题 → 都不命中就整份算一个 section（「全文」），**明确声明无结构而不是猜**。任何一级至少要切出 2 个 section 才算数。
+  - 新增迁移 `0010_document_sections.py`：`documents.sections_json`。
+  - `app/tasks/ingestion.py`：入库时识别结构并落盘；`app/infrastructure/vector_store.py`：每个片段写入 `section_index` / `section_name`。
+  - `app/rag/retrieval.py`：章节检索由「全量取回后正则扫描」改为 Chroma `where` 元数据过滤，**删掉 117 行**扫描代码（`_chapter_marker`/`_loose_chapter_marker`/`_chapter_evidence`），文件 275→158 行；引用展示优先用 `section_name`。`_chapter_number` 迁入 `sections.py` 成为 `chapter_number()`，入库识别与路由解析从此共用同一个函数。
+  - `chapter` → `section` 更名贯穿 `TutorScope`、`QueryPlan`、`tools.py`、`learning_agents.py`、`practice_service.py`、`intent_router.py`。
+  - 文档：`ARCHITECTURE.md` 与 `architecture.html` 重写章节检索一节；迁移数 0009→0010。
+- **中途发现并修掉的自己的 bug**：`index` 原先取序号位置，于是从 `Chapter 0. Introduction` 起头的教材整体错位一章 ——「第一章」落到了 Chapter 0。改为**资料自己声明的章号优先**，不编号时才退回序号位置（`TutorScope.section` 因此放开到 0）。这个错位是 RAG 评测的 `section_scope_adherence` 掉到 0.0 抓出来的。
+- **怎么验证的**：
+  - 单元测试 `287 passed`（新增 `tests/unit/test_sections.py` 11 例，含「Chapter 0 起头的书保留自己的章号」与「无编号资料退回序号」）。
+  - 端到端（ANOVA 讲义，此前完全无法按章节检索）：「第五章讲了什么」→ 引用全部来自 `Two-way ANOVA: Equal sample size I`，页码 45–55（识别结果 p.44–55）；「第八章」→ `Type I, II and III SS`，页码 93–104（识别 p.91–104）。
+  - 结构识别落盘复核：教材 10 章（`Chapter 0`–`Chapter 9`），ANOVA 8 册。
+  - **踩到的坑**：`docker compose build api` 不重建 `worker`，而入库与章节识别都跑在 worker 里 —— 章号优先的修复第一次重建索引时静默没生效（落盘仍是序号 1–10）。已在 `AGENTS.md` 补上这条约定，重建 worker 后重新索引。
+  - 端到端（教材，按自身章号）：「第一章」→ `Chapter 1. The Simple Regression` p.2–6；「第三章」→ `Chapter 3. Statistical Inference` p.16–21。
+  - 端到端（ANOVA 讲义，无编号按序号）：「第五章」→ `Two-way ANOVA: Equal sample size I` p.45–55；「第八章」→ `Type I, II and III SS` p.93–104。
+  - **RAG v1 评测**：`section_scope_adherence` 由 **0.0 → 1.0**，其余各项与基线逐项一致（citation_validity 1.0、document_scope 1.0、no_answer 1.0、keyword_coverage 0.98、fallback 0.0），延迟 9591→8147ms。
+  - 评测回归：Orchestrator 1.0 全项、Integrity 1.0 全项、Router v2 hybrid 六项全部与基线逐项一致（intent 0.9038、scope 保持 1.0）。
+- **顺带修掉的评测缺陷**：`no_answer_accuracy` 一度由 1.0 掉到 0.8，查下来是模型写「该课程**没有**教授 ARIMA」—— 加粗的星号把标记词 `没有教授` 劈开了，正确拒答被判为失败（与 K-31 同类）。指标匹配前改为剥离 markdown 强调符。
+- **新记录 K-35**：入库 worker 重启会让已领走的任务永久停在 `running`，资料卡在 `processing` 且无人回收。本次重建索引时实测遇到一次，手工把 job 与 document 两行都改回 `queued` 才恢复。
+- **下一步建议**：K-35（任务超时回收）；Faithfulness 样本量扩到 30；K-33 含糊措辞仍被扣分。路线图仍只剩第 7 步 Redis 与第 10 步监控。
+
+---
 
 ### 2026-08-27 · Claude Code · commit `未提交`
 

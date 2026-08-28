@@ -72,7 +72,9 @@ def score_rag_case(case: dict[str, Any], response: dict[str, Any], latency_ms: i
     citations = response.get("citations") or []
     answerable = bool(case["answerable"])
     expected_concepts = [_concept_aliases(term) for term in case.get("expected_terms", [])]
-    normalized_answer = answer.casefold()
+    # Strip markdown emphasis before matching: the model writes "**没有**教授",
+    # and the asterisks would split a marker phrase that is plainly present.
+    normalized_answer = answer.casefold().replace("*", "").replace("_", "")
     matched_terms = [
         next(alias for alias in aliases if alias in normalized_answer)
         for aliases in expected_concepts

@@ -95,7 +95,7 @@ class QueryPlan:
     requested_language: str
     top_k: int
     #: Optional, like the page range: absent means the whole scope applies.
-    chapter: int | None = None
+    section: int | None = None
     #: Language the material is written in, and the query rewritten into it.
     #: Retrieval uses `retrieval_query`; `standalone_query` stays as the learner
     #: wrote it, for anything shown back to them.
@@ -116,7 +116,7 @@ class QueryPlan:
             "document_ids": [str(value) for value in self.document_ids],
             "page_from": self.page_from,
             "page_to": self.page_to,
-            "chapter": self.chapter,
+            "section": self.section,
             "requested_language": self.requested_language,
             "top_k": self.top_k,
         }

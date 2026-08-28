@@ -25,7 +25,7 @@ def _plan(message: str, scope: TutorScope | None = None):
 
 
 @pytest.mark.parametrize(
-    ("message", "chapter"),
+    ("message", "section"),
     [
         ("根据第一章内容出3道练习题", 1),
         ("第二章讲了什么", 2),
@@ -35,32 +35,32 @@ def _plan(message: str, scope: TutorScope | None = None):
         ("出3道练习题", None),
     ],
 )
-def test_the_router_resolves_the_chapter_into_the_plan(message, chapter) -> None:
+def test_the_router_resolves_the_section_into_the_plan(message, section) -> None:
     # Scope belongs in the QueryPlan; nothing downstream re-reads the message.
-    assert _plan(message).chapter == chapter
+    assert _plan(message).section == section
 
 
-def test_an_explicitly_chosen_chapter_outranks_the_message() -> None:
-    plan = _plan("根据第二章出题", TutorScope(chapter=5))
+def test_an_explicitly_chosen_section_outranks_the_message() -> None:
+    plan = _plan("根据第二章出题", TutorScope(section=5))
 
     # The learner's explicit selection is never overridden by parsing.
-    assert plan.chapter == 5
+    assert plan.section == 5
 
 
-def test_the_plan_carries_the_chapter_alongside_the_other_scope() -> None:
+def test_the_plan_carries_the_section_alongside_the_other_scope() -> None:
     document_id = uuid4()
     plan = _plan(
         "根据第一章出题",
         TutorScope(document_ids=[document_id], page_from=2, page_to=9),
     )
 
-    assert plan.chapter == 1
+    assert plan.section == 1
     assert plan.document_ids == [document_id]
     assert plan.page_from == 2 and plan.page_to == 9
 
 
-def test_the_plan_serializes_the_chapter() -> None:
-    assert _plan("根据第一章出题").as_dict()["chapter"] == 1
+def test_the_plan_serializes_the_section() -> None:
+    assert _plan("根据第一章出题").as_dict()["section"] == 1
 
 
 @pytest.mark.parametrize(
@@ -129,12 +129,12 @@ async def _routed(message: str, scope: TutorScope | None = None):
     return decision, translator
 
 
-async def test_an_llm_refinement_keeps_the_chapter() -> None:
+async def test_an_llm_refinement_keeps_the_section() -> None:
     # Rebuilding the plan field by field used to drop everything not listed.
     decision, _ = await _routed("随便讲讲第一章")
 
     assert decision.source.value == "llm"
-    assert decision.query_plan.chapter == 1
+    assert decision.query_plan.section == 1
 
 
 async def test_an_llm_refinement_keeps_the_learner_scope() -> None:

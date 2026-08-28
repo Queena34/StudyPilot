@@ -140,7 +140,7 @@ def _build_plan(
         top_k=8,
         # An explicit choice always wins; otherwise read the chapter the learner
         # named. This is the one place a chapter is derived from a message.
-        chapter=scope.chapter if scope.chapter is not None else _resolve_chapter(message),
+        section=scope.section if scope.section is not None else _resolve_section(message),
         material_language=material_language,
     )
 
@@ -200,9 +200,13 @@ def _as_clarification(decision: RoutingDecision) -> RoutingDecision:
     )
 
 
-def _resolve_chapter(message: str) -> int | None:
-    """Read a chapter the learner named. Delegates the parsing to the retriever's
-    own chapter reader so the two can never disagree about what "第一章" means."""
+def _resolve_section(message: str) -> int | None:
+    """The part of the material the learner named, by position.
+
+    "第二章" means the second part of the document, whether or not the document
+    numbers its parts. Parsing is delegated to the retriever's own reader so the
+    two can never disagree about what "第一章" means.
+    """
 
     return _chapter_number(message)
 

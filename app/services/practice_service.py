@@ -53,7 +53,7 @@ class PracticeService:
             document_ids=scope.document_ids or None,
             page_from=scope.page_from,
             page_to=scope.page_to,
-            chapter=scope.chapter,
+            section=scope.section,
         )
         if not evidence:
             raise AppError(

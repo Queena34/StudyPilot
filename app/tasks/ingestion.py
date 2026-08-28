@@ -12,6 +12,7 @@ from app.infrastructure.file_storage import LocalFileStorage
 from app.infrastructure.vector_store import CourseVectorStore
 from app.rag.chunking import TextChunker
 from app.rag.language import dominant_language
+from app.rag.sections import detect_sections
 from app.rag.parsers import parser_for_suffix
 
 
@@ -95,6 +96,8 @@ class DocumentIngestionService:
                 if not chunks:
                     raise AppError("EMPTY_DOCUMENT", "文档中没有可索引的文本")
                 document.language = dominant_language([page.text for page in parsed.pages])
+                sections = detect_sections(parsed)
+                document.sections_json = [item.as_dict() for item in sections]
                 job.progress = 45
                 await session.commit()
 
@@ -107,6 +110,7 @@ class DocumentIngestionService:
                     filename=document.filename,
                     document_type=document.document_type,
                     language=document.language,
+                    sections=sections,
                     chunks=chunks,
                 )
 

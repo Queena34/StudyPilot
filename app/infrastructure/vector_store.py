@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.core.config import get_settings
 from app.rag.embeddings import get_embedding
+from app.rag.sections import section_for_page
 from app.rag.types import TextChunk
 
 
@@ -29,6 +30,7 @@ class CourseVectorStore:
         document_type: str,
         chunks: list[TextChunk],
         language: str = "en",
+        sections: list | None = None,
     ) -> None:
         embeddings = self.embedding.embed([chunk.text for chunk in chunks])
         for start in range(0, len(chunks), 100):
@@ -48,6 +50,12 @@ class CourseVectorStore:
                 }
                 if chunk.section_title:
                     item["section_title"] = chunk.section_title
+                # Filtering by section is a metadata lookup rather than a scan of
+                # the whole collection, which is what chapter filtering used to be.
+                section = section_for_page(sections or [], chunk.page_number)
+                if section is not None:
+                    item["section_index"] = section.index
+                    item["section_name"] = section.title
                 metadata.append(item)
             self.collection.add(
                 ids=[f"{document_id}:{chunk.chunk_index}" for chunk in batch],

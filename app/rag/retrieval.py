@@ -7,6 +7,7 @@ import httpx
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.rag.embeddings import get_embedding
+from app.rag.sections import chapter_number as _chapter_number
 from app.rag.types import RetrievedEvidence
 
 
@@ -28,9 +29,10 @@ class CourseRetriever:
         document_ids: list[UUID] | None = None,
         page_from: int | None = None,
         page_to: int | None = None,
-        chapter: int | None = None,
+        section: int | None = None,
     ) -> list[RetrievedEvidence]:
         where = _where_filter(
+            section=section,
             user_id=user_id,
             course_id=course_id,
             document_types=document_types,
@@ -47,23 +49,9 @@ class CourseRetriever:
                     return []
                 collection_response.raise_for_status()
                 collection_id = collection_response.json()["id"]
-                # The chapter arrives as a resolved field from the QueryPlan; this
-                # layer no longer guesses it from the query text. It is honoured
-                # even without a chosen document, since the where-filter already
-                # scopes to this learner's course and ignoring a named chapter
-                # would silently answer from material outside it.
-                if chapter is not None:
-                    chapter_response = await client.post(
-                        f"{self.base_url}/collections/{collection_id}/get",
-                        json={"where": where, "include": ["documents", "metadatas"]},
-                    )
-                    chapter_response.raise_for_status()
-                    chapter_evidence = _chapter_evidence(
-                        chapter_response.json(), chapter, top_k
-                    )
-                    if chapter_evidence:
-                        return chapter_evidence
-                    return []
+                # A named section is now part of the metadata filter rather than a
+                # separate scan of the whole collection: sections are assigned at
+                # ingestion, so retrieval is an ordinary filtered query.
                 response = await client.post(
                     f"{self.base_url}/collections/{collection_id}/query",
                     json={
@@ -103,7 +91,11 @@ class CourseRetriever:
                     document_id=metadata["document_id"],
                     filename=metadata["source_file"],
                     page_number=int(metadata["page_number"]),
-                    section_title=metadata.get("section_title"),
+                    # The detected section name is authoritative; the parser's
+                    # per-page guess is only a fallback for material indexed
+                    # before sections existed.
+                    section_title=metadata.get("section_name")
+                    or metadata.get("section_title"),
                     text=text,
                     score=score,
                 )
@@ -114,6 +106,7 @@ class CourseRetriever:
 
 def _where_filter(
     *,
+    section: int | None = None,
     user_id: UUID,
     course_id: UUID,
     document_types: list[str] | None,
@@ -129,6 +122,8 @@ def _where_filter(
         conditions.append({"document_type": {"$in": document_types}})
     if document_ids:
         conditions.append({"document_id": {"$in": [str(item) for item in document_ids]}})
+    if section is not None:
+        conditions.append({"section_index": section})
     if page_from is not None:
         conditions.append({"page_number": {"$gte": page_from}})
     if page_to is not None:
@@ -141,145 +136,3 @@ def _search_terms(text: str) -> set[str]:
     terms = set(re.findall(r"[a-z0-9_-]+", lowered))
     terms.update(re.findall(r"[\u3400-\u9fff]", lowered))
     return terms
-
-
-_CHINESE_NUMBERS = {
-    "零": 0, "〇": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
-    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
-}
-
-
-def _chapter_number(query: str) -> int | None:
-    match = re.search(r"(?:第\s*([一二三四五六七八九十零〇0-9]+)\s*章|chapter\s*([0-9]+))", query, re.I)
-    if not match:
-        return None
-    value = match.group(1) or match.group(2)
-    if value.isdigit():
-        return int(value)
-    if value in _CHINESE_NUMBERS:
-        return _CHINESE_NUMBERS[value]
-    if value.startswith("十"):
-        return 10 + _CHINESE_NUMBERS.get(value[1:], 0)
-    if "十" in value:
-        tens, ones = value.split("十", 1)
-        return _CHINESE_NUMBERS.get(tens, 1) * 10 + _CHINESE_NUMBERS.get(ones, 0)
-    return None
-
-
-def _chapter_marker(text: str, section_title: str | None = None) -> tuple[int, str] | None:
-    searchable = f"{section_title}\n{text}" if section_title else text
-    match = re.search(r"(?im)^\s*(?:chapter|section|unit|module)\s+([0-9]+)\s*[.:：-]?\s*([^\n]{0,120})", searchable)
-    if match:
-        title = f"Chapter {match.group(1)}"
-        if match.group(2).strip():
-            title += f". {match.group(2).strip()}"
-        return int(match.group(1)), " ".join(title.split())
-    match = re.search(r"(?m)^\s*第\s*([一二三四五六七八九十零〇0-9]+)\s*章([^\n]{0,120})", searchable)
-    if match:
-        number = _chapter_number(f"第{match.group(1)}章")
-        if number is not None:
-            return number, " ".join(match.group(0).split())
-    return None
-
-
-def _loose_chapter_marker(text: str, section_title: str | None = None) -> tuple[int, str] | None:
-    """A numbered heading with no `Chapter` word, for material that never uses one.
-
-    Only consulted when a document carries no explicit marker anywhere, because
-    statistics handouts are full of lines that look like this and are not
-    headings: R output ("27 obs. of"), factor levels ("2 Pints"), contrast labels
-    ("4 Pints:Female"). Applied indiscriminately it buried a real chapter's 13
-    passages under 180 rows of an alcohol experiment.
-    """
-
-    searchable = f"{section_title}\n{text}" if section_title else text
-    for line in searchable.splitlines()[:12]:
-        stripped = line.strip()
-        match = _LOOSE_HEADING.fullmatch(stripped)
-        if match and not _NOT_A_TITLE.search(match.group(2)):
-            return int(match.group(1)), " ".join(match.group(0).split())
-    return None
-
-
-#: A heading is a number followed by a title. Three things separate one from the
-#: data lines a statistics handout is full of: it has no punctuation belonging to
-#: data (colon, minus, slash), its number is a plausible chapter number, and it
-#: reads as a phrase — at least two words, or one long CJK run. "2 Pints" and
-#: "27 obs. of" are numbers followed by a label, not by a title.
-_LOOSE_HEADING = re.compile(
-    r"([1-9]|[12][0-9]|30)"
-    r"(?:[.、:：]\s+|\s+)"
-    r"(?=[A-Za-z\u3400-\u9fff])"
-    r"("
-    r"(?:[A-Za-z][A-Za-z'\u2019-]*(?:\s+[A-Za-z][A-Za-z'\u2019-]*){1,}[A-Za-z]?)"  # 至少两个英文词
-    r"|(?:[\u3400-\u9fff]{3,})"                                                      # 或一段中文
-    r")\s*$"
-)
-
-#: How many passages a loose chapter number must span to be believed.
-_LOOSE_RUN_MINIMUM = 2
-
-#: Words that end a line without ending a title: an abbreviation or a bare label.
-_NOT_A_TITLE = re.compile(r"\b(obs|no|vs|etc|fig|tab|eq)\.?$", re.I)
-
-
-def _chapter_evidence(payload: dict, target: int, top_k: int) -> list[RetrievedEvidence]:
-    rows = []
-    for chunk_id, text, metadata in zip(
-        payload.get("ids") or [], payload.get("documents") or [], payload.get("metadatas") or [], strict=False
-    ):
-        if text and metadata:
-            rows.append((chunk_id, text, metadata))
-    selected: list[tuple[str, str, dict, str]] = []
-    by_document: dict[str, list[tuple[str, str, dict]]] = {}
-    for row in rows:
-        by_document.setdefault(row[2]["document_id"], []).append(row)
-    for document_rows in by_document.values():
-        document_rows.sort(key=lambda row: int(row[2].get("chunk_index", 0)))
-        markers = [_chapter_marker(row[1], row[2].get("section_title")) for row in document_rows]
-        # The loose form is a fallback for documents that never say "Chapter",
-        # never a supplement to documents that do. Mixing the two let noise
-        # outnumber the real headings.
-        if not any(markers):
-            loose = [_loose_chapter_marker(row[1], row[2].get("section_title")) for row in document_rows]
-            # A real chapter opens a run of passages; a line that merely looks
-            # like a heading appears once and is followed by unrelated text.
-            # Requiring two lets the last stragglers fall away — "20 days faster"
-            # is indistinguishable from a title on its own line.
-            numbered = Counter(item[0] for item in loose if item)
-            if sum(1 for count in numbered.values() if count >= _LOOSE_RUN_MINIMUM) >= 1:
-                loose = [
-                    item if item and numbered[item[0]] >= _LOOSE_RUN_MINIMUM else None
-                    for item in loose
-                ]
-                markers = loose
-        if target == 1 and not any(markers):
-            selected.extend((*row, "第一部分（原文未标注章节）") for row in document_rows)
-            continue
-        active = False
-        section_title = f"Chapter {target}"
-        for row, marker in zip(document_rows, markers, strict=True):
-            if marker:
-                if marker[0] == target:
-                    active = True
-                    section_title = marker[1]
-                elif active:
-                    break
-            if active:
-                selected.append((*row, section_title))
-    if not selected:
-        return []
-    limit = min(top_k, len(selected))
-    indexes = sorted({round(index * (len(selected) - 1) / max(1, limit - 1)) for index in range(limit)})
-    return [
-        RetrievedEvidence(
-            chunk_id=selected[index][0],
-            document_id=selected[index][2]["document_id"],
-            filename=selected[index][2]["source_file"],
-            page_number=int(selected[index][2]["page_number"]),
-            section_title=selected[index][3],
-            text=selected[index][1],
-            score=round(0.95 - position * 0.03, 4),
-        )
-        for position, index in enumerate(indexes)
-    ]

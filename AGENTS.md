@@ -54,7 +54,7 @@
 
 - **后端入口**：`app.main:app`；API 统一 `/api/v1` 前缀。
 - **前端**：`app/web/` 下的原生 HTML/CSS/JS，由 FastAPI 直接托管。这是对技术设计文档（Vue 3 + Vite）的**已知且已记录的偏离**，不要擅自改回。
-- **跑测试前必须重建镜像**：`docker-compose.yml` **没有**把源码挂载进 `api` 容器，代码是打包进镜像的。直接 `docker compose exec api python -m pytest` 测的是**旧代码**，会给出虚假的通过结果。改完代码先 `docker compose build api && docker compose up -d api`，或用 `docker compose cp` 单文件覆盖后再测。
+- **跑测试前必须重建镜像**：`docker-compose.yml` **没有**把源码挂载进 `api` 容器，代码是打包进镜像的。直接 `docker compose exec api python -m pytest` 测的是**旧代码**，会给出虚假的通过结果。改完代码先 `docker compose build api && docker compose up -d api`，或用 `docker compose cp` 单文件覆盖后再测。 **`build api` 不会重建 `worker`**：入库、解析、章节识别、嵌入都跑在 worker 里，只重建 api 会让重新索引静默使用旧代码 —— 改到入库链路时用 `docker compose build api worker && docker compose up -d --force-recreate api worker`。
 - **测试**：单元测试放 `tests/unit/`，离线评测放 `tests/evals/`。新增能力必须配套测试；架构类能力（Router、Orchestrator、端到端闭环）必须配套**版本化评测集**并把结果落盘到 `artifacts/evals/`。
 - **Commit 规范**：沿用现有风格 —— `feat: <祈使句>` / `fix: <祈使句>` / `docs: <祈使句>`，英文小写，无句号。
 - **不要**提交 `.env`、密钥、ChromaDB 本地数据或日志。

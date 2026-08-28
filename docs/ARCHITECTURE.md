@@ -128,13 +128,13 @@ flowchart TD
 - **复合意图** —— 同时命中多个规则族降为 0.50。
 - **上下文追问** —— 有历史且为指代式表达（`那个`/`再详细`/`继续`…）降为 0.55；但显式操作（≥0.90）仍然直接生效。
 
-> LLM 提议被采纳时，合并用 `replace(plan, ...)` 而非逐字段重建 `QueryPlan`。手工列字段曾静默丢掉后加的 `chapter` 与 `retrieval_query`；`replace` 让字段增删不可能再漏。
+> LLM 提议被采纳时，合并用 `replace(plan, ...)` 而非逐字段重建 `QueryPlan`。手工列字段曾静默丢掉后加的 `section` 与 `retrieval_query`；`replace` 让字段增删不可能再漏。
 
 `RoutingDecision` 字段：`intent`、`primary_agent`、`supporting_agents`、`execution_mode`、`confidence`、`reason`、`query_plan`、`source`、`rule_confidence`、`clarification`、`target`。
 
-**`QueryPlan` 是范围的唯一载体**：`standalone_query`、`retrieval_query`、`course_id`、`document_types`、`document_ids`、`page_from`、`page_to`、`chapter`、`material_language`、`requested_language`、`top_k`。
+**`QueryPlan` 是范围的唯一载体**：`standalone_query`、`retrieval_query`、`course_id`、`document_types`、`document_ids`、`page_from`、`page_to`、`section`、`material_language`、`requested_language`、`top_k`。
 
-> 范围解析**只发生在路由层**。下游 Agent 与 Service 一律消费 plan 字段，不再对原始消息做正则解析。章节解析复用检索器自己的 `_chapter_number`，两处不会对"第一章"产生分歧。学习者显式选择的范围永远优先于消息解析结果。
+> 范围解析**只发生在路由层**。下游 Agent 与 Service 一律消费 plan 字段，不再对原始消息做正则解析。章节解析复用 `app/rag/sections.py` 的 `chapter_number()` —— 入库识别章号和路由解析提问用的是同一个函数，两处不会对「第一章」产生分歧。学习者显式选择的范围永远优先于消息解析结果。
 
 模型侧只看到消息与最近 4 轮对话，**看不到任何范围字段**，因此无法覆盖它们。
 
@@ -267,7 +267,7 @@ flowchart LR
   CH --> RD["status=ready<br/>回填 page_count / chunk_count"]
 ```
 
-- **解析** `app/rag/parsers.py`：PDF 用 PyMuPDF 逐页抽取，识别章节标题并向后继承；纯文本无可抽取内容时抛 `OCR_REQUIRED`（不支持扫描件）。
+- **解析** `app/rag/parsers.py`：PDF 用 PyMuPDF 逐页抽取，逐页猜测的 `section_title` 仅作旧数据兜底，结构以 `app/rag/sections.py` 的识别结果为准；纯文本无可抽取内容时抛 `OCR_REQUIRED`（不支持扫描件）。
 - **分块** `chunking.py`：按段落聚合，`max_chars=1200`、`overlap_chars=200`；超长段落按步长切分。上限由嵌入模型的 512 token 决定 —— 此前是 3200，导致每段约三分之二的内容出现在引用里却不在索引中。
 - **嵌入** `embeddings.py`：`DenseEmbedding`，`BAAI/bge-small-en-v1.5`，384 维、67 MB、ONNX 推理（无需 torch），模型烘进镜像因此运行时不下载。加载失败时降级为 `HashEmbedding`（确定性散列）并记录告警 —— 服务仍可启动，但跨语言检索会失效。
 - **语言** `language.py`：按 CJK 字符占比判定 `zh`/`en`，阈值 10%（技术资料夹杂英文术语是常态）。整份资料按文本量加权取主导语言，一页中文批注不会翻转一整份英文讲义。
@@ -277,7 +277,7 @@ flowchart LR
 
 ### 4.2 检索 — `retrieval.py`
 
-Chroma 元数据：`user_id`、`course_id`、`document_id`、`document_type`、`source_file`、`page_number`、`chunk_index`、`section_title`、`schema_version`。
+Chroma 元数据：`user_id`、`course_id`、`document_id`、`document_type`、`source_file`、`page_number`、`chunk_index`、`section_index`、`section_name`、`section_title`、`schema_version`。
 
 `_where_filter()` 组装 `$and` 条件，**`user_id` 与 `course_id` 恒在其中**，这是数据隔离的底线。
 
@@ -289,22 +289,30 @@ Chroma 元数据：`user_id`、`course_id`、`document_id`、`document_type`、`
 
 **融合打分**：`score = 0.7 × 向量分 + 0.3 × 词汇分`，向量分 `= max(0, 1 − 距离)`，词汇分 `= |查询词 ∩ 片段词| / |查询词|`。先取 `top_k × 3`（上限 30）再按融合分重排。
 
-**章节检索**：`chapter` 作为**显式参数**传入（来自 `QueryPlan`，不再从查询字符串嗅探）。命中时改走 `get` 全量取回 + `_chapter_evidence()` 按章节标记过滤，且**不要求指定资料** —— where 过滤已限定在该学习者的这门课内。找不到该章则返回空，不退回全课程作答。
+**章节检索**：`section` 作为**显式参数**传入（来自 `QueryPlan`，不再从查询字符串嗅探），落到 Chroma 的 `where` 过滤 `{"section_index": section}`。结构在**入库时**就已识别并落盘，检索时只是一次元数据过滤，不再全量取回后扫描。找不到该章则返回空，不退回全课程作答。
 
-章节标记分两级识别，**每份资料只用其中一级**：
+**结构识别** `app/rag/sections.py`：`Section(index, title, page_from, page_to)`。学习者按章节学、按章节问，但资料表达结构的方式随格式而异，因此检测器按可信度依次尝试，**先命中者胜**：
 
-1. **严格**：`Chapter N. Title` 或 `第 N 章`。
-2. **宽松**（仅当整份资料一处严格标记都没有时启用）：数字 + 标题短语，且要求该章节号**至少横跨两个片段** —— 真章节会带出一串内容，孤立出现的极可能是噪声。
+1. **显式章节**：`Chapter N. Title` / `第 N 章`。
+2. **标题页分册**（讲义型 PDF）：先统计全文重复出现的**机构行**（Beamer 标题页固定为「标题 / 作者 / 机构」三行），再取其上两行作为该册标题。这样无需预知作者姓名即可切分。
+3. **Markdown 标题**：`#` / `##`。
+4. 都不命中时，整份资料算**一个** section（标题「全文」）—— 明确声明「无结构」，而不是猜一个出来。
 
-> 宽松规则曾无条件生效，把统计课件里的 R 输出（`27 obs. of`）、因子水平（`2 Pints`）、对比标签（`4 Pints:Female−2 Pints:Female`）全当成章节：真正第四章的 13 段被 180 段酒精实验数据淹没。两级分离 + 连续性要求后，误判由 350+ 段降为 0。
+任何一级都要求至少切出 **2 个** section，否则视为未命中并让位给下一级。
 
-**已知限制**：本机制假设资料用编号表达结构。讲义型 PDF（如按标题页分册的 Beamer 讲义）没有编号，会被判为「无章节结构」—— 这比错误分组好，但也意味着这类资料无法按章节检索。更通用的做法是抽象为 `Section(index, title)` 并按格式分别识别，尚未实现。
+`index` **优先采用资料自己声明的章号**：教材从 `Chapter 0. Introduction` 起头时，「第一章」必须落到 `Chapter 1` 而不是页序第一节；资料不编号时才退回序号位置（因此 `TutorScope.section` 允许 0）。
+
+识别结果存两处：`documents.sections_json`（迁移 0010），以及每个片段的 Chroma 元数据 `section_index` / `section_name`。引用展示优先用 `section_name`，解析器逐页猜测的 `section_title` 仅作旧数据兜底。
+
+> 上一版把章节标记推迟到检索时用正则扫描，且分严格/宽松两级。宽松级曾把统计课件里的 R 输出（`27 obs. of`）、因子水平（`2 Pints`）、对比标签当成章节，真正第四章的 13 段被 180 段酒精实验数据淹没。改为入库期识别 + 元数据过滤后，这条扫描路径（117 行）整体删除。
+>
+> 实测：教材切出 10 章（`Chapter 0`–`Chapter 9`），ANOVA 讲义切出 8 册（`One-way ANOVA: F-test` p.1–10 … `Type I, II and III SS` p.91–104）。此前讲义因无编号完全无法按章节检索。
 
 ---
 
 ## 5. 业务模块
 
-### 5.1 数据模型 — `app/domain/models.py`，迁移 0001–0009
+### 5.1 数据模型 — `app/domain/models.py`，迁移 0001–0010
 
 ```mermaid
 erDiagram
