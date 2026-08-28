@@ -26,5 +26,20 @@
   ],
   "instrument_caveat": "本诊断保留了完整题目而只隔离一条 rubric，因此「答案没有回答完整问题」这一点本身就是混淆变量。这与 K-17 的真实场景形状一致（partial 答案本就只覆盖一半），但结论必须由上面的受控实验支撑，不能只看四种表述的对比。",
   "recommendation": "不要通过「放宽评分标准」来修 K-17 —— 方向是错的。若要修，应让批改器**逐条独立评估 rubric**，明确告知它答案可能只覆盖部分要点、未覆盖的条目单独给 0 即可，而不是因为整体不完整而连带压低已覆盖条目。改动后必须重跑 Grading v1 90 次基线，确认 ordering_accuracy 与 repeatability 仍为 1.0。",
-  "not_yet_acted_on": true
+  "not_yet_acted_on": false,
+  "metrics_after_fix": {
+    "case_count": 20,
+    "repeats": 3,
+    "mean_ratio_by_style": {
+      "brief_correct": 0.833,
+      "hedged_correct": 0.7,
+      "near_miss": 0.0,
+      "verbose_correct": 0.9
+    },
+    "brevity_penalty": 0.067,
+    "hedging_penalty": 0.2,
+    "near_miss_leakage": 0.0,
+    "expectation_match_rate": 0.75
+  },
+  "outcome": "修复后重测：brief 0.600→0.833、hedged 0.333→0.700、verbose 0.600→0.900，而 near_miss 保持 0.000 —— 正确表述的得分升高，错误表述一分未得。本诊断集只有 20 条，prompt 调优容易在其上过拟合，因此**真正的检验是 Grading v1 的 90 次基线**，该基线 score_band_accuracy 由 0.90 升至 1.00 且排序与稳定性未变。"
 }

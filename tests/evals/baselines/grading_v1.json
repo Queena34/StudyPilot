@@ -2,7 +2,7 @@
   "dataset_version": "grading-v1",
   "status": "recorded",
   "model_name": "deepseek-v4-flash",
-  "recorded_at": "2026-08-27T14:42:07.481152+00:00",
+  "recorded_at": "2026-08-28T15:08:00.486446+00:00",
   "configuration": {
     "questions": 10,
     "answer_levels": 3,
@@ -27,7 +27,7 @@
     "run_count": 90,
     "successful_run_count": 90,
     "run_success_rate": 1.0,
-    "score_band_accuracy": 0.9,
+    "score_band_accuracy": 1.0,
     "ordering_accuracy": 1,
     "repeatability_within_10_points": 1,
     "criterion_completeness": 1.0,
@@ -35,67 +35,12 @@
     "feedback_completeness": 1.0,
     "fallback_rate": 0.0,
     "average_correct_score": 100.0,
-    "average_partial_score": 47.6,
+    "average_partial_score": 55.1,
     "average_incorrect_score": 0.0,
-    "average_latency_ms": 2433.83
+    "average_latency_ms": 2669.3
   },
-  "out_of_band_runs": [
-    {
-      "question_id": "grade-003",
-      "level": "partial",
-      "repeat": 1,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-003",
-      "level": "partial",
-      "repeat": 2,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-003",
-      "level": "partial",
-      "repeat": 3,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-004",
-      "level": "partial",
-      "repeat": 1,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-004",
-      "level": "partial",
-      "repeat": 2,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-004",
-      "level": "partial",
-      "repeat": 3,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-005",
-      "level": "partial",
-      "repeat": 1,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-005",
-      "level": "partial",
-      "repeat": 2,
-      "score": 25.0
-    },
-    {
-      "question_id": "grade-005",
-      "level": "partial",
-      "repeat": 3,
-      "score": 25.0
-    }
-  ],
-  "diagnosis": "9 次越界全部集中在 grade-003/004/005 的 partial 档，三次重复精确一致（均为 25.0），因此不是模型抖动而是确定性行为。这三题都是 2 条 rubric、各 0.5 权重，partial 答案各自完整覆盖其中一条，理论应得 50，实测 25，落入 incorrect 区间。 受控实验（去掉答案中「但我没有说明…」这类元评论后重新批改）区分出两个原因： grade-003 由 25 升至 50，说明该题的越界源于数据集人为杂质 —— 真实学生不会在答案里自述缺了什么，这句话把「已覆盖条目」的得分也拉了下去； grade-004 与 grade-005 去杂后仍为 25，说明是批改器本身偏保守，对答案明确表述但措辞简短的rubric 条目只给 0.5。例如 grade-005 的答案「误差项是不可直接观测的」与 rubric 条目「说明误差不可直接观测」直接对应，仍只得 0.5。",
+  "out_of_band_runs": [],
+  "diagnosis": "此前 9 次越界（grade-003/004/005 的 partial 档，三次重复均为 25.0）已消除。成因由 grading-brevity-v1 诊断查明：批改器对照**整道题**评估答案，而非逐条独立评估 rubric，因此答案只覆盖题目一半时，在已覆盖的那条上也只拿部分分。受控实验证明 —— 同一答案与 rubric，仅把题目改成只问该要点，得分由 0.00/0.50 升至 1.00。",
   "interpretation": "本基线如实记录当前系统行为，未通过修改数据集来抬高数值。排序一致性与重复稳定性均为满分，说明批改稳定且可预期；偏差在于绝对分数偏低而非判断混乱，对学习者的影响是被低估而非被误导。grade-003 的元评论杂质应在 grading-v2 中移除；批改器保守倾向记为 K-17，三个样本不足以支撑放宽评分标准，需要更多样本才能判断是否调整 prompt。",
   "regression_rules": [
     "run_success_rate 必须为 1.0，fallback_rate 必须为 0.0。",
@@ -105,5 +50,24 @@
     "score_band_accuracy 不得低于 0.90。低于该值须先判断是模型变化还是数据集问题，再决定动哪一边。",
     "比较必须使用相同 dataset_version、相同分数区间定义和相同 repeats。"
   ],
-  "note": "2026-08-27 检索重构后重跑，结果与前一次基线逐位一致（score_band_accuracy、ordering_accuracy、repeatability_within_10_points、average_partial_score、run_success_rate、fallback_rate 全部相同）。这是预期的：批改依据题目自带的不可变 rubric 和数据集内的证据，不经过检索链路。该次重跑因此也可作为「检索改动影响面被正确隔离」的旁证。诊断与门槛见下方，未变。"
+  "note": "2026-08-28 修复 K-32 后重跑。此前的 note 记录的是检索重构后的重跑，已被本次取代。grading-v1 数据集本身未改动，因此新旧基线可直接比较。",
+  "fix": {
+    "what": "批改 prompt 增加三条指示：逐条独立评分（未覆盖的条目自己承担扣分，不得连带压低已覆盖条目）；只看要点内容是否存在，不因简短、含糊或不流畅扣分；按语义而非字面判断，required_concepts 是必须出现的**概念**而非必须照抄的措辞。",
+    "not_what": "**不是放宽评分标准**。诊断中的 near_miss 对照组（貌似相关但未说出要点）修复前后均为 0，证明放宽的是判定方式而不是判定门槛。",
+    "before": {
+      "score_band_accuracy": 0.9,
+      "average_partial_score": 47.6,
+      "average_incorrect_score": 0.0,
+      "ordering_accuracy": 1,
+      "repeatability_within_10_points": 1
+    },
+    "after": {
+      "score_band_accuracy": 1.0,
+      "average_partial_score": 55.1,
+      "average_incorrect_score": 0.0,
+      "ordering_accuracy": 1,
+      "repeatability_within_10_points": 1
+    },
+    "verification": "连跑两轮 90 次，全部指标逐位一致。排序一致性与重复稳定性保持 1.0（这是改动最可能弄坏的两项），错误答案平均分保持 0.0（证明未误放），部分正确档由 47.6 升至 55.1。"
+  }
 }

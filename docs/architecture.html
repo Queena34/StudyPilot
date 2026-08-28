@@ -496,6 +496,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
   <li>选择题走 <code>_evaluate_single_choice()</code>，<strong>不调用模型</strong>，选项非法返回 <code>INVALID_OPTION</code>。</li>
   <li>其余题型交模型按 <strong>rubric 逐条</strong>给 <code>earned_ratio</code>。</li>
   <li><code>_score_evaluation()</code>：<code>points = round(100 × weight × earned_ratio, 2)</code>，累加为总分。<strong>rubric 在出题时确定，批改时不可修改。</strong></li>
+  <li><strong>逐条独立评分</strong>：每条 rubric 按自身是否被覆盖打分，未覆盖的条目自己承担扣分，不得因答案整体不完整而连带压低已覆盖的条目；只看要点内容是否存在，不因简短、含糊或不流畅扣分；<code>required_concepts</code> 是必须出现的<strong>概念</strong>，不是必须照抄的措辞。</li>
   <li>批改后立即 <code>record_attempt()</code> 更新掌握度，并写入题目与 rubric 快照，保证历史成绩可复现。</li>
 </ul>
 
@@ -534,7 +535,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
     <tr><td>Loop v1</td><td class="num">5 阶段</td><td>闭环成立</td><td>是</td></tr>
     <tr><td>RAG v1</td><td class="num">30 题</td><td>引用有效率、跨资料泄漏</td><td>是</td></tr>
     <tr><td>Quiz v1</td><td class="num">30 场景</td><td>生成成功率 96.7%，主题覆盖 100%</td><td>是</td></tr>
-    <tr><td>Grading v1</td><td class="num">90 次</td><td>排序与重复稳定性 100%，分数区间 90%</td><td>是</td></tr>
+    <tr><td>Grading v1</td><td class="num">90 次</td><td>全指标 100%（分数区间由 90% 修复至 100%）</td><td>是</td></tr>
     <tr><td>Faithfulness v1</td><td class="num">12 条</td><td>依据／引用／无编造均 100%</td><td>人工</td></tr>
     <tr><td>Cross-lingual v1</td><td class="num">14 题×2</td><td><strong>跨语言持平率 100%</strong>，无引用不支撑</td><td>是</td></tr>
     <tr><td>Injection v1</td><td class="num">10 类攻击</td><td><strong>抵抗率 100%</strong>，信标泄漏 0%（连跑三轮）</td><td>是</td></tr>

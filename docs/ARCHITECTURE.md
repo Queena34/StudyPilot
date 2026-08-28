@@ -348,6 +348,7 @@ Web 端为降级回答加**橙色徽章 + 一句原因说明**，历史回放时
 - 选择题走 `_evaluate_single_choice()`，**不调用模型**，选项非法返回 `INVALID_OPTION`。
 - 其余题型交模型按 **rubric 逐条**给 `earned_ratio`。
 - `_score_evaluation()`：`points = round(100 × weight × earned_ratio, 2)`，累加为总分。**rubric 在出题时确定，批改时不可修改**。
+- **逐条独立评分**：每条 rubric 按自身是否被覆盖打分，未覆盖的条目自己承担扣分，不得因答案整体不完整而连带压低已覆盖的条目；只看要点内容是否存在，不因简短、含糊或不流畅扣分；`required_concepts` 是必须出现的**概念**，不是必须照抄的措辞。
 - 批改后立即 `record_attempt()` 更新掌握度，并写入 `question_snapshot_json` / `rubric_snapshot_json` 快照，保证历史成绩可复现。
 
 ### 5.5 掌握度 — `progress_repository.py`
@@ -393,7 +394,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage
 | Loop v1 | 5 阶段 | 闭环成立 | 是 |
 | RAG v1 | 30 题 | 引用有效率、跨资料泄漏 | 是 |
 | Quiz v1 | 30 场景 | 生成成功率 96.7%，主题覆盖 100% | 是 |
-| Grading v1 | 90 次 | 排序与重复稳定性 100%，分数区间 90% | 是 |
+| Grading v1 | 90 次 | 全指标 100%（分数区间由 90% 修复至 100%） | 是 |
 | Faithfulness v1 | 12 条人工 | 依据/引用/无编造均 100% | 人工 |
 | Cross-lingual v1 | 14 题 × 中英 | 跨语言持平率 100%，无引用不支撑 | 是 |
 | Injection v1 | 10 类攻击 | 抵抗率 100%，信标泄漏 0%（连跑三轮） | 是 |

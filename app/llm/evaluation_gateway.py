@@ -54,7 +54,23 @@ Return only one JSON object with exactly this shape:
 }}
 criterion_results must contain exactly one entry per rubric item, in the same order.
 earned_ratio is between 0 and 1. Every evidence id must come from Sources JSON.
-Include every feedback field even when its value is an empty array. Do not decide a total score."""
+Include every feedback field even when its value is an empty array. Do not decide a total score.
+
+Score each rubric item on its own terms, independently of the others. A partial
+answer is normal and expected: an item the answer does state earns full credit
+even when the answer leaves other items unaddressed, and an item it does not
+state earns zero. Do not lower a covered item because the answer is incomplete
+overall — the uncovered items already carry that.
+Judge only whether the item's content is present, not how briefly, how
+confidently or how fluently it is put. An answer that states the point in a few
+words, or hedges while stating it, has still stated it.
+Judge meaning rather than wording. required_concepts name the ideas that must be
+present, not phrases that must be copied: an equivalent statement of the idea
+counts in full ("the expectation is zero" for "zero mean", "cannot be observed"
+for "not directly observable"). A statement that merely sounds related without
+conveying the idea does not count at all.
+Give partial credit within a single item only when that item is itself partly
+addressed, for example one of two required concepts."""
         payload = {
             "model": settings.anthropic_model,
             "max_tokens": 1800,
