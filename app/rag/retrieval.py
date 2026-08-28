@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from uuid import UUID
 
 import httpx
@@ -178,14 +179,48 @@ def _chapter_marker(text: str, section_title: str | None = None) -> tuple[int, s
         number = _chapter_number(f"第{match.group(1)}章")
         if number is not None:
             return number, " ".join(match.group(0).split())
+    return None
+
+
+def _loose_chapter_marker(text: str, section_title: str | None = None) -> tuple[int, str] | None:
+    """A numbered heading with no `Chapter` word, for material that never uses one.
+
+    Only consulted when a document carries no explicit marker anywhere, because
+    statistics handouts are full of lines that look like this and are not
+    headings: R output ("27 obs. of"), factor levels ("2 Pints"), contrast labels
+    ("4 Pints:Female"). Applied indiscriminately it buried a real chapter's 13
+    passages under 180 rows of an alcohol experiment.
+    """
+
+    searchable = f"{section_title}\n{text}" if section_title else text
     for line in searchable.splitlines()[:12]:
-        match = re.fullmatch(
-            r"\s*([0-9]{1,2})(?:[.、:：]\s*|\s+)([A-Za-z\u3400-\u9fff][^\n]{2,100})\s*",
-            line,
-        )
-        if match:
+        stripped = line.strip()
+        match = _LOOSE_HEADING.fullmatch(stripped)
+        if match and not _NOT_A_TITLE.search(match.group(2)):
             return int(match.group(1)), " ".join(match.group(0).split())
     return None
+
+
+#: A heading is a number followed by a title. Three things separate one from the
+#: data lines a statistics handout is full of: it has no punctuation belonging to
+#: data (colon, minus, slash), its number is a plausible chapter number, and it
+#: reads as a phrase — at least two words, or one long CJK run. "2 Pints" and
+#: "27 obs. of" are numbers followed by a label, not by a title.
+_LOOSE_HEADING = re.compile(
+    r"([1-9]|[12][0-9]|30)"
+    r"(?:[.、:：]\s+|\s+)"
+    r"(?=[A-Za-z\u3400-\u9fff])"
+    r"("
+    r"(?:[A-Za-z][A-Za-z'\u2019-]*(?:\s+[A-Za-z][A-Za-z'\u2019-]*){1,}[A-Za-z]?)"  # 至少两个英文词
+    r"|(?:[\u3400-\u9fff]{3,})"                                                      # 或一段中文
+    r")\s*$"
+)
+
+#: How many passages a loose chapter number must span to be believed.
+_LOOSE_RUN_MINIMUM = 2
+
+#: Words that end a line without ending a title: an abbreviation or a bare label.
+_NOT_A_TITLE = re.compile(r"\b(obs|no|vs|etc|fig|tab|eq)\.?$", re.I)
 
 
 def _chapter_evidence(payload: dict, target: int, top_k: int) -> list[RetrievedEvidence]:
@@ -202,13 +237,28 @@ def _chapter_evidence(payload: dict, target: int, top_k: int) -> list[RetrievedE
     for document_rows in by_document.values():
         document_rows.sort(key=lambda row: int(row[2].get("chunk_index", 0)))
         markers = [_chapter_marker(row[1], row[2].get("section_title")) for row in document_rows]
+        # The loose form is a fallback for documents that never say "Chapter",
+        # never a supplement to documents that do. Mixing the two let noise
+        # outnumber the real headings.
+        if not any(markers):
+            loose = [_loose_chapter_marker(row[1], row[2].get("section_title")) for row in document_rows]
+            # A real chapter opens a run of passages; a line that merely looks
+            # like a heading appears once and is followed by unrelated text.
+            # Requiring two lets the last stragglers fall away — "20 days faster"
+            # is indistinguishable from a title on its own line.
+            numbered = Counter(item[0] for item in loose if item)
+            if sum(1 for count in numbered.values() if count >= _LOOSE_RUN_MINIMUM) >= 1:
+                loose = [
+                    item if item and numbered[item[0]] >= _LOOSE_RUN_MINIMUM else None
+                    for item in loose
+                ]
+                markers = loose
         if target == 1 and not any(markers):
             selected.extend((*row, "第一部分（原文未标注章节）") for row in document_rows)
             continue
         active = False
         section_title = f"Chapter {target}"
-        for row in document_rows:
-            marker = _chapter_marker(row[1], row[2].get("section_title"))
+        for row, marker in zip(document_rows, markers, strict=True):
             if marker:
                 if marker[0] == target:
                     active = True
