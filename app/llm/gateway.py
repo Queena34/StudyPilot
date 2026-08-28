@@ -167,6 +167,19 @@ class TutorAnswerGateway:
             return _extractive_answer(evidence, reason="provider_request_failed")
 
 
+#: Cause → what the learner is told. Every reason passed to `_extractive_answer`
+#: must appear here; the doc-consistency test enforces it.
+UNKNOWN_FALLBACK = "unknown"
+FALLBACK_INTRODUCTIONS = {
+    "model_unconfigured": "当前未配置可用的大模型，下面先展示从课程资料中检索到的相关内容：",
+    "provider_request_failed": "大模型请求暂时失败，下面先展示从课程资料中检索到的相关内容：",
+    "empty_model_response": "大模型未返回有效内容，下面先展示从课程资料中检索到的相关内容：",
+    "citation_validation_failed": "大模型回答没有通过资料引用校验，为避免误导，下面展示可验证的课程资料内容：",
+    "citation_retry_failed": "大模型两次作答都没有给出资料引用，为避免误导，下面展示可验证的课程资料内容：",
+    UNKNOWN_FALLBACK: "本次回答未能正常生成，下面展示可验证的课程资料内容：",
+}
+
+
 def _extractive_answer(
     evidence: list[RetrievedEvidence], *, reason: str = "model_unconfigured"
 ) -> GeneratedAnswer:
@@ -176,13 +189,10 @@ def _extractive_answer(
             model_name="retrieval-fallback",
             fallback_reason=reason,
         )
-    introductions = {
-        "model_unconfigured": "当前未配置可用的大模型，下面先展示从课程资料中检索到的相关内容：",
-        "provider_request_failed": "大模型请求暂时失败，下面先展示从课程资料中检索到的相关内容：",
-        "empty_model_response": "大模型未返回有效内容，下面先展示从课程资料中检索到的相关内容：",
-        "citation_validation_failed": "大模型回答没有通过资料引用校验，为避免误导，下面展示可验证的课程资料内容：",
-    }
-    paragraphs = [introductions.get(reason, introductions["provider_request_failed"])]
+    # Each cause gets its own wording. Falling back to "the request failed" for an
+    # unrecognised cause would state something untrue and send anyone debugging
+    # it the wrong way, so the default says only what is actually known.
+    paragraphs = [FALLBACK_INTRODUCTIONS.get(reason, FALLBACK_INTRODUCTIONS[UNKNOWN_FALLBACK])]
     for index, item in enumerate(evidence[:3], start=1):
         snippet = item.text[:500].strip()
         paragraphs.append(f"{snippet} [c{index}]")

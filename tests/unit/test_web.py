@@ -169,3 +169,27 @@ def test_a_choice_question_is_answered_by_choosing() -> None:
     assert 'input[type="radio"]:checked' in javascript
     # No separate text box is rendered alongside options.
     assert '（如 A）' not in javascript
+
+
+def test_a_degraded_answer_is_marked_as_one() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    # A fallback that reads like a normal answer is what misleads; the reason is
+    # already in the response, so the UI has no excuse for hiding it.
+    assert "function fallbackNoticeHtml" in javascript
+    assert "result.fallback_reason" in javascript
+    for reason in (
+        "model_unconfigured",
+        "provider_request_failed",
+        "empty_model_response",
+        "citation_validation_failed",
+        "citation_retry_failed",
+    ):
+        assert reason in javascript, f"前端缺少 {reason} 的说明"
+
+
+def test_a_replayed_fallback_is_still_marked() -> None:
+    javascript = TestClient(app).get("/static/app.js").text
+
+    # Stored messages keep model_name but not the reason.
+    assert 'message.model_name === "retrieval-fallback"' in javascript

@@ -192,9 +192,9 @@
 </div>
 
 <dl class="facts">
-  <div class="fact"><dt>应用代码</dt><dd>7,547<small>行 · app/</small></dd></div>
-  <div class="fact"><dt>测试代码</dt><dd>6,659<small>行 · tests/</small></dd></div>
-  <div class="fact"><dt>单元测试</dt><dd>273<small>全部通过</small></dd></div>
+  <div class="fact"><dt>应用代码</dt><dd>7,557<small>行 · app/</small></dd></div>
+  <div class="fact"><dt>测试代码</dt><dd>6,714<small>行 · tests/</small></dd></div>
+  <div class="fact"><dt>单元测试</dt><dd>277<small>全部通过</small></dd></div>
   <div class="fact"><dt>离线评测</dt><dd>10<small>套，均有基线</small></dd></div>
   <div class="fact"><dt>数据迁移</dt><dd>9<small>0001–0009</small></dd></div>
 </dl>
@@ -477,6 +477,7 @@ create_practice_set       find_pending_question    grade_answer</pre>
 
 <h3>5.2　引用校验与修复重试<span class="path">tutor_service.py · gateway.py</span></h3>
 <p><code>_remove_unknown_citations()</code> 先剔除超出 <code>c1..cN</code> 范围的引用标记。若检索到了证据而答案<strong>一条引用都没有</strong>，不直接降级，而是<strong>带提示重试一次</strong>；仍无引用才退回抽取式。</p>
+<p>五种降级原因各有专属文案，未知原因<strong>不套用任何一条具体说法</strong> —— 把未知情形说成「请求失败」是在陈述不成立的事实，也会把排查引向错误方向。Web 端为降级回答加<strong>橙色徽章 + 一句原因说明</strong>，历史回放时按 <code>model_name == "retrieval-fallback"</code> 同样标出。<strong>降级回答读起来和正常回答一样，才是真正误导人的地方。</strong></p>
 <div class="note"><p>这条重试是必需的，不是保险。资料未覆盖某问题时，正确答案是「资料里没有」—— 这种答案不主张任何内容，因此天然不需要引用，却会被校验判为失败并替换成原文堆砌，而堆砌不会说「资料里没有」。<strong>系统会因此惩罚唯一正确的行为。</strong> 讲解 prompt 现在同时要求：拒答时也须引用查过的片段，让学生能自行核实「不存在」。</p></div>
 
 <h3>5.3　出题<span class="path">practice_service.py · quiz_gateway.py</span></h3>
@@ -541,7 +542,7 @@ mastery_score = 0.6 × (近期分/100) + 0.3 × (均分/100) + 0.1 × coverage</
 </table></div>
 <p>前三套不调模型、免费、逐位可复现，适合进 CI。每套基线文件都写明<strong>合入门槛</strong> —— 例如 Integrity 的 <code>fabrication_rate</code> 必须为 0、Orchestrator 的 <code>answer_preservation_rate</code> 必须为 1.0。</p>
 <h3>7.2　单元测试</h3>
-<p>273 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
+<p>277 个，位于 <code>tests/unit/</code>。覆盖路由、编排、工具层权限、诚信 Guard、Skill 选择、分块、解析、检索、出题校验、批改、掌握度、计划、偏好、Web 契约。</p>
 </section>
 
 <section id="s8">

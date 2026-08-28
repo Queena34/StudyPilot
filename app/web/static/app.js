@@ -264,11 +264,28 @@ function renderMessageMath(container) {
   });
 }
 
-function addMessage(role, content, citations = []) {
+// What each degraded answer means, in the learner's terms. An answer that could
+// not be generated normally should say so on its face — the reason is already in
+// the API response, and reading the same as a normal answer is what misleads.
+const FALLBACK_LABELS = {
+  model_unconfigured: ["未配置模型", "没有可用的大模型，下面是直接从课程资料中检索到的原文。"],
+  provider_request_failed: ["模型请求失败", "调用大模型时出错，下面是直接从课程资料中检索到的原文。"],
+  empty_model_response: ["模型无输出", "大模型没有返回有效内容，下面是直接从课程资料中检索到的原文。"],
+  citation_validation_failed: ["引用校验未通过", "大模型的回答没有给出资料引用，为避免误导已改为展示原文。"],
+  citation_retry_failed: ["引用校验未通过", "大模型两次作答都没有给出资料引用，为避免误导已改为展示原文。"],
+};
+
+function fallbackNoticeHtml(reason) {
+  if (!reason) return "";
+  const [label, detail] = FALLBACK_LABELS[reason] || ["降级回答", "这条回答没有由大模型正常生成，展示的是可验证的课程资料原文。"];
+  return `<div class="fallback-notice" title="${escapeHtml(reason)}"><span class="fallback-badge">${escapeHtml(label)}</span><span>${escapeHtml(detail)}</span></div>`;
+}
+
+function addMessage(role, content, citations = [], fallbackReason = null) {
   const item = document.createElement("div");
   item.className = role === "user" ? "user-message" : "coach-message";
   const citeHtml = citations.length ? `<div class="citations"><strong>可验证来源</strong>${citations.map((c) => `<details class="citation-item"><summary><a href="${API}/documents/${c.document_id}/content#page=${c.page_number}" target="_blank" rel="noopener">${escapeHtml(c.filename)} · 第 ${c.page_number} 页</a></summary><p>${escapeHtml(c.snippet)}</p>${c.section_title ? `<small>章节：${escapeHtml(c.section_title)}</small>` : ""}</details>`).join("")}</div>` : "";
-  item.innerHTML = role === "user" ? `<div>${escapeHtml(content)}</div>` : `<span class="bot-avatar">✦</span><div class="assistant-content">${richText(content)}${citeHtml}</div>`;
+  item.innerHTML = role === "user" ? `<div>${escapeHtml(content)}</div>` : `<span class="bot-avatar">✦</span><div class="assistant-content">${fallbackNoticeHtml(fallbackReason)}${richText(content)}${citeHtml}</div>`;
   $("#chat").appendChild(item);
   if (role !== "user") renderMessageMath(item.querySelector(".assistant-content"));
   $("#chat").scrollTop = $("#chat").scrollHeight;
@@ -370,7 +387,7 @@ $("#chat-form").addEventListener("submit", async (event) => {
   const scope = { document_types: $("#chat-document-type").value ? [$("#chat-document-type").value] : [], document_ids: $("#chat-document").value ? [$("#chat-document").value] : [], page_from: pageFrom, page_to: pageTo };
   addMessage("user", message); $("#chat-input").value = ""; setLoading(button, true, "思考中…");
   const practiceOptions = {question_type:$("#chat-question-type").value, difficulty:$("#chat-difficulty").value, question_count:Number($("#chat-question-count").value), language:$("#chat-practice-language").value};
-  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:state.preferences?.explanation_language || "zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations); if (result.practice_set) addChatPractice(result.practice_set); loadConversations().catch(() => {}); if (result.practice_set) loadPracticeHistory().catch(() => {}); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
+  try { const result = await request(`/courses/${state.course.id}/tutor/messages`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({conversation_id:state.conversationId, message, response_language:state.preferences?.explanation_language || "zh", mode:$("#answer-mode").value, scope, practice_options:practiceOptions})}); state.conversationId = result.conversation_id; addMessage("assistant", result.answer, result.citations, result.fallback_reason); if (result.practice_set) addChatPractice(result.practice_set); loadConversations().catch(() => {}); if (result.practice_set) loadPracticeHistory().catch(() => {}); } catch (error) { addMessage("assistant", `暂时无法回答：${error.message}`); } finally { setLoading(button, false); }
 });
 
 $("#chat-document-type").addEventListener("change", () => {
@@ -438,7 +455,14 @@ async function openConversation(conversationId) {
   const data = await request(`/courses/${state.course.id}/tutor/conversations/${conversationId}/messages?size=100`);
   state.conversationId = conversationId;
   $("#chat").innerHTML = "";
-  data.items.forEach((message) => addMessage(message.role === "user" ? "user" : "coach", message.content, message.citations || []));
+  // Stored messages keep the model name but not the reason, so a replayed
+  // fallback is still marked — just without the specific cause.
+  data.items.forEach((message) => addMessage(
+    message.role === "user" ? "user" : "coach",
+    message.content,
+    message.citations || [],
+    message.model_name === "retrieval-fallback" ? "unknown" : null,
+  ));
   $("#chat").scrollTop = $("#chat").scrollHeight;
 }
 

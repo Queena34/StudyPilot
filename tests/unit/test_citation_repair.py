@@ -105,3 +105,34 @@ async def test_a_failing_retry_does_not_break_the_turn() -> None:
 
     assert result.answer
     assert result.usage.model_name == "retrieval-fallback"
+
+
+def test_every_fallback_reason_has_its_own_wording() -> None:
+    """An unexplained degradation is indistinguishable from a normal answer."""
+
+    import re
+    from pathlib import Path
+
+    from app.llm.gateway import FALLBACK_INTRODUCTIONS, UNKNOWN_FALLBACK
+
+    root = Path(__file__).resolve().parents[2]
+    source = "".join(
+        (root / name).read_text(encoding="utf-8")
+        for name in ("app/llm/gateway.py", "app/services/tutor_service.py")
+    )
+    used = set(re.findall(r'reason="([a-z_]+)"', source))
+
+    assert used, "未找到任何 reason= 用法"
+    missing = used - set(FALLBACK_INTRODUCTIONS)
+    assert not missing, f"这些降级原因没有对应文案：{sorted(missing)}"
+
+
+def test_an_unknown_reason_does_not_claim_the_request_failed() -> None:
+    from app.llm.gateway import FALLBACK_INTRODUCTIONS, UNKNOWN_FALLBACK, _extractive_answer
+
+    result = _extractive_answer([_evidence()], reason="something_new")
+
+    # Defaulting to "the request failed" would state something untrue.
+    assert FALLBACK_INTRODUCTIONS[UNKNOWN_FALLBACK] in result.answer
+    assert "请求暂时失败" not in result.answer
+    assert result.fallback_reason == "something_new"
