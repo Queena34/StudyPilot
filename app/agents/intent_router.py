@@ -237,6 +237,18 @@ def _rule_decision(
             reason="The message matched more than one learning intent; it may be composite.",
             query_plan=plan,
         )
+    if matches and matches[0][1] >= RULE_CONFIDENCE_THRESHOLD and _names_a_further_step(
+        normalized
+    ):
+        # One rule is confident, but a connective says another step follows it.
+        # Enumerating the vocabulary of every possible second step does not
+        # scale, so hand the structure to the model instead of settling here.
+        return decision_for(
+            matches[0][0],
+            confidence=0.50,
+            reason="An explicit operation is followed by a connective introducing another step.",
+            query_plan=plan,
+        )
     if matches:
         intent, confidence, reason = matches[0]
         return decision_for(intent, confidence=confidence, reason=reason, query_plan=plan)
@@ -377,17 +389,11 @@ def _is_catalog_request(message: str) -> bool:
 
 _PROGRESS_TERMS = (
     "学习进度", "掌握度", "掌握得", "薄弱", "弱项", "学得怎么样",
-    # Past mistakes are progress data: "针对我做错的题再出一组练习" needs the
-    # wrong answers read before anything can be generated from them.
-    "做错的题", "错题", "答错", "做错了",
-    "progress", "mastery", "weak topic", "weakness", "questions i got wrong",
+    "progress", "mastery", "weak topic", "weakness",
 )
 _PLAN_TERMS = (
     "学习计划", "复习计划", "复习安排", "学习安排", "备考计划",
-    # A second step is often named without the word "计划": "帮我改一下并安排
-    # 后续复习" asks for grading and then a plan. Without these the explicit
-    # grading rule settled the turn alone and the follow-up step was dropped.
-    "安排复习", "安排后续复习", "后续复习", "接下来该学", "接下来学什么", "下一步学什么",
+    "接下来该学", "接下来学什么", "下一步学什么",
     "study plan", "revision plan", "study schedule", "what should i study next",
 )
 _PRACTICE_TERMS = (
@@ -412,6 +418,20 @@ _EXPLICIT_OPERATION_CONFIDENCE = 0.90
 #: High enough to settle the route without consulting the model: the decision to
 #: ask is itself confident, even though the intent behind the message is not.
 _UNRESOLVABLE_REFERENCE_CONFIDENCE = 0.85
+
+
+def _names_a_further_step(message: str) -> bool:
+    """A connective joining a second action to the one a rule already matched."""
+
+    return _contains(message, _SEQUENCE_CONNECTORS)
+
+
+#: Deliberately excludes "和" and "以及": they join nouns far more often than
+#: actions ("我的掌握度和薄弱点" is one request, not two).
+_SEQUENCE_CONNECTORS = (
+    "并", "然后", "之后", "接着", "顺便", "同时", "再",
+    "and then", " then ",
+)
 
 
 def _is_context_dependent(message: str) -> bool:

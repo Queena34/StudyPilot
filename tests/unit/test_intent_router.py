@@ -237,3 +237,34 @@ async def test_a_short_but_self_contained_message_is_not_questioned() -> None:
     for message in ("讲讲残差", "什么是残差", "出题"):
         decision = await _route(message, stub)
         assert decision.target != RouteTarget.CLARIFY, message
+
+
+def _rule_confidence(message: str) -> float:
+    from app.agents.intent_router import _build_plan, _rule_decision
+
+    plan = _build_plan(message, message, COURSE_ID, "zh", TutorScope())
+    return _rule_decision(" ".join(message.casefold().split()), plan).confidence
+
+
+def test_a_connective_after_an_explicit_operation_reaches_the_model() -> None:
+    """One rule being confident does not mean the turn is finished.
+
+    Enumerating the vocabulary of every possible second step does not scale:
+    "帮我改一下并安排后续复习" and "批改完顺便给我排个复习" ask for the same two
+    steps, and a keyword list catches only the phrasing it was written for.
+    """
+
+    for message in (
+        "我的答案是 A，帮我改一下并安排后续复习",
+        "我的答案是 A，批改完顺便给我排个复习",
+        "我的答案是 A，改完之后帮我看看下一步怎么学",
+        "把我上次答错的地方再考我一遍",
+    ):
+        assert _rule_confidence(message) < 0.80, message
+
+
+def test_a_noun_conjunction_is_not_a_second_step() -> None:
+    """"和" joins nouns far more often than actions, so it is not a connective."""
+
+    for message in ("我的掌握度和薄弱点怎么样？", "给我出5道题"):
+        assert _rule_confidence(message) >= 0.80, message
