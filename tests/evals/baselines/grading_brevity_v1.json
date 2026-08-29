@@ -2,7 +2,7 @@
   "dataset_version": "grading-brevity-v1",
   "status": "recorded",
   "recorded_at": "2026-08-28T14:08:39.846236+00:00",
-  "purpose": "诊断 K-17（批改器偏保守）的成因。Grading v1 有 10% 的分数区间失分来自三条 partial 答案，它们各覆盖两条 rubric 中的一条，却被判为一条都没覆盖。这套诊断在改动任何 prompt 之前先测清倾向。",
+  "purpose": "诊断批改器偏保守的成因。Grading v1 有 10% 的分数区间失分来自三条 partial 答案，它们各覆盖两条 rubric 中的一条，却被判为一条都没覆盖。这套诊断在改动任何 prompt 之前先测清倾向。",
   "method": "每条用例只隔离一条 rubric 条目、权重归一，因此可直接读出 earned_ratio。同一条目用四种表述作答：brief_correct（极简）、verbose_correct（同内容但展开，长度对照组）、hedged_correct（正确但措辞含糊）、near_miss（貌似相关但未说出要点，防矫枉过正的对照组）。",
   "metrics": {
     "case_count": 20,
@@ -19,13 +19,13 @@
     "expectation_match_rate": 0.45
   },
   "findings": [
-    "K-17 原本的说法「惩罚简短措辞」**被推翻**：brief 与 verbose 平均得分完全相同（均为 0.600），brevity_penalty 为 +0.000。长度不是原因。",
+    "原本的说法「惩罚简短措辞」**被推翻**：brief 与 verbose 平均得分完全相同（均为 0.600），brevity_penalty 为 +0.000。长度不是原因。",
     "**含糊措辞确实被扣分**：hedged 平均 0.333，比 verbose 低 0.267。这是原先没有假设过的发现。",
     "**批改器并不过松**：near_miss 五条全部得 0，没有任何泄漏。这意味着若将来要放宽标准，有安全空间 —— 不会顺带把错误答案放进来。",
     "**真正的成因是评分上下文**：批改器是对照「整道题」评估答案，而不是孤立评估每条 rubric。受控实验：同样的答案与 rubric，仅把题目改成只问该要点，三条用例全部由 0.00/0.50 升至 1.00，三次重复完全一致。也就是说，答案只覆盖题目一半时，它在已覆盖的那条上也只拿部分分。"
   ],
-  "instrument_caveat": "本诊断保留了完整题目而只隔离一条 rubric，因此「答案没有回答完整问题」这一点本身就是混淆变量。这与 K-17 的真实场景形状一致（partial 答案本就只覆盖一半），但结论必须由上面的受控实验支撑，不能只看四种表述的对比。",
-  "recommendation": "不要通过「放宽评分标准」来修 K-17 —— 方向是错的。若要修，应让批改器**逐条独立评估 rubric**，明确告知它答案可能只覆盖部分要点、未覆盖的条目单独给 0 即可，而不是因为整体不完整而连带压低已覆盖条目。改动后必须重跑 Grading v1 90 次基线，确认 ordering_accuracy 与 repeatability 仍为 1.0。",
+  "instrument_caveat": "本诊断保留了完整题目而只隔离一条 rubric，因此「答案没有回答完整问题」这一点本身就是混淆变量。这与该问题的真实场景形状一致（partial 答案本就只覆盖一半），但结论必须由上面的受控实验支撑，不能只看四种表述的对比。",
+  "recommendation": "不要通过「放宽评分标准」来修 这个问题 —— 方向是错的。若要修，应让批改器**逐条独立评估 rubric**，明确告知它答案可能只覆盖部分要点、未覆盖的条目单独给 0 即可，而不是因为整体不完整而连带压低已覆盖条目。改动后必须重跑 Grading v1 90 次基线，确认 ordering_accuracy 与 repeatability 仍为 1.0。",
   "not_yet_acted_on": false,
   "metrics_after_fix": {
     "case_count": 20,

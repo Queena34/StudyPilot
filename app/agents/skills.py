@@ -3,9 +3,6 @@
 A skill is a teaching-strategy document that supplements an agent's behaviour.
 Keeping them as files means the explanation structure, question-writing standard
 and grading boundaries can be reviewed and edited without touching Python.
-
-This is StudyPilot's own loader. The EchoMind loader in `core/skill_loader.py`
-is customer-service code that is not wired into `app/` and must stay that way.
 """
 
 from dataclasses import dataclass, field
