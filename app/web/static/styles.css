@@ -24,7 +24,7 @@
 .chat-practice-settings{margin:0 0 10px;padding:9px 12px;border:1px solid #dde3dd;border-radius:11px;background:#fafbf8}.chat-practice-settings summary{color:#466154;font-size:11px;font-weight:700;cursor:pointer}.chat-practice-settings>div{display:grid;grid-template-columns:140px 140px 110px 1fr;gap:9px;align-items:end;margin-top:9px}.chat-practice-settings label{display:grid;gap:4px}.chat-practice-settings label span{color:var(--muted);font-size:10px}.chat-practice-settings select,.chat-practice-settings input{width:100%;padding:7px 9px;font-size:12px}.chat-practice-settings small{align-self:center;color:var(--muted);line-height:1.45}@media(max-width:700px){.chat-practice-settings>div{grid-template-columns:1fr 1fr}.chat-practice-settings small{grid-column:1/-1}}
 
 /* Course actions, conversation picker, practice history and progress insights. */
-.course-actions{position:absolute;top:18px;right:22px;display:flex;gap:8px;z-index:2}
+.hero-card>.course-actions{position:absolute;top:18px;right:186px;display:flex;align-items:flex-start;gap:8px;z-index:2}
 .ghost-button{padding:6px 12px;border:1px solid rgba(255,255,255,.28);border-radius:8px;background:rgba(255,255,255,.08);color:#e6efe9;font:inherit;font-size:12px;cursor:pointer}
 .ghost-button:hover{background:rgba(255,255,255,.16)}
 .ghost-button.danger:hover{border-color:#f0a898;background:rgba(233,120,93,.28);color:#fff}
@@ -61,7 +61,7 @@
 .error-list{display:grid;gap:8px;padding:12px 14px;border:1px solid #e1e2dc;border-radius:12px;background:white}
 .error-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;font-size:12px;color:#4f5d55}
 .error-row b{padding:2px 8px;border-radius:999px;background:#fbe7e2;color:#a84936;font-size:10px}
-@media(max-width:900px){.insight-grid{grid-template-columns:1fr}.course-actions{position:static;margin-bottom:12px}.history-card{grid-template-columns:1fr}}
+@media(max-width:900px){.insight-grid{grid-template-columns:1fr}.hero-card>.course-actions{position:static;margin-bottom:12px}.history-card{grid-template-columns:1fr}}
 .ghost-button.light{border-color:#cfd6d0;background:white;color:#3f5a4d}
 .ghost-button.light:hover{border-color:var(--green);color:var(--green);background:#f2f7f3}
 .dialog-note{margin:-8px 0 18px;color:var(--muted);font-size:12px;line-height:1.6}
