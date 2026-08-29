@@ -316,8 +316,12 @@ function addMessage(role, content, citations = [], fallbackReason = null) {
 function answerFormHtml(question, { placeholder = "" } = {}) {
   // For a choice question the options are the answer. Asking the learner to also
   // type the letter made the radios decorative and the typing mandatory.
+  // A multi-answer question needs checkboxes: radios would silently let the
+  // learner pick only one of the answers the question actually has.
+  const multiple = question.question_type === "multiple_choice";
+  const control = multiple ? "checkbox" : "radio";
   const body = question.options
-    ? `<div class="options">${question.options.map((option) => `<label><input type="radio" name="q-${question.id}" value="${escapeHtml(option.id)}" required> ${escapeHtml(option.id)}. ${escapeHtml(option.text)}</label>`).join("")}</div>`
+    ? `${multiple ? '<p class="choice-hint">可多选</p>' : ""}<div class="options">${question.options.map((option) => `<label><input type="${control}" name="q-${question.id}" value="${escapeHtml(option.id)}"${multiple ? "" : " required"}> ${escapeHtml(option.id)}. ${escapeHtml(option.text)}</label>`).join("")}</div>`
     : `<input required maxlength="12000" placeholder="${placeholder || "输入你的答案"}">`;
   return `<form class="answer-form ${question.options ? "choice" : ""}" data-question-id="${question.id}">${body}<button class="primary-button" type="submit">提交批改</button></form>`;
 }
@@ -435,8 +439,9 @@ $("#practice-form").addEventListener("submit", async (event) => {
 });
 
 function selectedAnswer(form) {
-  const chosen = form.querySelector('input[type="radio"]:checked');
-  return chosen ? chosen.value : (form.querySelector('input:not([type="radio"])')?.value ?? "");
+  const chosen = [...form.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')];
+  if (chosen.length) return chosen.map((input) => input.value).join(",");
+  return form.querySelector('input:not([type="radio"]):not([type="checkbox"])')?.value ?? "";
 }
 
 document.addEventListener("submit", async (event) => {

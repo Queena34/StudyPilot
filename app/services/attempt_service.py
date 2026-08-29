@@ -41,6 +41,8 @@ class AttemptService:
             raise AppError("EMPTY_ANSWER", "答案不能为空", status_code=422)
         if question.question_type == QuestionType.SINGLE_CHOICE.value:
             evaluation, model_name = _evaluate_single_choice(question, answer)
+        elif question.question_type == QuestionType.MULTIPLE_CHOICE.value:
+            evaluation, model_name = _evaluate_multiple_choice(question, answer)
         else:
             evaluation, model_name = await self.gateway.evaluate(
                 question=question.content,
@@ -118,6 +120,59 @@ def _evaluate_single_choice(question: Question, answer: str) -> tuple[Evaluation
                 covered_concepts=question.knowledge_points_json if is_correct else [],
                 missing_concepts=[] if is_correct else question.knowledge_points_json,
                 knowledge_errors=[] if is_correct else ["选择了不受课程资料支持的选项。"],
+                language_feedback=[],
+                recommended_topics=[] if is_correct else question.knowledge_points_json,
+            ),
+        ),
+        "deterministic-choice-grader",
+    )
+
+
+def _evaluate_multiple_choice(question: Question, answer: str) -> tuple[EvaluationOutput, str]:
+    """Grade a multi-answer question on the options chosen, comma separated.
+
+    Partial credit is the standard negative-marking form: each correct option
+    earns a share and each wrong one gives that share back. All-or-nothing would
+    score two right out of three the same as picking at random, and rewarding
+    the correct picks alone would make selecting everything a perfect answer.
+    """
+
+    options = question.options_json or []
+    allowed = {str(item["id"]).upper() for item in options}
+    chosen = {part.strip().upper() for part in answer.split(",") if part.strip()}
+    if not chosen or not chosen <= allowed:
+        raise AppError("INVALID_OPTION", "答案必须是题目中的选项编号", status_code=422)
+    correct = {str(item["id"]).upper() for item in options if item.get("is_correct")}
+    if not correct:
+        raise AppError("QUESTION_DATA_INVALID", "题目缺少正确答案", status_code=500)
+
+    hits = chosen & correct
+    misses = chosen - correct
+    ratio = max(0.0, (len(hits) - len(misses)) / len(correct))
+    is_correct = chosen == correct
+    expected = "、".join(sorted(correct))
+    if is_correct:
+        reason = "全部选对。"
+    elif not misses:
+        reason = f"选对但不完整，完整答案是 {expected}。"
+    else:
+        reason = f"包含错误选项，正确答案是 {expected}。"
+    return (
+        EvaluationOutput(
+            criterion_results=[
+                CriterionEvaluation(
+                    criterion_index=index,
+                    earned_ratio=ratio,
+                    reason=reason,
+                    evidence_ids=item.get("evidence_ids", []),
+                )
+                for index, item in enumerate(question.rubric_json)
+            ],
+            feedback=EvaluationFeedback(
+                summary=reason,
+                covered_concepts=question.knowledge_points_json if is_correct else [],
+                missing_concepts=[] if is_correct else question.knowledge_points_json,
+                knowledge_errors=[] if not misses else ["选择了不受课程资料支持的选项。"],
                 language_feedback=[],
                 recommended_topics=[] if is_correct else question.knowledge_points_json,
             ),

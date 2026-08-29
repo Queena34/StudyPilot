@@ -151,11 +151,16 @@ def _validate_questions(
             raise AppError("INVALID_GENERATED_CITATION", "生成题目包含无效资料引用", status_code=503)
         if not isclose(sum(rubric.weight for rubric in item.rubric), 1.0, abs_tol=0.001):
             raise AppError("INVALID_GENERATED_RUBRIC", "题目评分标准权重不等于1", status_code=503)
-        if item.question_type == QuestionType.SINGLE_CHOICE:
+        if item.question_type in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
             if item.options is None or len(item.options) != 4:
                 raise AppError("INVALID_GENERATED_OPTIONS", "选择题必须有四个选项", status_code=503)
-            if sum(option.is_correct for option in item.options) != 1:
-                raise AppError("INVALID_GENERATED_OPTIONS", "选择题必须仅有一个正确答案", status_code=503)
+            correct = sum(option.is_correct for option in item.options)
+            if item.question_type == QuestionType.SINGLE_CHOICE and correct != 1:
+                raise AppError("INVALID_GENERATED_OPTIONS", "单选题必须仅有一个正确答案", status_code=503)
+            # Two or three: one answer would make it a single-choice question and
+            # four would make every option correct.
+            if item.question_type == QuestionType.MULTIPLE_CHOICE and not 2 <= correct <= 3:
+                raise AppError("INVALID_GENERATED_OPTIONS", "多选题必须有两到三个正确答案", status_code=503)
         elif item.options is not None:
             raise AppError("INVALID_GENERATED_OPTIONS", "非选择题不能包含选项", status_code=503)
 

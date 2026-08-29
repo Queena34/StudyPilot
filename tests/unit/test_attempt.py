@@ -3,7 +3,11 @@ import pytest
 from app.core.exceptions import AppError
 from app.domain.models import Question
 from app.llm.evaluation_gateway import _fallback_evaluation
-from app.services.attempt_service import _evaluate_single_choice, _score_evaluation
+from app.services.attempt_service import (
+    _evaluate_multiple_choice,
+    _evaluate_single_choice,
+    _score_evaluation,
+)
 
 
 def _question() -> Question:
@@ -87,3 +91,53 @@ def test_scoring_rejects_unknown_evidence() -> None:
         )
 
     assert exc_info.value.code == "INVALID_EVALUATION_CITATION"
+
+
+def _multi_question() -> Question:
+    question = _question()
+    question.question_type = "multiple_choice"
+    question.options_json = [
+        {"id": "A", "text": "Correct", "is_correct": True},
+        {"id": "B", "text": "Also correct", "is_correct": True},
+        {"id": "C", "text": "Wrong", "is_correct": False},
+        {"id": "D", "text": "Also wrong", "is_correct": False},
+    ]
+    return question
+
+
+def _multi_score(answer: str) -> float:
+    evaluation, _ = _evaluate_multiple_choice(_multi_question(), answer)
+    question = _multi_question()
+    _, score = _score_evaluation(evaluation, question.rubric_json, question.source_refs_json)
+    return score
+
+
+def test_every_answer_earns_full_marks() -> None:
+    assert _multi_score("A,B") == 100.0
+    assert _multi_score("b, a") == 100.0
+
+
+def test_a_missing_answer_still_earns_its_share() -> None:
+    assert _multi_score("A") == 50.0
+
+
+def test_a_wrong_pick_gives_back_what_a_right_one_earned() -> None:
+    # Selecting everything must not score as if the learner knew the answer.
+    assert _multi_score("A,B,C,D") == 0.0
+    assert _multi_score("A,B,C") == 50.0
+
+
+def test_only_wrong_picks_score_nothing() -> None:
+    assert _multi_score("C,D") == 0.0
+
+
+def test_an_option_outside_the_question_is_rejected() -> None:
+    with pytest.raises(AppError) as error:
+        _evaluate_multiple_choice(_multi_question(), "A,Z")
+    assert error.value.code == "INVALID_OPTION"
+
+
+def test_an_empty_selection_is_rejected() -> None:
+    with pytest.raises(AppError) as error:
+        _evaluate_multiple_choice(_multi_question(), ",")
+    assert error.value.code == "INVALID_OPTION"

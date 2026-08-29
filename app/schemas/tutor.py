@@ -42,7 +42,9 @@ class TutorScope(BaseModel):
 
 
 class TutorPracticeOptions(BaseModel):
-    question_type: Literal["single_choice", "short_answer", "concept"] = "single_choice"
+    question_type: Literal[
+        "single_choice", "multiple_choice", "short_answer", "concept"
+    ] = "single_choice"
     difficulty: Literal["basic", "medium", "advanced"] = "medium"
     question_count: int = Field(default=5, ge=1, le=10)
     #: Language for the questions themselves. International students are often

@@ -9,6 +9,7 @@ from app.schemas.tutor import Citation, ResponseLanguage, TutorScope
 
 class QuestionType(str, Enum):
     SINGLE_CHOICE = "single_choice"
+    MULTIPLE_CHOICE = "multiple_choice"
     SHORT_ANSWER = "short_answer"
     CONCEPT = "concept"
 

@@ -7,7 +7,7 @@
   <title>StudyPilot · AI 学习教练</title>
   <script>if (window.location.protocol === "file:") window.location.replace("http://localhost:8000/");</script>
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css?v=0.16.11">
-  <link rel="stylesheet" href="/static/styles.css?v=20260829-5">
+  <link rel="stylesheet" href="/static/styles.css?v=20260829-7">
 </head>
 <body>
   <div class="app-shell">
@@ -92,7 +92,7 @@
           <details class="chat-practice-settings" open>
             <summary>聊天出题设置</summary>
             <div>
-              <label><span>题型</span><select id="chat-question-type"><option value="single_choice" selected>单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
+              <label><span>题型</span><select id="chat-question-type"><option value="single_choice" selected>单选题</option><option value="multiple_choice">多选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
               <label><span>难度</span><select id="chat-difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
               <label><span>题目数</span><input id="chat-question-count" type="number" min="1" max="10" value="5"></label><label><span>出题语言</span><select id="chat-practice-language"><option value="en">English</option><option value="zh">中文</option><option value="zh-en">中英对照</option></select></label>
               <small>仅在你通过聊天要求出题时使用；“针对已经学的”会自动继承最近学习的资料和章节。</small>
@@ -120,7 +120,7 @@
           <div class="section-heading"><div><p class="eyebrow">ACTIVE RECALL</p><h3>生成一组针对性练习</h3></div></div>
           <form id="practice-form" class="form-grid compact-form">
             <label><span>练习主题</span><input id="practice-topic" placeholder="留空则根据课程资料生成"></label>
-            <label><span>题型</span><select id="question-type"><option value="single_choice" selected>单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
+            <label><span>题型</span><select id="question-type"><option value="single_choice" selected>单选题</option><option value="multiple_choice">多选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
             <label><span>难度</span><select id="difficulty"><option value="basic">基础</option><option value="medium" selected>进阶</option><option value="advanced">挑战</option></select></label>
             <label><span>题目数</span><input id="question-count" type="number" min="1" max="10" value="5"></label><label><span>出题语言</span><select id="practice-language"><option value="en">English</option><option value="zh">中文</option><option value="zh-en">中英对照</option></select></label>
             <label class="check-label"><input id="weak-first" type="checkbox"><span>优先针对薄弱点</span></label>
@@ -174,7 +174,7 @@
           <label><span>讲解语言</span><select id="pref-explanation-language"><option value="zh">中文</option><option value="en">English</option><option value="zh-en">中英对照</option></select></label>
           <label><span>作答语言</span><select id="pref-answer-language"><option value="zh">中文</option><option value="en">English</option><option value="zh-en">中英对照</option></select></label>
           <label><span>讲解风格</span><select id="pref-explanation-style"><option value="concise">精简</option><option value="deep">深入</option><option value="socratic">苏格拉底式</option></select></label>
-          <label><span>默认题型</span><select id="pref-question-type"><option value="single_choice">单选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
+          <label><span>默认题型</span><select id="pref-question-type"><option value="single_choice">单选题</option><option value="multiple_choice">多选题</option><option value="short_answer">简答题</option><option value="concept">概念解释</option></select></label>
           <label><span>默认难度</span><select id="pref-difficulty"><option value="basic">基础</option><option value="medium">进阶</option><option value="advanced">挑战</option></select></label>
           <label><span>默认题目数</span><input id="pref-question-count" type="number" min="1" max="10"></label>
           <label class="check-label full"><input id="pref-language-feedback" type="checkbox"><span>批改时附带语言表达反馈</span></label>
@@ -201,6 +201,6 @@
   <div id="toast" class="toast" role="status"></div>
   <script src="/static/vendor/katex/katex.min.js?v=0.16.11" defer></script>
   <script src="/static/vendor/katex/contrib/auto-render.min.js?v=0.16.11" defer></script>
-  <script src="/static/app.js?v=20260829-1" defer></script>
+  <script src="/static/app.js?v=20260829-2" defer></script>
 </body>
 </html>
