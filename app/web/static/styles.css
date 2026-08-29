@@ -80,3 +80,5 @@
   background:#fdf7ea;color:#6b5320;font-size:12.5px;line-height:1.6}
 .fallback-badge{flex:0 0 auto;padding:2px 8px;border-radius:999px;background:var(--amber);
   color:#fff;font-size:10.5px;font-weight:700;white-space:nowrap}
+.citation-item summary .citation-marker{margin-left:8px;color:#6c8578}
+.citation-item p+p{margin-top:9px;padding-top:9px;border-top:1px dashed #dfe7e1}

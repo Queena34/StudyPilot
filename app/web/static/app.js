@@ -281,10 +281,32 @@ function fallbackNoticeHtml(reason) {
   return `<div class="fallback-notice" title="${escapeHtml(reason)}"><span class="fallback-badge">${escapeHtml(label)}</span><span>${escapeHtml(detail)}</span></div>`;
 }
 
+// Several passages can come from one page, and the label only names the file
+// and the page — so they read as duplicates. Group them into one source and
+// keep every passage inside it, tagged with the marker the answer cites.
+function groupCitations(citations) {
+  const groups = new Map();
+  citations.forEach((c) => {
+    const key = `${c.document_id}#${c.page_number}`;
+    if (!groups.has(key)) groups.set(key, { ...c, passages: [] });
+    groups.get(key).passages.push({ id: c.citation_id, snippet: c.snippet });
+  });
+  return [...groups.values()];
+}
+
+function citationHtml(group) {
+  const markers = group.passages.map((p) => p.id).filter(Boolean);
+  const label = markers.length > 1 ? `<span class="citation-marker">${markers.map((id) => `[${id}]`).join("")}</span>` : "";
+  const body = group.passages
+    .map((p) => `<p>${group.passages.length > 1 && p.id ? `<span class="citation-marker">[${p.id}]</span> ` : ""}${escapeHtml(p.snippet)}</p>`)
+    .join("");
+  return `<details class="citation-item"><summary><a href="${API}/documents/${group.document_id}/content#page=${group.page_number}" target="_blank" rel="noopener">${escapeHtml(group.filename)} · 第 ${group.page_number} 页</a>${label}</summary>${body}${group.section_title ? `<small>章节：${escapeHtml(group.section_title)}</small>` : ""}</details>`;
+}
+
 function addMessage(role, content, citations = [], fallbackReason = null) {
   const item = document.createElement("div");
   item.className = role === "user" ? "user-message" : "coach-message";
-  const citeHtml = citations.length ? `<div class="citations"><strong>可验证来源</strong>${citations.map((c) => `<details class="citation-item"><summary><a href="${API}/documents/${c.document_id}/content#page=${c.page_number}" target="_blank" rel="noopener">${escapeHtml(c.filename)} · 第 ${c.page_number} 页</a></summary><p>${escapeHtml(c.snippet)}</p>${c.section_title ? `<small>章节：${escapeHtml(c.section_title)}</small>` : ""}</details>`).join("")}</div>` : "";
+  const citeHtml = citations.length ? `<div class="citations"><strong>可验证来源</strong>${groupCitations(citations).map(citationHtml).join("")}</div>` : "";
   item.innerHTML = role === "user" ? `<div>${escapeHtml(content)}</div>` : `<span class="bot-avatar">✦</span><div class="assistant-content">${fallbackNoticeHtml(fallbackReason)}${richText(content)}${citeHtml}</div>`;
   $("#chat").appendChild(item);
   if (role !== "user") renderMessageMath(item.querySelector(".assistant-content"));
