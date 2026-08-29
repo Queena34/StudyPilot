@@ -125,7 +125,7 @@ Three constraints run through the whole system:
   re-reading the message. Otherwise one phrase like "chapter one" gets three
   different readings in three different places.
 - **Rules first.** The most common unambiguous requests are resolved by deterministic
-  rules at zero latency; measured over the routing suite, the LLM is called on about 37% of cases.
+  rules at zero latency; measured over the routing suite, the LLM is called on about 28% of cases.
 
 **Retrieval**: `BAAI/bge-small-en-v1.5` embeddings (384-dim, ONNX inference, baked into
 the image so nothing is downloaded at runtime), 1200/200 chunking, fused scoring
@@ -154,7 +154,7 @@ Ten versioned suites, each with a recorded baseline and an explicit merge gate. 
 
 | Suite | Size | Baseline | Needs a model |
 |---|---|---|---|
-| Router v2 | 57 cases | 90.4% intent accuracy (hybrid), 100% scope preservation | partly |
+| Router v2 | 57 cases | 90.4% intent, 94.2% agent, 100% clarification accuracy; 100% scope preservation | partly |
 | Integrity v1 | 61 cases | every metric perfect, 0% false positives | no |
 | Orchestrator v1 | 30 cases | every metric 100% | no |
 | Loop v1 | 5 stages | loop closes, 22.5s end to end | yes |

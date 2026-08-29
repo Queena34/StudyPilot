@@ -12,20 +12,59 @@
   "modes": {
     "rules_only": {
       "model": "rules-only",
-      "recorded_at": "2026-08-26T14:27:52.179132+00:00",
+      "recorded_at": "2026-08-29T12:38:46.263886+00:00",
       "purpose": "确定性、零成本、可在 CI 中运行的回归防线。",
       "metrics": {
         "case_count": 57,
         "decisive_case_count": 52,
         "composite_case_count": 9,
         "intent_accuracy": 0.7307692307692307,
+        "agent_accuracy": 0.7692307692307693,
         "execution_mode_accuracy": 0.8421052631578947,
         "composite_supporting_accuracy": 0.0,
-        "clarification_accuracy": 0.9122807017543859,
+        "clarification_accuracy": 1.0,
         "scope_preservation_rate": 1.0,
-        "rule_resolution_rate": 0.631578947368421,
-        "llm_invocation_rate": 0.368421052631579,
-        "average_latency_ms": 0.03508771929824561
+        "rule_resolution_rate": 0.7192982456140351,
+        "llm_invocation_rate": 0.2807017543859649,
+        "average_latency_ms": 301.12280701754383,
+        "by_category": {
+          "ambiguous": {
+            "case_count": 8,
+            "intent_accuracy": 0.0,
+            "agent_accuracy": 0.0,
+            "rule_resolution_rate": 0.5
+          },
+          "composite": {
+            "case_count": 8,
+            "intent_accuracy": 0.5,
+            "agent_accuracy": 0.5,
+            "rule_resolution_rate": 0.25
+          },
+          "contextual": {
+            "case_count": 5,
+            "intent_accuracy": 0.2,
+            "agent_accuracy": 0.4,
+            "rule_resolution_rate": 0.0
+          },
+          "guard": {
+            "case_count": 2,
+            "intent_accuracy": 0.5,
+            "agent_accuracy": 1.0,
+            "rule_resolution_rate": 1.0
+          },
+          "scope": {
+            "case_count": 3,
+            "intent_accuracy": 0.5,
+            "agent_accuracy": 0.5,
+            "rule_resolution_rate": 0.6666666666666666
+          },
+          "single": {
+            "case_count": 31,
+            "intent_accuracy": 1.0,
+            "agent_accuracy": 1.0,
+            "rule_resolution_rate": 1.0
+          }
+        }
       },
       "by_category": {
         "ambiguous": {
@@ -62,20 +101,59 @@
     },
     "hybrid": {
       "model": "deepseek-v4-flash",
-      "recorded_at": "2026-08-26T14:28:19.585608+00:00",
+      "recorded_at": "2026-08-29T12:38:46.263886+00:00",
       "purpose": "完整混合路由的真实能力基线。",
       "metrics": {
         "case_count": 57,
         "decisive_case_count": 52,
         "composite_case_count": 9,
         "intent_accuracy": 0.9038461538461539,
+        "agent_accuracy": 0.9423076923076923,
         "execution_mode_accuracy": 0.9473684210526315,
         "composite_supporting_accuracy": 0.6666666666666666,
-        "clarification_accuracy": 0.9122807017543859,
+        "clarification_accuracy": 1.0,
         "scope_preservation_rate": 1.0,
-        "rule_resolution_rate": 0.631578947368421,
-        "llm_invocation_rate": 0.368421052631579,
-        "average_latency_ms": 450.7894736842105
+        "rule_resolution_rate": 0.7192982456140351,
+        "llm_invocation_rate": 0.2807017543859649,
+        "average_latency_ms": 607.719298245614,
+        "by_category": {
+          "ambiguous": {
+            "case_count": 8,
+            "intent_accuracy": 0.75,
+            "agent_accuracy": 0.75,
+            "rule_resolution_rate": 0.5
+          },
+          "composite": {
+            "case_count": 8,
+            "intent_accuracy": 0.875,
+            "agent_accuracy": 0.875,
+            "rule_resolution_rate": 0.25
+          },
+          "contextual": {
+            "case_count": 5,
+            "intent_accuracy": 0.8,
+            "agent_accuracy": 1.0,
+            "rule_resolution_rate": 0.0
+          },
+          "guard": {
+            "case_count": 2,
+            "intent_accuracy": 0.5,
+            "agent_accuracy": 1.0,
+            "rule_resolution_rate": 1.0
+          },
+          "scope": {
+            "case_count": 3,
+            "intent_accuracy": 1.0,
+            "agent_accuracy": 1.0,
+            "rule_resolution_rate": 0.6666666666666666
+          },
+          "single": {
+            "case_count": 31,
+            "intent_accuracy": 1.0,
+            "agent_accuracy": 1.0,
+            "rule_resolution_rate": 1.0
+          }
+        }
       },
       "by_category": {
         "ambiguous": {
@@ -154,5 +232,6 @@
     "rules_only 的 intent_accuracy 不得低于 0.73，rule_resolution_rate 不得低于 0.63。",
     "hybrid 模式的 intent_accuracy 不得低于 0.88。模型抖动允许小幅波动，连续两次低于阈值须视为回归。",
     "比较必须使用相同 dataset_version 和相同 configuration 阈值。router-v1 的历史基线保存在 baselines/router_v1.json，可用 --dataset-version router-v1 复现。"
-  ]
+  ],
+  "note": "2026-08-29 重跑：首轮出现指代（「这个」「继续」「再来一点」）或无宾语请求（「帮我看看」）时，规则层直接请求澄清，不再交给模型猜。根因是模型对这类零信息输入返回 0.9 置信度，任何澄清阈值都拦不住。clarification_accuracy 0.912→1.000，llm_invocation_rate 0.368→0.281，rule_resolution_rate 0.632→0.719；scope_preservation_rate 保持 1.0。同批新增 agent_accuracy：course_qa 与 concept_explanation 同属 TutorAgent，混淆二者会扣 intent_accuracy 却不改变学习者拿到的结果，因此同时度量「标签是否正确」与「是否路由到正确的 Agent」，后者高 3.8 个百分点。 hybrid 连跑三轮取最差记入基线：intent_accuracy 实测 0.904 / 0.923 / 0.923，记 0.904；agent_accuracy 对应 0.942 / 0.962 / 0.962，记 0.942。差异来自模型抖动而非改动，不取最好的一次。"
 }

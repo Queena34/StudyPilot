@@ -189,14 +189,15 @@ def _mark_unresolved(rule: RoutingDecision, source: RoutingSource) -> RoutingDec
     return replace(rule, source=source, rule_confidence=rule.confidence)
 
 
-def _as_clarification(decision: RoutingDecision) -> RoutingDecision:
+def _as_clarification(
+    decision: RoutingDecision, message: str | None = None
+) -> RoutingDecision:
     return replace(
         decision,
         target=RouteTarget.CLARIFY,
         execution_mode=ExecutionMode.CLARIFY,
-        clarification=(
-            "我不确定你想要课程讲解、生成练习、查看进度还是学习计划，能再说得具体一点吗？"
-        ),
+        clarification=message
+        or "我不确定你想要课程讲解、生成练习、查看进度还是学习计划，能再说得具体一点吗？",
     )
 
 
@@ -245,6 +246,21 @@ def _rule_decision(
             confidence=0.85,
             reason="The message is phrased as a question about the course material.",
             query_plan=plan,
+        )
+    if not has_history and _is_unresolvable_without_history(normalized):
+        # There is no earlier turn for "这个" or "继续" to point at, so nobody can
+        # resolve it — asking beats guessing. The model does not help here: it
+        # returned 0.9 confidence on exactly these inputs, which no threshold can
+        # catch. Rules naming an explicit operation returned above.
+        return _as_clarification(
+            decision_for(
+                LearningIntent.COURSE_QA,
+                confidence=_UNRESOLVABLE_REFERENCE_CONFIDENCE,
+                reason="The message refers back to a turn that does not exist yet.",
+                query_plan=plan,
+            ),
+            "我们还没聊过具体内容，我不确定你指的是什么。"
+            "你可以告诉我想理解哪个概念，或者让我出题、查看进度、安排复习计划。",
         )
     return decision_for(
         LearningIntent.COURSE_QA,
@@ -386,9 +402,33 @@ _EXPLANATION_TERMS = (
 #: even in a follow-up turn.
 _EXPLICIT_OPERATION_CONFIDENCE = 0.90
 
+#: High enough to settle the route without consulting the model: the decision to
+#: ask is itself confident, even though the intent behind the message is not.
+_UNRESOLVABLE_REFERENCE_CONFIDENCE = 0.85
+
 
 def _is_context_dependent(message: str) -> bool:
     return _contains(message, _ANAPHORA_TERMS) or len(message.strip("！!?？。. ")) <= 6
+
+
+def _is_unresolvable_without_history(message: str) -> bool:
+    """A message that only means something against an earlier turn.
+
+    Deliberately narrower than `_is_context_dependent`: brevity alone is not
+    enough. "讲讲残差" is four characters and perfectly clear, and asking a
+    learner to rephrase it would be worse than the guess this rule prevents.
+    """
+
+    return _contains(message, _ANAPHORA_TERMS) or _contains(
+        message, _OBJECTLESS_REQUEST_TERMS
+    )
+
+
+#: Requests that name an action but no object: look at *what*?
+_OBJECTLESS_REQUEST_TERMS = (
+    "帮我看看", "帮我看下", "帮我瞧瞧", "看看吧", "你看看",
+    "have a look", "take a look",
+)
 
 
 _ANAPHORA_TERMS = (

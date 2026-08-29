@@ -248,6 +248,16 @@ python -m tests.evals.run_faithfulness_eval --verdicts faithfulness_verdicts.jso
 | 是否编造 | 是 / 否 |
 | 是否说明资料未涵盖 | 是 / 否 |
 
+### Agent 准确率与意图准确率分开看
+
+`intent_accuracy` 度量标签是否正确，`agent_accuracy` 度量是否路由到正确的 Agent。二者不等价：
+`course_qa` 与 `concept_explanation` 都映射到 TutorAgent，Skill 也按 Agent 注入，因此混淆这两个标签
+会扣意图准确率，却**不改变学习者拿到的结果**。实测 agent_accuracy 比 intent_accuracy 高 3.8 个百分点，
+差值正是这类同 Agent 混淆。
+
+优化时应优先追 agent_accuracy —— 它对应用户可感知的正确性；intent_accuracy 的剩余差距要先判断
+是「标签重叠」还是「真的路由错了」，再决定值不值得改。
+
 ### 门槛
 
 `baselines/faithfulness_v1.json` 写明五条，其中两条是硬性的：

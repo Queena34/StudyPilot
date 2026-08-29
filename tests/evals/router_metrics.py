@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.agents.routing import INTENT_AGENTS, LearningIntent
+
 
 def score_router_case(case: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
     """Score one routed case against its expected structured decision."""
@@ -29,6 +31,14 @@ def score_router_case(case: dict[str, Any], decision: dict[str, Any]) -> dict[st
         "expected_intent": expected_intent,
         "actual_intent": decision.get("intent"),
         "intent_correct": decision.get("intent") == expected_intent,
+        # What the learner feels is which agent answered, not which label the
+        # router wrote down. course_qa and concept_explanation both reach the
+        # tutor, so confusing them costs intent accuracy while changing nothing
+        # the learner can see. Measure both and keep them apart.
+        "expected_agent": INTENT_AGENTS[LearningIntent(expected_intent)].value,
+        "actual_agent": decision.get("primary_agent"),
+        "agent_correct": decision.get("primary_agent")
+        == INTENT_AGENTS[LearningIntent(expected_intent)].value,
         "supporting_correct": actual_supporting == expected_supporting,
         "expected_supporting": expected_supporting,
         "actual_supporting": actual_supporting,
@@ -64,6 +74,7 @@ def aggregate_router_scores(scores: list[dict[str, Any]]) -> dict[str, Any]:
         "decisive_case_count": len(decisive),
         "composite_case_count": len(composite),
         "intent_accuracy": _ratio(decisive, "intent_correct"),
+        "agent_accuracy": _ratio(decisive, "agent_correct"),
         "execution_mode_accuracy": _ratio(scores, "execution_mode_correct"),
         "composite_supporting_accuracy": _ratio(composite, "supporting_correct"),
         "clarification_accuracy": _ratio(scores, "clarification_correct"),
@@ -91,6 +102,10 @@ def _by_category(scores: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "intent_accuracy": _ratio(
                 [entry for entry in items if not entry["expects_clarification"]],
                 "intent_correct",
+            ),
+            "agent_accuracy": _ratio(
+                [entry for entry in items if not entry["expects_clarification"]],
+                "agent_correct",
             ),
             "rule_resolution_rate": _ratio(items, "resolved_by_rule"),
         }

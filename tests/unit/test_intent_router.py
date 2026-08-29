@@ -131,7 +131,7 @@ async def test_composite_message_falls_back_to_the_llm_router() -> None:
 
 @pytest.mark.asyncio
 async def test_unavailable_llm_router_keeps_the_rule_decision() -> None:
-    decision = await _route("嗯这个", _StubLLMRouter(None))
+    decision = await _route("线性回归的残差分析", _StubLLMRouter(None))
 
     assert decision.source == RoutingSource.LLM_UNAVAILABLE
     assert decision.intent == LearningIntent.COURSE_QA
@@ -144,7 +144,7 @@ async def test_less_confident_llm_proposal_is_rejected() -> None:
         LLMRoutingProposal(intent=LearningIntent.GENERAL, confidence=0.10, reason="unsure")
     )
 
-    decision = await _route("嗯这个", stub)
+    decision = await _route("线性回归的残差分析", stub)
 
     assert decision.source == RoutingSource.LLM_REJECTED
     assert decision.intent == LearningIntent.COURSE_QA
@@ -158,7 +158,7 @@ async def test_low_confidence_routing_asks_for_clarification() -> None:
         )
     )
 
-    decision = await _route("那个东西", stub)
+    decision = await _route("线性回归的残差分析", stub)
 
     assert decision.target == RouteTarget.CLARIFY
     assert decision.execution_mode == ExecutionMode.CLARIFY
@@ -178,7 +178,7 @@ async def test_llm_router_never_widens_explicit_learner_scope() -> None:
     )
     scope = TutorScope(document_ids=[document_id], page_from=2, page_to=5)
 
-    decision = await _route("那个东西", stub, scope=scope)
+    decision = await _route("线性回归的残差分析", stub, scope=scope)
 
     assert decision.query_plan.document_ids == [document_id]
     assert decision.query_plan.page_from == 2
@@ -202,3 +202,38 @@ def test_routing_decision_serializes_the_full_contract() -> None:
         "target",
         "query_plan",
     }
+
+
+@pytest.mark.asyncio
+async def test_a_first_turn_reference_is_asked_about_not_guessed() -> None:
+    """"这个" points at a turn that has not happened, so nobody can resolve it.
+
+    The model is no help here: it returns high confidence on exactly these
+    inputs, so no clarification threshold can catch them.
+    """
+
+    stub = _StubLLMRouter(
+        LLMRoutingProposal(intent=LearningIntent.GENERAL, confidence=0.9, reason="guess")
+    )
+
+    for message in ("这个", "继续", "再来一点", "帮我看看"):
+        decision = await _route(message, stub)
+        assert decision.target == RouteTarget.CLARIFY, message
+        assert decision.clarification
+    # Deciding to ask must not cost a model call.
+    assert stub.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_short_but_self_contained_message_is_not_questioned() -> None:
+    """Brevity is not ambiguity — asking a learner to rephrase "讲讲残差" is worse."""
+
+    stub = _StubLLMRouter(
+        LLMRoutingProposal(
+            intent=LearningIntent.COURSE_QA, confidence=0.9, reason="clear enough"
+        )
+    )
+
+    for message in ("讲讲残差", "什么是残差", "出题"):
+        decision = await _route(message, stub)
+        assert decision.target != RouteTarget.CLARIFY, message
