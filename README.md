@@ -6,6 +6,8 @@
 
 [English](README.en.md)
 
+产品定位、用户场景、核心流程、边界与验收标准见 [产品需求文档（PRD）](docs/PRD.md)。
+
 ---
 
 ## 界面

@@ -10,6 +10,8 @@ does not cover something, it says so rather than answering from memory.
 
 [中文](README.md)
 
+Positioning, user scenarios, core flows, scope boundaries and acceptance criteria: [Product requirements (PRD, in Chinese)](docs/PRD.md).
+
 ---
 
 ## Screens
