@@ -248,6 +248,20 @@ python -m tests.evals.run_faithfulness_eval --verdicts faithfulness_verdicts.jso
 | 是否编造 | 是 / 否 |
 | 是否说明资料未涵盖 | 是 / 否 |
 
+### 复合意图的执行顺序约定
+
+`intent` 是**先执行**的那一步，`supporting_agents` 是其后依次执行的步骤 —— 编排层按 `[intent] + supporting`
+的顺序跑。「根据我的掌握度」「针对我做错的题」这类短语本身就命名了一个步骤：数据必须先读出来，
+后面的动作才有依据。
+
+按这个约定复核数据集时发现一处自相矛盾：`rt-comp-006`「针对我做错的题再出一组练习」原标注为
+`practice_generation + [progress]`，与结构完全相同的 `rt-comp-005`「根据我的掌握度生成一份学习计划」
+（`progress_review + [planner]`）相反；而且按原标注编排会先出题、再查错题，执行不通。已更正为
+`progress_review + [quiz]`，理由写在该行的 `note` 字段里。
+
+**更正标注会改变分数，因此必须分开归因**：本轮仅代码改动使 intent 0.904→0.923、composite 0.667→0.778，
+叠加标注更正后为 0.942 / 0.889。不把两者混在一起报。
+
 ### Agent 准确率与意图准确率分开看
 
 `intent_accuracy` 度量标签是否正确，`agent_accuracy` 度量是否路由到正确的 Agent。二者不等价：

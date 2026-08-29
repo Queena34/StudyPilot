@@ -377,11 +377,18 @@ def _is_catalog_request(message: str) -> bool:
 
 _PROGRESS_TERMS = (
     "学习进度", "掌握度", "掌握得", "薄弱", "弱项", "学得怎么样",
-    "progress", "mastery", "weak topic", "weakness",
+    # Past mistakes are progress data: "针对我做错的题再出一组练习" needs the
+    # wrong answers read before anything can be generated from them.
+    "做错的题", "错题", "答错", "做错了",
+    "progress", "mastery", "weak topic", "weakness", "questions i got wrong",
 )
 _PLAN_TERMS = (
     "学习计划", "复习计划", "复习安排", "学习安排", "备考计划",
-    "study plan", "revision plan", "study schedule",
+    # A second step is often named without the word "计划": "帮我改一下并安排
+    # 后续复习" asks for grading and then a plan. Without these the explicit
+    # grading rule settled the turn alone and the follow-up step was dropped.
+    "安排复习", "安排后续复习", "后续复习", "接下来该学", "接下来学什么", "下一步学什么",
+    "study plan", "revision plan", "study schedule", "what should i study next",
 )
 _PRACTICE_TERMS = (
     "给我出题", "出几道题", "生成练习", "开始练习", "测试我", "自测",
