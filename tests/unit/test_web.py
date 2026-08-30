@@ -193,3 +193,28 @@ def test_a_replayed_fallback_is_still_marked() -> None:
 
     # Stored messages keep model_name but not the reason.
     assert 'message.model_name === "retrieval-fallback"' in javascript
+
+
+def test_a_timestamp_is_formatted_without_appending_midnight() -> None:
+    """created_at is a full timestamp; exam_date is a plain date.
+
+    Appending "T00:00:00" to a timestamp produced an unparseable string and threw
+    "Invalid time value", which took the whole practice tab down with it.
+    """
+
+    javascript = TestClient(app).get("/static/app.js").text
+
+    assert "function formatDate" in javascript
+    # Midnight is only appended to a plain calendar date.
+    assert "test(value) ? `${value}T00:00:00` : value" in javascript
+    # An unparseable value degrades to empty text rather than throwing.
+    assert "Number.isNaN(date.getTime())" in javascript
+
+
+def test_every_question_type_has_a_label() -> None:
+    """A type without a label leaked its raw value ("multiple_choice") to the learner."""
+
+    javascript = TestClient(app).get("/static/app.js").text
+
+    for question_type in ("single_choice", "multiple_choice", "short_answer", "concept"):
+        assert f"{question_type}:" in javascript, question_type

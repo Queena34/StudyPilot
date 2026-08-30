@@ -32,9 +32,15 @@ function setLoading(button, loading, label = "处理中…") {
   button.textContent = loading ? label : button.dataset.label;
 }
 
+// Two shapes reach this: a plain calendar date ("2026-09-20", from an exam date
+// or a planned task) and a full timestamp ("2026-08-29T09:03:48.410838Z", from a
+// created_at). Appending midnight to a timestamp produced an unparseable string
+// and threw "Invalid time value", taking the whole practice tab down with it.
 function formatDate(value) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(new Date(`${value}T00:00:00`));
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(date);
 }
 
 async function loadCourses(preferredId) {
@@ -495,7 +501,7 @@ async function openConversation(conversationId) {
 
 /* ── Practice history and retry ───────────────────────────────────────────── */
 
-const QUESTION_TYPE_LABELS = { single_choice: "单选题", short_answer: "简答题", concept: "概念解释" };
+const QUESTION_TYPE_LABELS = { single_choice: "单选题", multiple_choice: "多选题", short_answer: "简答题", concept: "概念解释" };
 const DIFFICULTY_LABELS = { basic: "基础", medium: "进阶", advanced: "挑战" };
 
 async function loadPracticeHistory() {
