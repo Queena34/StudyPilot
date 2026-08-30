@@ -130,7 +130,7 @@ app/
 └── web/                        学习者工作台
 
 skills/                         七个教学 Skill（讲解、命题、批改、复习策略等）
-tests/unit/                     286 个单元测试
+tests/unit/                     292 个单元测试
 tests/evals/                    十套版本化离线评测与基线
 migrations/                     Alembic 迁移
 ```
