@@ -16,13 +16,91 @@ from app.rag.sections import detect_sections
 from app.rag.parsers import parser_for_suffix
 
 
+#: What to do with a job still marked running.
+JOB_HEALTHY = "healthy"
+JOB_REQUEUE = "requeue"
+JOB_FAIL = "fail"
+
+
+def stalled_job_action(
+    *,
+    started_at: datetime | None,
+    now: datetime,
+    lease_seconds: float,
+    attempts: int,
+    max_attempts: int,
+) -> str:
+    """Decide the fate of a job whose worker may have died holding it.
+
+    Only queued jobs are ever claimed, so a worker that restarts mid-job leaves
+    that job marked running with nobody to finish it — and the document stays
+    "processing" forever, with no error and no retry offered to the learner.
+
+    A job with no start time is already broken bookkeeping: requeue it rather
+    than leave it stranded.
+    """
+
+    if started_at is None:
+        return JOB_REQUEUE
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    if (now - started_at).total_seconds() < lease_seconds:
+        return JOB_HEALTHY
+    return JOB_FAIL if attempts >= max_attempts else JOB_REQUEUE
+
+
 class DocumentIngestionService:
     def __init__(self) -> None:
         settings = get_settings()
         self.storage = LocalFileStorage(settings.upload_dir)
         self.chunker = TextChunker()
 
+    async def reclaim_stalled_jobs(self) -> int:
+        """Return jobs held by a dead worker, so the learner is not left waiting."""
+
+        settings = get_settings()
+        now = datetime.now(timezone.utc)
+        reclaimed = 0
+        async with SessionFactory() as session:
+            result = await session.execute(
+                select(Job).where(Job.status == JobStatus.RUNNING.value)
+            )
+            for job in result.scalars():
+                action = stalled_job_action(
+                    started_at=job.started_at,
+                    now=now,
+                    lease_seconds=settings.job_lease_seconds,
+                    attempts=job.attempts,
+                    max_attempts=settings.job_max_attempts,
+                )
+                if action == JOB_HEALTHY:
+                    continue
+                document = await session.get(Document, job.document_id)
+                if action == JOB_FAIL:
+                    job.status = JobStatus.FAILED.value
+                    job.error_code = "JOB_STALLED"
+                    job.error_message = "处理任务多次中断，请重新处理该资料。"
+                    job.finished_at = now
+                    if document is not None and job.job_type == "document_ingestion":
+                        document.status = DocumentStatus.FAILED.value
+                        document.error_code = "JOB_STALLED"
+                        document.error_message = job.error_message
+                else:
+                    job.status = JobStatus.QUEUED.value
+                    job.started_at = None
+                    job.progress = 0
+                    # The document has to move back too: a queued job whose
+                    # document still says "processing" is never picked up,
+                    # because claiming checks both rows.
+                    if document is not None and job.job_type == "document_ingestion":
+                        document.status = DocumentStatus.QUEUED.value
+                reclaimed += 1
+            if reclaimed:
+                await session.commit()
+        return reclaimed
+
     async def claim_next_job(self) -> UUID | None:
+        await self.reclaim_stalled_jobs()
         async with SessionFactory() as session:
             result = await session.execute(
                 select(Job)

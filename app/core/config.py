@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     upload_dir: str = "./data/uploads"
     max_upload_mb: int = Field(default=30, ge=1, le=200)
     worker_poll_seconds: float = Field(default=2.0, ge=0.2, le=60)
+    #: A worker that dies mid-job leaves it marked running forever, and nothing
+    #: reclaims it: only queued jobs are picked up. The lease has to outlast the
+    #: slowest real ingestion — a 100-page PDF takes minutes to embed — so a
+    #: healthy worker is never robbed of a job it is still working on.
+    job_lease_seconds: float = Field(default=1800.0, ge=60, le=86400)
+    #: A job that stalls repeatedly is failing, not unlucky. Failing it surfaces
+    #: the problem to the learner, who can retry, instead of looping forever.
+    job_max_attempts: int = Field(default=3, ge=1, le=10)
     anthropic_api_key: str | None = None
     anthropic_base_url: str = "https://api.anthropic.com"
     anthropic_model: str = "claude-3-5-sonnet-20241022"
