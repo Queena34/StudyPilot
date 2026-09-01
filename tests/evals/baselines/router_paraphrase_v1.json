@@ -2,31 +2,30 @@
   "dataset_version": "router-paraphrase-v1",
   "status": "measured",
   "model_name": "deepseek-v4-flash",
-  "generated_at": "2026-09-01T11:47:35.097010+00:00",
+  "generated_at": "2026-09-01T14:30:53.156399+00:00",
   "purpose": "度量「同一意图的多种说法」下的判断一致性。路由评测集问的是「这一种说法能不能懂」，本评测问的是「换个说法还懂不懂」—— 后者是前者看不见的：两种复合触发方案在 57 条路由用例上三轮得分完全相同，只有词表之外的说法才把它们分开。",
   "headline_metric": "group_consistency 而非准确率。同组每条说的是同一件事，路由给出不同答案就是缺陷，哪怕其中几个答案是对的 —— 学习者换个说法就得到不同行为，那是 bug，不是偏好。",
   "metrics": {
     "case_count": 41,
     "group_count": 11,
     "composite_group_count": 4,
-    "group_consistency": 0.8181818181818182,
-    "agent_group_consistency": 0.8181818181818182,
+    "group_consistency": 1.0,
+    "agent_group_consistency": 1.0,
     "composite_group_consistency": 1.0,
-    "group_full_accuracy": 0.8181818181818182,
-    "intent_accuracy": 0.9512195121951219,
-    "agent_accuracy": 0.9512195121951219,
+    "group_full_accuracy": 1.0,
+    "intent_accuracy": 1.0,
+    "agent_accuracy": 1.0,
     "supporting_accuracy": 1.0,
-    "clarification_rate": 0.024390243902439025,
-    "rule_resolution_rate": 0.3902439024390244,
-    "average_latency_ms": 949.2439024390244,
+    "clarification_rate": 0.0,
+    "rule_resolution_rate": 0.36585365853658536,
+    "average_latency_ms": 1441.121951219512,
     "by_group": {
       "g01-practice": {
         "case_count": 5,
-        "consistent": false,
-        "agent_consistent": false,
-        "all_correct": false,
+        "consistent": true,
+        "agent_consistent": true,
+        "all_correct": true,
         "intents_seen": [
-          "general",
           "practice_generation"
         ],
         "supporting_seen": [
@@ -35,12 +34,11 @@
       },
       "g02-grading": {
         "case_count": 4,
-        "consistent": false,
-        "agent_consistent": false,
-        "all_correct": false,
+        "consistent": true,
+        "agent_consistent": true,
+        "all_correct": true,
         "intents_seen": [
-          "answer_evaluation",
-          "course_qa"
+          "answer_evaluation"
         ],
         "supporting_seen": [
           []
@@ -164,7 +162,7 @@
       }
     }
   },
-  "finding": "首次记录时组内一致性仅 0.455、意图准确率 0.805（路由评测集为 0.942），证实 57 条用例高估了泛化能力。根因是疑问句兜底置信度 0.85 高于阈值：一条规则都没匹配上时，系统只知道句子的形状。 2026-09-01 将其降到 0.60 后三轮完全一致：组内一致性 0.455→0.818、意图准确率 0.805→0.951、Agent 准确率 0.854→0.951；代价是规则解决率 0.537→0.390。 剩余 2 组不一致仍待处理。",
+  "finding": "首次记录时组内一致性仅 0.455、意图准确率 0.805（路由评测集为 0.942），证实 57 条用例高估了泛化能力。根因是疑问句兜底置信度 0.85 高于阈值：一条规则都没匹配上时，系统只知道句子的形状。 2026-09-01 将其降到 0.60 后三轮完全一致：组内一致性 0.455→0.818、意图准确率 0.805→0.951、Agent 准确率 0.854→0.951；代价是规则解决率 0.537→0.390。 剩余 2 组不一致仍待处理。 2026-09-01 第二轮修复（K-40）后三轮全部满分：组内一致性 0.818→1.000、意图准确率 0.951→1.000。剩余两组的成因不同：「帮我看看答得对不对」并非模型判错，而是本项目自己的「无宾语请求」规则用子串匹配，句子后面明明说了要看什么也照样拦下要求澄清 —— 已收窄为「短语之后基本没有内容」才算无宾语；「测测我」才是模型判错，通过写清意图边界修复（「简短」不等于「闲聊」，简短但点名了学习动作的仍是该动作）。 同批路由评测三轮逐项不变，未因提示词改动产生回归。",
   "gate": "group_consistency 不得低于本基线。该指标下降意味着同一请求的不同说法开始得到不同行为，属于用户可感知的回归。agent_group_consistency 与 group_consistency 并列记录：两个意图标签可能指向同一个 Agent，混淆它们扣一致性却不改变学习者拿到的结果。",
   "cases": [
     {
@@ -181,7 +179,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": true,
-      "latency_ms": 2
+      "latency_ms": 3
     },
     {
       "id": "g01-practice-02",
@@ -197,23 +195,23 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1296
+      "latency_ms": 1699
     },
     {
       "id": "g01-practice-03",
       "group": "g01-practice",
       "message": "测测我",
       "expected_intent": "practice_generation",
-      "actual_intent": "general",
-      "intent_correct": false,
-      "actual_agent": "general",
-      "agent_correct": false,
+      "actual_intent": "practice_generation",
+      "intent_correct": true,
+      "actual_agent": "quiz",
+      "agent_correct": true,
       "expected_supporting": [],
       "actual_supporting": [],
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1006
+      "latency_ms": 1735
     },
     {
       "id": "g01-practice-04",
@@ -229,7 +227,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1602
+      "latency_ms": 1855
     },
     {
       "id": "g01-practice-05",
@@ -252,16 +250,16 @@
       "group": "g02-grading",
       "message": "帮我看看答得对不对",
       "expected_intent": "answer_evaluation",
-      "actual_intent": "course_qa",
-      "intent_correct": false,
-      "actual_agent": "tutor",
-      "agent_correct": false,
+      "actual_intent": "answer_evaluation",
+      "intent_correct": true,
+      "actual_agent": "evaluator",
+      "agent_correct": true,
       "expected_supporting": [],
       "actual_supporting": [],
       "supporting_correct": true,
-      "clarified": true,
-      "resolved_by_rule": true,
-      "latency_ms": 0
+      "clarified": false,
+      "resolved_by_rule": false,
+      "latency_ms": 1723
     },
     {
       "id": "g02-grading-02",
@@ -293,7 +291,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1272
+      "latency_ms": 1769
     },
     {
       "id": "g02-grading-04",
@@ -309,7 +307,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": true,
-      "latency_ms": 19
+      "latency_ms": 0
     },
     {
       "id": "g03-progress-01",
@@ -357,7 +355,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1591
+      "latency_ms": 1913
     },
     {
       "id": "g03-progress-04",
@@ -373,7 +371,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1109
+      "latency_ms": 1969
     },
     {
       "id": "g04-plan-01",
@@ -405,7 +403,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1358
+      "latency_ms": 1836
     },
     {
       "id": "g04-plan-03",
@@ -437,7 +435,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1304
+      "latency_ms": 1902
     },
     {
       "id": "g05-catalog-01",
@@ -453,7 +451,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1330
+      "latency_ms": 1907
     },
     {
       "id": "g05-catalog-02",
@@ -485,7 +483,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1228
+      "latency_ms": 1848
     },
     {
       "id": "g05-catalog-04",
@@ -501,7 +499,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1228
+      "latency_ms": 2259
     },
     {
       "id": "g06-explain-01",
@@ -517,7 +515,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": true,
-      "latency_ms": 1124
+      "latency_ms": 1662
     },
     {
       "id": "g06-explain-02",
@@ -533,7 +531,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": true,
-      "latency_ms": 1087
+      "latency_ms": 1698
     },
     {
       "id": "g06-explain-03",
@@ -549,7 +547,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1854
+      "latency_ms": 3450
     },
     {
       "id": "g06-explain-04",
@@ -565,7 +563,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 2542
+      "latency_ms": 3717
     },
     {
       "id": "g07-general-01",
@@ -629,7 +627,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": true,
-      "latency_ms": 1
+      "latency_ms": 0
     },
     {
       "id": "g08-grade-then-plan-01",
@@ -649,7 +647,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1047
+      "latency_ms": 1904
     },
     {
       "id": "g08-grade-then-plan-02",
@@ -669,7 +667,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1448
+      "latency_ms": 2029
     },
     {
       "id": "g08-grade-then-plan-03",
@@ -689,7 +687,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1276
+      "latency_ms": 1744
     },
     {
       "id": "g09-progress-then-plan-01",
@@ -709,7 +707,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1328
+      "latency_ms": 1779
     },
     {
       "id": "g09-progress-then-plan-02",
@@ -729,7 +727,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1169
+      "latency_ms": 1859
     },
     {
       "id": "g09-progress-then-plan-03",
@@ -749,7 +747,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1417
+      "latency_ms": 1917
     },
     {
       "id": "g10-progress-then-quiz-01",
@@ -769,7 +767,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1453
+      "latency_ms": 1827
     },
     {
       "id": "g10-progress-then-quiz-02",
@@ -789,7 +787,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1492
+      "latency_ms": 2028
     },
     {
       "id": "g10-progress-then-quiz-03",
@@ -809,7 +807,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1306
+      "latency_ms": 1970
     },
     {
       "id": "g11-explain-then-quiz-01",
@@ -829,7 +827,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 2172
+      "latency_ms": 3561
     },
     {
       "id": "g11-explain-then-quiz-02",
@@ -849,7 +847,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 2278
+      "latency_ms": 3448
     },
     {
       "id": "g11-explain-then-quiz-03",
@@ -869,7 +867,7 @@
       "supporting_correct": true,
       "clarified": false,
       "resolved_by_rule": false,
-      "latency_ms": 1580
+      "latency_ms": 2075
     }
   ]
 }

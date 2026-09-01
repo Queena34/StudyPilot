@@ -289,3 +289,15 @@ def test_a_recognised_request_still_never_reaches_the_model() -> None:
 
     for message in ("给我出5道题", "我的掌握度怎么样", "帮我排个复习计划", "你好"):
         assert _rule_confidence(message) >= 0.80, message
+
+
+def test_an_objectless_request_that_names_its_object_is_not_questioned() -> None:
+    """"帮我看看" alone asks to look at nothing; with an object it does not.
+
+    Matching the phrase as a substring caught "帮我看看答得对不对", which says
+    exactly what to look at, and asked that learner to rephrase instead.
+    """
+
+    assert _rule_confidence("帮我看看") >= 0.80  # settled as a clarification
+    assert _rule_confidence("帮我看看答得对不对") < 0.80
+    assert _rule_confidence("帮我看看第三章讲了什么") < 0.80

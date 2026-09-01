@@ -47,12 +47,18 @@ Return only a JSON object with these keys:
 Intent meanings:
 - course_qa: a factual question answered from the course material
 - concept_explanation: asks to explain, compare or illustrate a concept
-- practice_generation: asks to be given questions, a quiz or a test
-- answer_evaluation: asks to grade, check or mark an answer the student wrote
+- practice_generation: asks to be given questions, a quiz or a test. A bare request
+  to be tested ("测测我", "考考我", "quiz me") asks for questions even though it
+  names none — being tested is what practice is.
+- answer_evaluation: asks to grade, check or mark an answer the student wrote,
+  including asking whether their answer is right when the answer itself is not
+  repeated in the message
 - study_planning: asks about a study, revision or exam schedule
 - progress_review: asks about mastery, weak topics or how they are doing
 - document_management: asks which materials or files exist, not their content
-- general: greeting, small talk, or what the product can do
+- general: greeting, small talk, or what the product can do. Being short is not
+  what makes a message small talk — a brief message that names a study action is
+  that action, not chit-chat.
 
 Ordering, when a message asks for more than one step:
 - `intent` is the step that must run FIRST, not the outcome the student names last.

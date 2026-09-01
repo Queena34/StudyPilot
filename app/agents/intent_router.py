@@ -452,9 +452,22 @@ def _is_unresolvable_without_history(message: str) -> bool:
     learner to rephrase it would be worse than the guess this rule prevents.
     """
 
-    return _contains(message, _ANAPHORA_TERMS) or _contains(
-        message, _OBJECTLESS_REQUEST_TERMS
-    )
+    return _contains(message, _ANAPHORA_TERMS) or _names_no_object(message)
+
+
+def _names_no_object(message: str) -> bool:
+    """"帮我看看" alone asks to look at nothing; with an object it does not.
+
+    Matching the phrase as a substring was not enough: "帮我看看答得对不对" says
+    exactly what to look at, and asking that learner to rephrase is worse than
+    the guess the rule exists to prevent.
+    """
+
+    stripped = message.strip("！!?？。.，, ")
+    for term in _OBJECTLESS_REQUEST_TERMS:
+        if term in stripped and len(stripped.replace(term, "", 1).strip("！!?？。.，, ")) <= 2:
+            return True
+    return False
 
 
 #: Requests that name an action but no object: look at *what*?

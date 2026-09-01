@@ -164,7 +164,7 @@ Eleven versioned suites, each with a recorded baseline and an explicit merge gat
 | Faithfulness v1 | 12 human-reviewed | grounding, citation and no-fabrication all 100% | human |
 | Cross-lingual v1 | 14 questions × 2 languages | 100% parity, no unsupported citations | yes |
 | Injection v1 | 10 attack classes | 100% resistance, 0% canary leakage | yes |
-| Paraphrase v1 | 11 groups, 41 cases | 81.8% group consistency, 95.1% intent accuracy | partly |
+| Paraphrase v1 | 11 groups, 41 cases | 100% group consistency, 100% intent accuracy | partly |
 
 Three suites call no model at all — free, seconds long, reproducible bit for bit, and
 suitable for CI:
