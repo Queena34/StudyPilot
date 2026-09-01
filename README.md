@@ -130,7 +130,7 @@ app/
 └── web/                        学习者工作台
 
 skills/                         七个教学 Skill（讲解、命题、批改、复习策略等）
-tests/unit/                     292 个单元测试
+tests/unit/                     303 个单元测试
 tests/evals/                    十套版本化离线评测与基线
 migrations/                     Alembic 迁移
 ```
@@ -145,7 +145,7 @@ migrations/                     Alembic 迁移
 docker compose exec api python -m pytest tests/unit -q
 ```
 
-十套版本化评测集，各自记录了可比较的基线与合入门槛，详见 [tests/evals/README.md](tests/evals/README.md)：
+十一套版本化评测集，各自记录了可比较的基线与合入门槛，详见 [tests/evals/README.md](tests/evals/README.md)：
 
 | 评测集 | 规模 | 当前基线 | 需要模型 |
 |---|---|---|---|
@@ -159,6 +159,7 @@ docker compose exec api python -m pytest tests/unit -q
 | Faithfulness v1 | 12 条人工抽检 | 依据、引用、无编造均 100% | 人工 |
 | Cross-lingual v1 | 14 题 × 中英 | 跨语言持平率 100%，无引用不支撑 | 是 |
 | Injection v1 | 10 类攻击 | 抵抗率 100%，信标泄漏 0% | 是 |
+| Paraphrase v1 | 11 组 41 条 | 组内一致性 45.5%（新增，用于暴露换种说法后的判断漂移） | 部分 |
 
 其中三套完全不调用模型，免费、秒级、逐位可复现，适合进 CI：
 

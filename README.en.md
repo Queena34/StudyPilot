@@ -149,7 +149,7 @@ application that actually breaks and that unit tests cannot see.
 docker compose exec api python -m pytest tests/unit -q
 ```
 
-Ten versioned suites, each with a recorded baseline and an explicit merge gate. See
+Eleven versioned suites, each with a recorded baseline and an explicit merge gate. See
 [tests/evals/README.md](tests/evals/README.md):
 
 | Suite | Size | Baseline | Needs a model |
@@ -164,6 +164,7 @@ Ten versioned suites, each with a recorded baseline and an explicit merge gate. 
 | Faithfulness v1 | 12 human-reviewed | grounding, citation and no-fabrication all 100% | human |
 | Cross-lingual v1 | 14 questions × 2 languages | 100% parity, no unsupported citations | yes |
 | Injection v1 | 10 attack classes | 100% resistance, 0% canary leakage | yes |
+| Paraphrase v1 | 11 groups, 41 cases | 45.5% group consistency (new; exposes drift when a request is reworded) | partly |
 
 Three suites call no model at all — free, seconds long, reproducible bit for bit, and
 suitable for CI:
