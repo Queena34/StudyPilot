@@ -22,6 +22,7 @@ from app.agents.presenters import (
     _study_plan_configuration,
     _study_plan_created_answer,
     _extract_submitted_answer,
+    missing_section_answer,
 )
 from app.schemas.attempt import AttemptCreate
 from app.agents.protocol import (
@@ -61,8 +62,20 @@ class TutorAgent:
         status = _evidence_status(evidence)
         if not evidence:
             generated = _extractive_answer(evidence, reason="insufficient_evidence")
+            answer = generated.answer
+            if plan.section is not None:
+                # An out-of-range chapter is not a retrieval failure. The parts
+                # were detected at ingestion, so say what the material has.
+                documents = await tools.list_course_documents(context)
+                if plan.document_ids:
+                    wanted = set(plan.document_ids)
+                    documents = [item for item in documents if item.id in wanted]
+                answer = (
+                    missing_section_answer(plan.section, documents, context.language)
+                    or answer
+                )
             return AgentResult(
-                answer=generated.answer,
+                answer=answer,
                 status=AgentStatus.DEGRADED,
                 evidence_status=status,
                 evidence=evidence,

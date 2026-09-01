@@ -19,8 +19,13 @@ from app.agents.routing import INTENT_AGENTS, LearningIntent
 
 
 def score_paraphrase_case(case: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    expected_supporting = sorted(case.get("expected_supporting", []))
-    actual_supporting = sorted(decision.get("supporting_agents", []))
+    # Order is the whole point: the orchestrator runs supporting agents in list
+    # order, so [planner, progress] plans the revision before reading which
+    # topics are weak. Sorting both sides hid that — the metric claimed to check
+    # the supporting agents while being blind to the one thing that makes the
+    # workflow executable.
+    expected_supporting = list(case.get("expected_supporting", []))
+    actual_supporting = list(decision.get("supporting_agents", []))
     return {
         "id": case["id"],
         "group": case["group"],

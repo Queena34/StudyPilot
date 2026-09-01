@@ -236,6 +236,9 @@ def _merge(primary: AgentResult, supporting: AgentResult) -> AgentResult:
         output_tokens=primary.output_tokens,
         fallback_reason=primary.fallback_reason or supporting.fallback_reason,
         practice_set=supporting.practice_set or primary.practice_set,
+        supporting_answer="\n\n---\n\n".join(
+            part for part in (primary.supporting_answer, supporting.answer) if part
+        ),
         tool_calls=primary.tool_calls + supporting.tool_calls,
         shared={**primary.shared, **supporting.shared},
     )

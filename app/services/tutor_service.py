@@ -222,6 +222,12 @@ class TutorService:
                 generated = _extractive_answer(evidence, reason="citation_validation_failed")
                 answer = generated.answer
                 cited = {int(value) for value in re.findall(r"\[c(\d+)]", answer)}
+                # A follow-up step already did its work: the practice set exists
+                # and telling the learner so asserts nothing about the material.
+                # Replacing the explanation must not silently drop it, or the
+                # questions arrive with no sign that they are there.
+                if result.supporting_answer:
+                    answer = f"{answer}\n\n---\n\n{result.supporting_answer}"
         citations = [
             Citation(
                 citation_id=f"c{index}",

@@ -62,7 +62,10 @@ Intent meanings:
 
 Ordering, when a message asks for more than one step:
 - `intent` is the step that must run FIRST, not the outcome the student names last.
-- `supporting_agents` lists what runs after it, in order.
+- `supporting_agents` lists what runs after it, **in the order they must run**.
+  The list is executed in order, and a step that needs what an earlier step
+  produced is skipped when it comes first — planning revision before reading
+  which topics are weak produces no plan at all.
 - A phrase like "根据我的掌握度" or "针对我做错的题" names a step: the data has to be
   read before anything can be built from it, so that reading is the first step.
 - Examples:
@@ -70,6 +73,9 @@ Ordering, when a message asks for more than one step:
   - "根据我的掌握度生成一份学习计划" → intent progress_review, supporting [planner]
   - "针对我做错的题再出一组练习" → intent progress_review, supporting [quiz]
   - "我的答案是…，帮我改一下并安排后续复习" → intent answer_evaluation, supporting [planner]
+  - "我选 B。批改完之后，请根据我的薄弱点制定一份7天复习计划" → intent answer_evaluation,
+    supporting [progress, planner] — three steps, and progress comes before
+    planner because the plan is built from what progress reads
   - "讲解第二章，然后出 5 道题" → intent concept_explanation, supporting [quiz]
 
 Rules:

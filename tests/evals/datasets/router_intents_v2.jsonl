@@ -51,7 +51,7 @@
 {"id": "rt-eval-006", "category": "single", "message": "看看我答得对不对", "expected_intent": "answer_evaluation"}
 {"id": "rt-guard-001", "category": "guard", "message": "这道题的参考答案是怎么推导出来的？", "expected_intent": "course_qa"}
 {"id": "rt-guard-002", "category": "guard", "message": "标准答案里为什么要先做中心化？", "expected_intent": "course_qa"}
-{"id": "rt-comp-007", "category": "composite", "message": "我选 B。批改完之后，请根据我的薄弱点制定一份7天复习计划", "expected_intent": "answer_evaluation", "expected_supporting": ["planner"]}
+{"id": "rt-comp-007", "category": "composite", "message": "我选 B。批改完之后，请根据我的薄弱点制定一份7天复习计划", "expected_intent": "answer_evaluation", "expected_supporting": ["progress", "planner"], "note": "「根据我的薄弱点」本身命名了一个步骤，与结构相同的 rt-comp-005 一致，因此 progress 必须出现且排在 planner 之前。PlannerAgent 依赖 ProgressAgent 产出的 weak_topics —— 顺序反了 Planner 会因缺依赖被整个跳过，用户要的计划根本不会生成。原标注只有 [planner]，遗漏了这一步。2026-09-01 更正。"}
 {"id": "rt-comp-008", "category": "composite", "message": "我的答案是残差就是误差，帮我改一下并安排后续复习", "expected_intent": "answer_evaluation", "expected_supporting": ["planner"]}
 {"id": "rt-plan-001", "category": "single", "message": "帮我制定一份7天的复习计划", "expected_intent": "study_planning"}
 {"id": "rt-plan-002", "category": "single", "message": "每天90分钟，帮我生成一份14天备考计划", "expected_intent": "study_planning"}

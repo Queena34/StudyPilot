@@ -232,3 +232,32 @@ async def test_trace_records_route_tool_calls_and_timing() -> None:
     assert payload["steps"][0]["role"] == "primary"
     assert payload["trace_id"]
     assert payload["total_latency_ms"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_a_follow_up_step_survives_a_replaced_explanation() -> None:
+    """Citation validation judges claims about the material, not actions taken.
+
+    When it rejects the explanation and falls back to raw passages, the quiz
+    step has already built the practice set. Dropping its text with the
+    explanation delivers questions with nothing saying they are there, so the
+    orchestrator keeps that contribution separately.
+    """
+
+    tutor = _RecordingAgent(AgentName.TUTOR, _tutor_result())
+    quiz = _RecordingAgent(AgentName.QUIZ, _quiz_result())
+    decision = decision_for(
+        LearningIntent.CONCEPT_EXPLANATION,
+        confidence=0.9,
+        reason="test",
+        query_plan=_plan(),
+        supporting_agents=[AgentName.QUIZ],
+    )
+
+    result, _ = await _orchestrator(
+        {AgentName.TUTOR: tutor, AgentName.QUIZ: quiz}
+    ).run(_context(decision))
+
+    assert result.supporting_answer == "已为你生成 3 道题。"
+    # It is also still part of the merged answer for the normal path.
+    assert "已为你生成 3 道题。" in result.answer

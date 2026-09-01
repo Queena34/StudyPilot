@@ -91,6 +91,11 @@ class AgentResult:
     output_tokens: int | None = None
     fallback_reason: str | None = None
     practice_set: Any = None
+    #: What supporting agents contributed, kept apart from the primary answer.
+    #: Citation validation judges claims about the material; "I built you a
+    #: practice set" is a statement about an action taken, needs no citation,
+    #: and must survive a fallback that replaces the explanation.
+    supporting_answer: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     #: Values passed on to supporting agents in a sequential workflow.
     shared: dict[str, Any] = field(default_factory=dict)

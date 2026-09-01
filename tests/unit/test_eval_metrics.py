@@ -177,3 +177,26 @@ def test_rag_v1_dataset_contract_and_measured_baseline() -> None:
 def test_aggregate_rejects_empty_results() -> None:
     with pytest.raises(ValueError, match="cannot be empty"):
         aggregate_rag_scores([])
+
+
+def test_supporting_agents_are_compared_in_order() -> None:
+    """The orchestrator runs them in list order, so the metric must see order.
+
+    PlannerAgent needs the weak topics ProgressAgent produces. Reversed, the
+    planner is skipped for a missing dependency and the learner gets no plan —
+    yet sorting both sides made that indistinguishable from success.
+    """
+
+    from tests.evals.router_metrics import score_router_case
+
+    case = {
+        "id": "x",
+        "category": "composite",
+        "expected_intent": "answer_evaluation",
+        "expected_supporting": ["progress", "planner"],
+    }
+    right = {"intent": "answer_evaluation", "supporting_agents": ["progress", "planner"]}
+    reversed_order = {"intent": "answer_evaluation", "supporting_agents": ["planner", "progress"]}
+
+    assert score_router_case(case, right)["supporting_correct"] is True
+    assert score_router_case(case, reversed_order)["supporting_correct"] is False

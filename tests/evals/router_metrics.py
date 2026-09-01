@@ -11,8 +11,13 @@ def score_router_case(case: dict[str, Any], decision: dict[str, Any]) -> dict[st
     """Score one routed case against its expected structured decision."""
 
     expected_intent = case["expected_intent"]
-    expected_supporting = sorted(case.get("expected_supporting", []))
-    actual_supporting = sorted(decision.get("supporting_agents", []))
+    # Order is the whole point: the orchestrator runs supporting agents in list
+    # order, so [planner, progress] plans the revision before reading which
+    # topics are weak. Sorting both sides hid that — the metric claimed to check
+    # the supporting agents while being blind to the one thing that makes the
+    # workflow executable.
+    expected_supporting = list(case.get("expected_supporting", []))
+    actual_supporting = list(decision.get("supporting_agents", []))
     expects_clarification = bool(case.get("expect_clarification", False))
     clarified = decision.get("target") == "clarify"
 

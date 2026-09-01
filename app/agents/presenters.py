@@ -336,3 +336,58 @@ def _with_integrity_notice(answer: str, integrity) -> str:
 
     notice = getattr(integrity, "notice", "")
     return f"> {notice}\n\n{answer}" if notice else answer
+
+
+def missing_section_answer(section: int, documents: list, language: str) -> str | None:
+    """Say that the material has no such part, rather than "no evidence found".
+
+    "第二十章" against an eight-part handout is not a retrieval failure, and
+    reporting it as one sends the learner looking for a problem that is not
+    there. The parts were detected at ingestion, so the answer can name what the
+    material actually contains.
+    """
+
+    named = [
+        (document, list(getattr(document, "sections_json", None) or []))
+        for document in documents
+    ]
+    if not named or any(
+        any(int(item.get("index", -1)) == section for item in sections)
+        for _, sections in named
+    ):
+        return None
+
+    english = language == "en"
+    lines: list[str] = []
+    for document, sections in named:
+        title = getattr(document, "filename", "该资料")
+        if not sections or (len(sections) == 1 and sections[0].get("title") == "全文"):
+            lines.append(
+                f"- {title}：" + ("has no chapter structure detected." if english
+                                  else "未能识别出章节结构，无法按章节检索。")
+            )
+            continue
+        indexes = sorted(int(item.get("index", 0)) for item in sections)
+        preview = "、".join(str(item.get("title", "")) for item in sections[:3])
+        if english:
+            lines.append(
+                f"- {title}: {len(sections)} part(s), numbered "
+                f"{indexes[0]}–{indexes[-1]} (e.g. {preview})."
+            )
+        else:
+            lines.append(
+                f"- {title}：共 {len(sections)} 个部分，编号 {indexes[0]}–{indexes[-1]}"
+                f"（如：{preview}）。"
+            )
+
+    head = (
+        f"The material in scope has no part {section}."
+        if english
+        else f"指定的资料里没有第 {section} 章。"
+    )
+    tail = (
+        "Ask about one of the parts listed above, or drop the chapter filter."
+        if english
+        else "可以改问上面列出的某个部分，或者去掉章节限定再问一次。"
+    )
+    return "\n".join([head, "", *lines, "", tail])
