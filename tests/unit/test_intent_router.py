@@ -268,3 +268,24 @@ def test_a_noun_conjunction_is_not_a_second_step() -> None:
 
     for message in ("我的掌握度和薄弱点怎么样？", "给我出5道题"):
         assert _rule_confidence(message) >= 0.80, message
+
+
+def test_an_unrecognised_question_is_not_settled_by_its_shape() -> None:
+    """Looking like a question is not knowing what it asks about.
+
+    Reaching the question fallback means no rule matched at all, so the only
+    thing established is the shape of the message. Scoring that above the rule
+    threshold claimed a certainty the router did not have, and locked questions
+    about the learner — "哪些知识点我还不熟" — to course Q&A without ever
+    consulting the model.
+    """
+
+    for message in ("哪些知识点我还不熟", "我学得如何了", "我该怎么安排复习", "我上传了哪些资料"):
+        assert _rule_confidence(message) < 0.80, message
+
+
+def test_a_recognised_request_still_never_reaches_the_model() -> None:
+    """Rules keep the high-frequency, unambiguous requests; only the unknown escalates."""
+
+    for message in ("给我出5道题", "我的掌握度怎么样", "帮我排个复习计划", "你好"):
+        assert _rule_confidence(message) >= 0.80, message

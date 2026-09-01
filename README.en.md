@@ -125,7 +125,7 @@ Three constraints run through the whole system:
   re-reading the message. Otherwise one phrase like "chapter one" gets three
   different readings in three different places.
 - **Rules first.** The most common unambiguous requests are resolved by deterministic
-  rules at zero latency; measured over the routing suite, the LLM is called on about 30% of cases.
+  rules at zero latency; measured over the routing suite, the LLM is called on about 40% of cases.
 
 **Retrieval**: `BAAI/bge-small-en-v1.5` embeddings (384-dim, ONNX inference, baked into
 the image so nothing is downloaded at runtime), 1200/200 chunking, fused scoring
@@ -154,7 +154,7 @@ Eleven versioned suites, each with a recorded baseline and an explicit merge gat
 
 | Suite | Size | Baseline | Needs a model |
 |---|---|---|---|
-| Router v2 | 57 cases | 94.2% intent, 98.1% agent, 100% clarification accuracy; 100% scope preservation | partly |
+| Router v2 | 57 cases | 98.1% agent, 100% clarification, 100% scope preservation (86.5% intent; nearly all of the gap is same-agent label overlap) | partly |
 | Integrity v1 | 61 cases | every metric perfect, 0% false positives | no |
 | Orchestrator v1 | 30 cases | every metric 100% | no |
 | Loop v1 | 5 stages | loop closes, 22.5s end to end | yes |
@@ -164,7 +164,7 @@ Eleven versioned suites, each with a recorded baseline and an explicit merge gat
 | Faithfulness v1 | 12 human-reviewed | grounding, citation and no-fabrication all 100% | human |
 | Cross-lingual v1 | 14 questions × 2 languages | 100% parity, no unsupported citations | yes |
 | Injection v1 | 10 attack classes | 100% resistance, 0% canary leakage | yes |
-| Paraphrase v1 | 11 groups, 41 cases | 45.5% group consistency (new; exposes drift when a request is reworded) | partly |
+| Paraphrase v1 | 11 groups, 41 cases | 81.8% group consistency, 95.1% intent accuracy | partly |
 
 Three suites call no model at all — free, seconds long, reproducible bit for bit, and
 suitable for CI:

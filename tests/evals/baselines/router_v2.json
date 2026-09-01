@@ -12,7 +12,7 @@
   "modes": {
     "rules_only": {
       "model": "rules-only",
-      "recorded_at": "2026-08-29T12:59:37.776401+00:00",
+      "recorded_at": "2026-09-01T11:46:26.727588+00:00",
       "purpose": "确定性、零成本、可在 CI 中运行的回归防线。",
       "metrics": {
         "case_count": 57,
@@ -24,9 +24,9 @@
         "composite_supporting_accuracy": 0.0,
         "clarification_accuracy": 1.0,
         "scope_preservation_rate": 1.0,
-        "rule_resolution_rate": 0.7017543859649122,
-        "llm_invocation_rate": 0.29824561403508776,
-        "average_latency_ms": 243.66666666666666,
+        "rule_resolution_rate": 0.5964912280701754,
+        "llm_invocation_rate": 0.4035087719298246,
+        "average_latency_ms": 258.63157894736844,
         "by_category": {
           "ambiguous": {
             "case_count": 8,
@@ -50,19 +50,19 @@
             "case_count": 2,
             "intent_accuracy": 0.5,
             "agent_accuracy": 1.0,
-            "rule_resolution_rate": 1.0
+            "rule_resolution_rate": 0.5
           },
           "scope": {
             "case_count": 3,
             "intent_accuracy": 0.5,
             "agent_accuracy": 0.5,
-            "rule_resolution_rate": 0.6666666666666666
+            "rule_resolution_rate": 0.3333333333333333
           },
           "single": {
             "case_count": 31,
             "intent_accuracy": 1.0,
             "agent_accuracy": 1.0,
-            "rule_resolution_rate": 1.0
+            "rule_resolution_rate": 0.8709677419354839
           }
         }
       },
@@ -101,21 +101,21 @@
     },
     "hybrid": {
       "model": "deepseek-v4-flash",
-      "recorded_at": "2026-08-29T12:59:37.776401+00:00",
+      "recorded_at": "2026-09-01T11:46:26.727588+00:00",
       "purpose": "完整混合路由的真实能力基线。",
       "metrics": {
         "case_count": 57,
         "decisive_case_count": 52,
         "composite_case_count": 9,
-        "intent_accuracy": 0.9423076923076923,
+        "intent_accuracy": 0.8653846153846154,
         "agent_accuracy": 0.9807692307692307,
         "execution_mode_accuracy": 1.0,
         "composite_supporting_accuracy": 0.8888888888888888,
         "clarification_accuracy": 1.0,
         "scope_preservation_rate": 1.0,
-        "rule_resolution_rate": 0.7017543859649122,
-        "llm_invocation_rate": 0.29824561403508776,
-        "average_latency_ms": 612.6491228070175,
+        "rule_resolution_rate": 0.5964912280701754,
+        "llm_invocation_rate": 0.4035087719298246,
+        "average_latency_ms": 740.6140350877193,
         "by_category": {
           "ambiguous": {
             "case_count": 8,
@@ -137,21 +137,21 @@
           },
           "guard": {
             "case_count": 2,
-            "intent_accuracy": 0.5,
+            "intent_accuracy": 0.0,
             "agent_accuracy": 1.0,
-            "rule_resolution_rate": 1.0
+            "rule_resolution_rate": 0.5
           },
           "scope": {
             "case_count": 3,
-            "intent_accuracy": 1.0,
+            "intent_accuracy": 0.5,
             "agent_accuracy": 1.0,
-            "rule_resolution_rate": 0.6666666666666666
+            "rule_resolution_rate": 0.3333333333333333
           },
           "single": {
             "case_count": 31,
-            "intent_accuracy": 1.0,
+            "intent_accuracy": 0.9354838709677419,
             "agent_accuracy": 1.0,
-            "rule_resolution_rate": 1.0
+            "rule_resolution_rate": 0.8709677419354839
           }
         }
       },
@@ -233,5 +233,5 @@
     "hybrid 模式的 intent_accuracy 不得低于 0.88。模型抖动允许小幅波动，连续两次低于阈值须视为回归。",
     "比较必须使用相同 dataset_version 和相同 configuration 阈值。router-v1 的历史基线保存在 baselines/router_v1.json，可用 --dataset-version router-v1 复现。"
   ],
-  "note": "2026-08-29 重跑：首轮出现指代（「这个」「继续」「再来一点」）或无宾语请求（「帮我看看」）时，规则层直接请求澄清，不再交给模型猜。根因是模型对这类零信息输入返回 0.9 置信度，任何澄清阈值都拦不住。clarification_accuracy 0.912→1.000，llm_invocation_rate 0.368→0.281，rule_resolution_rate 0.632→0.719；scope_preservation_rate 保持 1.0。同批新增 agent_accuracy：course_qa 与 concept_explanation 同属 TutorAgent，混淆二者会扣 intent_accuracy 却不改变学习者拿到的结果，因此同时度量「标签是否正确」与「是否路由到正确的 Agent」，后者高 3.8 个百分点。 hybrid 连跑三轮取最差记入基线：intent_accuracy 实测 0.904 / 0.923 / 0.923，记 0.904；agent_accuracy 对应 0.942 / 0.962 / 0.962，记 0.942。差异来自模型抖动而非改动，不取最好的一次。 2026-08-29 第二轮改动（复合意图）：为「安排后续复习」「做错的题」「接下来该学」等第二意图补齐规则词，使显式操作不再短路复合检测；LLM 路由提示词明确执行顺序约定 —— intent 是**先跑**的那一步，supporting 是其后依次执行的步骤，且「根据我的掌握度」「针对我做错的题」这类短语本身就命名了一个步骤。 同时更正 rt-comp-006 的标注：原标为 practice_generation+[progress]，与结构相同的 rt-comp-005 相反，且按该标注编排会先出题再查错题、执行不通，改为 progress_review+[quiz]。 归因（三轮完全一致，无抖动）：仅代码改动 intent 0.904→0.923、composite_supporting 0.667→0.778；叠加标注更正后 intent 0.942、composite_supporting 0.889。agent_accuracy 0.942→0.981。 代价：llm_invocation_rate 0.281→0.298，因为复合消息现在会交给模型判断结构。 复合触发方式做过 A/B 对照：A 为枚举第二意图的词表，B 为「显式操作 + 并列连接词 → 交给模型判断结构」。两者在本评测集上三轮指标完全相同（含 llm_invocation_rate 0.298），但对词表外的说法差异明显 —— 「批改完顺便给我排个复习」「改完之后帮我看看下一步怎么学」「把我上次答错的地方再考我一遍」A 全部漏检、后半句被静默丢弃，B 全部升级。B 的代价是「解释一下合并平方和」这类把连接词嵌在术语里的消息会多调用一次模型，但答案仍正确。漏检是功能失效、误升级只是成本，二者不对等，故采用 B。「和」「以及」被刻意排除在连接词之外：它们连接名词远多于连接动作。"
+  "note": "2026-08-29 重跑：首轮出现指代（「这个」「继续」「再来一点」）或无宾语请求（「帮我看看」）时，规则层直接请求澄清，不再交给模型猜。根因是模型对这类零信息输入返回 0.9 置信度，任何澄清阈值都拦不住。clarification_accuracy 0.912→1.000，llm_invocation_rate 0.368→0.281，rule_resolution_rate 0.632→0.719；scope_preservation_rate 保持 1.0。同批新增 agent_accuracy：course_qa 与 concept_explanation 同属 TutorAgent，混淆二者会扣 intent_accuracy 却不改变学习者拿到的结果，因此同时度量「标签是否正确」与「是否路由到正确的 Agent」，后者高 3.8 个百分点。 hybrid 连跑三轮取最差记入基线：intent_accuracy 实测 0.904 / 0.923 / 0.923，记 0.904；agent_accuracy 对应 0.942 / 0.962 / 0.962，记 0.942。差异来自模型抖动而非改动，不取最好的一次。 2026-08-29 第二轮改动（复合意图）：为「安排后续复习」「做错的题」「接下来该学」等第二意图补齐规则词，使显式操作不再短路复合检测；LLM 路由提示词明确执行顺序约定 —— intent 是**先跑**的那一步，supporting 是其后依次执行的步骤，且「根据我的掌握度」「针对我做错的题」这类短语本身就命名了一个步骤。 同时更正 rt-comp-006 的标注：原标为 practice_generation+[progress]，与结构相同的 rt-comp-005 相反，且按该标注编排会先出题再查错题、执行不通，改为 progress_review+[quiz]。 归因（三轮完全一致，无抖动）：仅代码改动 intent 0.904→0.923、composite_supporting 0.667→0.778；叠加标注更正后 intent 0.942、composite_supporting 0.889。agent_accuracy 0.942→0.981。 代价：llm_invocation_rate 0.281→0.298，因为复合消息现在会交给模型判断结构。 复合触发方式做过 A/B 对照：A 为枚举第二意图的词表，B 为「显式操作 + 并列连接词 → 交给模型判断结构」。两者在本评测集上三轮指标完全相同（含 llm_invocation_rate 0.298），但对词表外的说法差异明显 —— 「批改完顺便给我排个复习」「改完之后帮我看看下一步怎么学」「把我上次答错的地方再考我一遍」A 全部漏检、后半句被静默丢弃，B 全部升级。B 的代价是「解释一下合并平方和」这类把连接词嵌在术语里的消息会多调用一次模型，但答案仍正确。漏检是功能失效、误升级只是成本，二者不对等，故采用 B。「和」「以及」被刻意排除在连接词之外：它们连接名词远多于连接动作。 2026-09-01 第三轮改动：疑问句兜底置信度由 0.85 降到 0.60。走到这条兜底意味着**一条规则都没匹配上**，系统只知道句子的形状、不知道问的是什么 —— 给这样的判断打 0.85 是在谎报把握，并把「哪些知识点我还不熟」「我该怎么安排复习」这类问自己的话锁死为课程问答且从不询问模型。 三轮完全一致：intent_accuracy 0.942→0.865，**但 agent_accuracy 保持 0.981 不变** —— 7 个新增的意图失配里 6 个是 course_qa 与 concept_explanation 互判，二者同属 TutorAgent，学习者无感知；唯一真实的路由错误（rt-ambig-006）改动前也存在。composite / clarification / scope_preservation 全部未变。 代价：llm_invocation_rate 0.298→0.404。收益见 router_paraphrase_v1：组内一致性 0.455→0.818。 **取舍理由**：意图准确率的下降几乎全是标签重叠噪声，而同义表达一致性的提升是用户可感知的；度量应对准用户结果，因此接受这次交换。"
 }

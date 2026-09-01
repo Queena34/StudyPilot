@@ -255,8 +255,8 @@ def _rule_decision(
     if _is_question(normalized):
         return decision_for(
             LearningIntent.COURSE_QA,
-            confidence=0.85,
-            reason="The message is phrased as a question about the course material.",
+            confidence=_UNMATCHED_QUESTION_CONFIDENCE,
+            reason="The message is a question, but no rule recognised what it asks about.",
             query_plan=plan,
         )
     if not has_history and _is_unresolvable_without_history(normalized):
@@ -418,6 +418,12 @@ _EXPLICIT_OPERATION_CONFIDENCE = 0.90
 #: High enough to settle the route without consulting the model: the decision to
 #: ask is itself confident, even though the intent behind the message is not.
 _UNRESOLVABLE_REFERENCE_CONFIDENCE = 0.85
+
+#: Below the rule threshold on purpose. Reaching here means no rule recognised
+#: the message at all, so the only thing established is its shape. Scoring that
+#: 0.85 claimed a certainty the router did not have, and locked "哪些知识点我还
+#: 不熟" to course Q&A without ever consulting the model.
+_UNMATCHED_QUESTION_CONFIDENCE = 0.60
 
 
 def _names_a_further_step(message: str) -> bool:
