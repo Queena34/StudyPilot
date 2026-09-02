@@ -12,7 +12,6 @@ an answer is faithful.
 from __future__ import annotations
 
 import argparse
-import asyncio
 from datetime import datetime, timezone
 import html
 import json
@@ -22,18 +21,26 @@ import shutil
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from uuid import UUID
-
-from app.core.config import get_settings
-from app.rag.retrieval import CourseRetriever
+from app.agents.presenters import CITATION_SNIPPET_LIMIT
+from app.rag.chunking import TextChunker
 
 
-DATASET_VERSION = "faithfulness-v1"
+DATASET_VERSION = "faithfulness-v2"
+DEFAULT_SAMPLE_SIZE = 30
 
 #: Bumped whenever the review page changes what a reviewer can see. It keys the
 #: browser's saved progress, so judgements made against an older, less complete
 #: view are never silently restored into a corrected round.
-INSTRUMENT_REVISION = "rendered-2"
+INSTRUMENT_REVISION = "rendered-3"
+
+#: The review page shows the passage the model actually read. That holds only
+#: while a citation carries the whole chunk, so the claim is checked rather than
+#: asserted — if the chunker ever outgrows the citation limit, this fails loudly
+#: instead of quietly handing the reviewer a fragment.
+if TextChunker().max_chars > CITATION_SNIPPET_LIMIT:  # pragma: no cover - guard
+    raise RuntimeError(
+        "citation limit is smaller than a chunk; the review page would show fragments"
+    )
 
 
 def _request(url: str, *, method: str = "GET", body: dict | None = None) -> dict[str, Any]:
@@ -53,6 +60,13 @@ def _request(url: str, *, method: str = "GET", body: dict | None = None) -> dict
 
 def _stratified(cases: list[dict[str, Any]], size: int, seed: int) -> list[dict[str, Any]]:
     """Sample across question kinds so one easy stratum cannot carry the result."""
+
+    if size < 1:
+        raise ValueError("sample size must be positive")
+    if size > len(cases):
+        raise ValueError(
+            f"sample size {size} exceeds the {len(cases)} available evaluation cases"
+        )
 
     buckets: dict[str, list[dict[str, Any]]] = {}
     for case in cases:
@@ -78,27 +92,6 @@ def _document_ids(base: str, course_id: str) -> dict[str, str]:
     return {item["filename"]: item["id"] for item in data["items"]}
 
 
-async def _full_chunks(course_id: str, question: str, document_id: str | None) -> dict[str, str]:
-    """Full chunk text keyed by chunk id.
-
-    The API returns a 300-character preview, but chunks run to a few thousand
-    characters. Judging a citation against the first sixth of it makes correct
-    citations look wrong, so the review page must show the whole thing.
-    """
-
-    evidence = await CourseRetriever().retrieve(
-        user_id=UUID(get_settings().development_user_id),
-        course_id=UUID(course_id),
-        query=question,
-        top_k=8,
-        document_types=None,
-        document_ids=[UUID(document_id)] if document_id else None,
-        page_from=None,
-        page_to=None,
-    )
-    return {item.chunk_id: item.text for item in evidence}
-
-
 def _ask(
     base: str, course_id: str, case: dict[str, Any], documents: dict[str, str]
 ) -> dict[str, Any]:
@@ -112,20 +105,25 @@ def _ask(
         method="POST",
         body={"message": case["question"], "response_language": "zh", "scope": scope},
     )
-    chunks = asyncio.run(_full_chunks(course_id, case["question"], document_id))
     citations = []
     for item in payload.get("citations", []):
-        full = chunks.get(item.get("chunk_id", ""), "")
+        # The API already returns the whole chunk: its citation limit is larger
+        # than the chunker's ceiling, so nothing is cut. Re-retrieving to "get
+        # the full text" was worse than useless — the answer is retrieved with a
+        # translated query and a section filter, so a second plain retrieval
+        # returned different chunks and matched almost nothing, leaving most
+        # citations wrongly labelled "preview only".
+        snippet = item.get("snippet", "")
         citations.append({
             "citation_id": item["citation_id"],
             "document_id": item["document_id"],
             "filename": item["filename"],
             "page_number": item.get("page_number"),
             "section_title": item.get("section_title"),
-            # Fall back to the preview only when the chunk could not be re-fetched,
-            # and say so, so a reviewer is never judging a truncation unknowingly.
-            "text": full or item.get("snippet", ""),
-            "truncated": not full,
+            # Mark the boundary explicitly if a future API response reaches the
+            # citation ceiling, so a reviewer never judges a truncation unknowingly.
+            "text": snippet,
+            "truncated": len(snippet) >= CITATION_SNIPPET_LIMIT,
         })
     return {
         "id": case["id"],
@@ -347,7 +345,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Sample tutor answers for human review.")
     parser.add_argument("--course-id", required=True)
     parser.add_argument("--base-url", default="http://localhost:8000")
-    parser.add_argument("--size", type=int, default=12)
+    parser.add_argument("--size", type=int, default=DEFAULT_SAMPLE_SIZE)
     parser.add_argument("--seed", type=int, default=20260826)
     args = parser.parse_args()
 

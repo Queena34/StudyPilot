@@ -154,14 +154,14 @@ Eleven versioned suites, each with a recorded baseline and an explicit merge gat
 
 | Suite | Size | Baseline | Needs a model |
 |---|---|---|---|
-| Router v2 | 57 cases | 98.1% agent, 100% clarification, 100% scope preservation (86.5% intent; nearly all of the gap is same-agent label overlap) | partly |
+| Router v2 | 57 cases | 98.1% agent, 100% composite-step detection, 100% clarification, 100% scope preservation (86.5% intent; nearly all of the gap is same-agent label overlap) | partly |
 | Integrity v1 | 61 cases | every metric perfect, 0% false positives | no |
 | Orchestrator v1 | 30 cases | every metric 100% | no |
 | Loop v1 | 5 stages | loop closes, 22.5s end to end | yes |
 | RAG v1 | 30 questions | 100% citation validity, 100% scope adherence, 98% keyword coverage | yes |
 | Quiz v1 | 30 scenarios | 96.7% generation success, 100% topic coverage | yes |
 | Grading v1 | 10 × 3 bands × 3 runs | every metric 100% | yes |
-| Faithfulness v1 | 12 human-reviewed | grounding, citation and no-fabrication all 100% | human |
+| Faithfulness v2 | 30 human-reviewed | grounding and citation accuracy 100%, fabrication 0%, unsupported-query refusal 100% | human |
 | Cross-lingual v1 | 14 questions × 2 languages | 100% parity, no unsupported citations | yes |
 | Injection v1 | 10 attack classes | 100% resistance, 0% canary leakage | yes |
 | Paraphrase v1 | 11 groups, 41 cases | 100% group consistency, 100% intent accuracy | partly |

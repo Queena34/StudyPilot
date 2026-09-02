@@ -2,7 +2,7 @@
   "dataset_version": "router-paraphrase-v1",
   "status": "measured",
   "model_name": "deepseek-v4-flash",
-  "generated_at": "2026-09-01T14:30:53.156399+00:00",
+  "generated_at": "2026-09-02T17:08:34.013676+00:00",
   "purpose": "度量「同一意图的多种说法」下的判断一致性。路由评测集问的是「这一种说法能不能懂」，本评测问的是「换个说法还懂不懂」—— 后者是前者看不见的：两种复合触发方案在 57 条路由用例上三轮得分完全相同，只有词表之外的说法才把它们分开。",
   "headline_metric": "group_consistency 而非准确率。同组每条说的是同一件事，路由给出不同答案就是缺陷，哪怕其中几个答案是对的 —— 学习者换个说法就得到不同行为，那是 bug，不是偏好。",
   "metrics": {
@@ -18,7 +18,7 @@
     "supporting_accuracy": 1.0,
     "clarification_rate": 0.0,
     "rule_resolution_rate": 0.36585365853658536,
-    "average_latency_ms": 1441.121951219512,
+    "average_latency_ms": 918.9756097560976,
     "by_group": {
       "g01-practice": {
         "case_count": 5,
