@@ -22,7 +22,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Redis 缓存（工作记忆）────────────────────────────────────────────────────
+  # ── Redis（预留；当前应用代码尚未连接）────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: studypilot-redis
@@ -40,7 +40,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── ChromaDB 向量数据库（情景记忆 + 用户画像）────────────────────────────────
+  # ── ChromaDB 课程资料向量库（不保存业务状态或用户画像）────────────────────────
   chromadb:
     image: chromadb/chroma:0.5.23
     container_name: studypilot-chromadb
@@ -62,7 +62,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── Prometheus 监控 ─────────────────────────────────────────────────────────
+  # ── Prometheus（当前抓取运行时默认指标，业务指标待接入）────────────────────────
   prometheus:
     image: prom/prometheus:latest
     container_name: studypilot-prometheus

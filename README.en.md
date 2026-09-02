@@ -134,8 +134,11 @@ embeddings — the question is translated into the material's language first. Th
 one small model call and buys a smaller, sharper English retrieval model; it also means
 a bad translation is visible, whereas an embedding that fails to align is a black box.
 
-**Stack**: FastAPI + PostgreSQL + ChromaDB + Redis + Docker. Entry point `app.main:app`,
+**Active stack**: FastAPI + PostgreSQL + ChromaDB + Docker. Entry point `app.main:app`,
 all routes under `/api/v1`; the front end is a vanilla HTML/CSS/JS workspace served by FastAPI.
+Compose still starts Redis and Prometheus, but the application does not use Redis yet and
+Prometheus currently sees only the Python client's default runtime metrics; neither is presented
+as a completed product capability.
 
 ---
 
