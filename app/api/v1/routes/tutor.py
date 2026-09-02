@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from app.api.dependencies import CurrentUserId, DbSession
 from app.core.exceptions import ResourceNotFoundError
@@ -33,12 +33,13 @@ async def create_tutor_message(
     body: TutorMessageCreate,
     session: DbSession,
     user_id: CurrentUserId,
+    response: Response,
 ) -> TutorMessageRead:
     course_repository = CourseRepository(session)
     practice_repository = PracticeRepository(session)
     progress_repository = ProgressRepository(session)
     study_plan_repository = StudyPlanRepository(session)
-    return await TutorService(
+    result = await TutorService(
         course_repository,
         ConversationRepository(session),
         DocumentRepository(session),
@@ -51,6 +52,8 @@ async def create_tutor_message(
         ),
         practice_repository=practice_repository,
     ).answer(user_id, course_id, body)
+    response.headers["x-trace-id"] = str(result.trace["trace_id"])
+    return result
 
 
 @router.get("/{course_id}/tutor/conversations", response_model=ConversationList)

@@ -1,3 +1,4 @@
+from time import monotonic
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -5,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions import AppError
+from app.monitoring.metrics import observe_http_request
 
 
 def _payload(code: str, message: str, request_id: str, details: object = None) -> dict:
@@ -23,9 +25,22 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def attach_request_id(request: Request, call_next):
         request_id = request.headers.get("x-request-id") or str(uuid4())
         request.state.request_id = request_id
-        response = await call_next(request)
-        response.headers["x-request-id"] = request_id
-        return response
+        started = monotonic()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["x-request-id"] = request_id
+            return response
+        finally:
+            route = request.scope.get("route")
+            route_path = getattr(route, "path", "unmatched")
+            observe_http_request(
+                request.method,
+                route_path,
+                status_code,
+                monotonic() - started,
+            )
 
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
@@ -47,4 +62,3 @@ def register_exception_handlers(app: FastAPI) -> None:
                 exc.errors(),
             ),
         )
-

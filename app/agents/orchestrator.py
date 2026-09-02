@@ -17,6 +17,7 @@ from app.agents.protocol import (
 )
 from app.agents.integrity import IntegrityLevel
 from app.agents.routing import AgentName, ExecutionMode, RouteTarget, RoutingSource
+from app.monitoring.metrics import observe_trace
 
 #: Supporting agents only run when the primary agent produced what they consume.
 _SUPPORTING_DEPENDENCIES: dict[AgentName, str] = {
@@ -93,6 +94,15 @@ class LearningAgentOrchestrator:
                 result = await self._run_workflow(context, trace)
 
         trace.total_latency_ms = total.elapsed_ms
+        workflow_status = result.status.value
+        if any(
+            step.status in {AgentStatus.FAILED, AgentStatus.SKIPPED}
+            for step in trace.steps
+        ):
+            # A supporting failure is contained so the learner keeps the primary
+            # answer, but the requested workflow still did not complete in full.
+            workflow_status = AgentStatus.DEGRADED.value
+        observe_trace(trace, workflow_status)
         return result, trace
 
     async def _run_workflow(

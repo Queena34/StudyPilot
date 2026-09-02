@@ -134,11 +134,16 @@ embeddings — the question is translated into the material's language first. Th
 one small model call and buys a smaller, sharper English retrieval model; it also means
 a bad translation is visible, whereas an embedding that fails to align is a black box.
 
-**Active stack**: FastAPI + PostgreSQL + ChromaDB + Docker. Entry point `app.main:app`,
+**Active stack**: FastAPI + PostgreSQL + ChromaDB + Prometheus + Docker. Entry point `app.main:app`,
 all routes under `/api/v1`; the front end is a vanilla HTML/CSS/JS workspace served by FastAPI.
-Compose still starts Redis and Prometheus, but the application does not use Redis yet and
-Prometheus currently sees only the Python client's default runtime metrics; neither is presented
-as a completed product capability.
+Compose still reserves a Redis service, but the application does not use it yet and it is not
+presented as a completed product capability.
+
+**Observability**: `/api/v1/metrics` exposes low-cardinality Prometheus metrics for HTTP success
+and latency, routing sources, workflow completion and degradation, agent steps, teaching-tool
+success and latency, RAG evidence outcomes, fallback reasons, and tutor tokens. Labels never
+contain a user, course, document, question, or trace ID. Tutor responses return `X-Trace-ID`,
+which identifies the full agent trace carried in the response body.
 
 ---
 

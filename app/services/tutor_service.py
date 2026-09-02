@@ -21,7 +21,7 @@ from app.agents.presenters import (
     _remove_unknown_citations,
 )
 from app.agents.integrity import AcademicIntegrityGuard
-from app.agents.protocol import LearningContext
+from app.agents.protocol import AgentResult, LearningContext
 from app.agents.tools import TeachingToolManager
 from app.agents.routing import AgentName
 from app.core.exceptions import AppError, ResourceNotFoundError
@@ -32,6 +32,7 @@ from app.infrastructure.repositories.document_repository import DocumentReposito
 from app.infrastructure.repositories.progress_repository import ProgressRepository
 from app.infrastructure.repositories.study_plan_repository import StudyPlanRepository
 from app.llm.gateway import GeneratedAnswer, TutorAnswerGateway, _extractive_answer
+from app.monitoring.metrics import observe_tutor_result
 from app.rag.retrieval import CourseRetriever
 from app.schemas.tutor import Citation, TokenUsage, TutorMessageCreate, TutorMessageRead
 from app.schemas.practice import Difficulty, PracticeSetCreate, QuestionType
@@ -228,6 +229,18 @@ class TutorService:
                 # questions arrive with no sign that they are there.
                 if result.supporting_answer:
                     answer = f"{answer}\n\n---\n\n{result.supporting_answer}"
+        # Observe what the learner actually receives, after citation repair or
+        # extractive fallback—not the earlier model result that may be replaced.
+        observe_tutor_result(
+            AgentResult(
+                answer=answer,
+                evidence_status=status,
+                model_name=generated.model_name,
+                input_tokens=generated.input_tokens,
+                output_tokens=generated.output_tokens,
+                fallback_reason=generated.fallback_reason,
+            )
+        )
         citations = [
             Citation(
                 citation_id=f"c{index}",
