@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     enable_docs: bool = True
     database_url: str = "postgresql+asyncpg://studypilot:studypilot@localhost:5432/studypilot"
-    redis_url: str = "redis://localhost:6379/0"
     chroma_host: str = "localhost"
     chroma_port: int = 8001
     chroma_collection: str = "course_materials_v2"

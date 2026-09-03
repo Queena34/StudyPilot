@@ -104,7 +104,7 @@ AgentResult + AgentTrace
 
 **检索**：`BAAI/bge-small-en-v1.5` 嵌入（384 维，ONNX 推理，随镜像分发，无需联网下载），分块 1200/200，融合打分 `0.7 × 向量分 + 0.3 × 词汇分`。跨语言不靠多语言嵌入，而是**先把提问翻译成资料语言再检索** —— 代价是一次小模型调用，收益是可以用更小更准的英文检索模型，且翻译错了肉眼可见，而嵌入对不上是黑箱。
 
-**当前运行栈**：FastAPI + PostgreSQL + ChromaDB + Prometheus + Docker。后端入口 `app.main:app`，API 统一 `/api/v1` 前缀；前端为 FastAPI 托管的原生 HTML/CSS/JS 工作台。Redis 容器仍由 Compose 预留，但尚未接入应用，不能算作已完成的产品能力。
+**当前运行栈**：FastAPI + PostgreSQL + ChromaDB + Prometheus + Docker。后端入口 `app.main:app`，API 统一 `/api/v1` 前缀；前端为 FastAPI 托管的原生 HTML/CSS/JS 工作台。短期上下文和后台任务状态统一由 PostgreSQL 管理；未使用的 Redis 已移除，避免缓存一致性与额外运维成本。
 
 **可观测性**：`/api/v1/metrics` 暴露低基数 Prometheus 指标，覆盖 HTTP 成功率与延迟、Router 决策来源、工作流完成/降级、Agent 步骤、教学工具成功率与延迟、RAG 证据状态、降级原因和 Tutor token。指标标签不包含用户、课程、资料、问题文本或 trace ID；聊天响应通过 `X-Trace-ID` 关联响应体中的完整 Agent Trace。
 
@@ -132,7 +132,7 @@ app/
 └── web/                        学习者工作台
 
 skills/                         七个教学 Skill（讲解、命题、批改、复习策略等）
-tests/unit/                     330 个单元测试
+tests/unit/                     332 个单元测试
 tests/evals/                    十一套版本化离线评测与基线
 migrations/                     Alembic 迁移
 ```

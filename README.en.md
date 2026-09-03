@@ -136,8 +136,9 @@ a bad translation is visible, whereas an embedding that fails to align is a blac
 
 **Active stack**: FastAPI + PostgreSQL + ChromaDB + Prometheus + Docker. Entry point `app.main:app`,
 all routes under `/api/v1`; the front end is a vanilla HTML/CSS/JS workspace served by FastAPI.
-Compose still reserves a Redis service, but the application does not use it yet and it is not
-presented as a completed product capability.
+PostgreSQL is the single authority for short-term context and background job state. The unused
+Redis service was removed instead of adding cache invalidation and operational cost without a
+measured need.
 
 **Observability**: `/api/v1/metrics` exposes low-cardinality Prometheus metrics for HTTP success
 and latency, routing sources, workflow completion and degradation, agent steps, teaching-tool

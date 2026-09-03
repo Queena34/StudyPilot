@@ -22,24 +22,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Redis（预留；当前应用代码尚未连接）────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: studypilot-redis
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-studypilot}
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    networks:
-      - studypilot-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-studypilot}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ── ChromaDB 课程资料向量库（不保存业务状态或用户画像）────────────────────────
   chromadb:
     image: chromadb/chroma:0.5.23
@@ -98,7 +80,6 @@ services:
     environment:
       # 容器内固定值，覆盖 .env 中的本地路径
       - STUDYPILOT_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-studypilot}:${POSTGRES_PASSWORD:-studypilot}@postgres:5432/${POSTGRES_DB:-studypilot}
-      - STUDYPILOT_REDIS_URL=redis://:${REDIS_PASSWORD:-studypilot}@redis:6379/0
       - STUDYPILOT_CHROMA_HOST=chromadb
       - STUDYPILOT_CHROMA_PORT=8000
       - STUDYPILOT_UPLOAD_DIR=/app/data/uploads
@@ -113,8 +94,6 @@ services:
       - ./logs:/app/logs
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       chromadb:
         condition: service_healthy
@@ -137,7 +116,6 @@ services:
     container_name: studypilot-worker
     environment:
       - STUDYPILOT_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-studypilot}:${POSTGRES_PASSWORD:-studypilot}@postgres:5432/${POSTGRES_DB:-studypilot}
-      - STUDYPILOT_REDIS_URL=redis://:${REDIS_PASSWORD:-studypilot}@redis:6379/0
       - STUDYPILOT_CHROMA_HOST=chromadb
       - STUDYPILOT_CHROMA_PORT=8000
       - STUDYPILOT_CHROMA_COLLECTION=${STUDYPILOT_CHROMA_COLLECTION:-course_materials_v2}
@@ -149,8 +127,6 @@ services:
       - ./logs:/app/logs
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       chromadb:
         condition: service_healthy
@@ -192,7 +168,6 @@ networks:
 volumes:
   postgres-data:
   uploads-data:
-  redis-data:
   chromadb-data:
   prometheus-data:
   nginx-logs:
