@@ -40,6 +40,7 @@ docker-compose(1).yml
 
 # 内部开发文档与协作规约（本地保留，不进仓库）
 docs/ARCHITECTURE.md
+docs/EVALUATION_REPORT.md
 docs/PROGRESS.md
 docs/ECHOMIND_ARCHITECTURE_MIGRATION.md
 docs/IMPLEMENTATION_AUDIT.md

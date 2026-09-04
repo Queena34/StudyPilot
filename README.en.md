@@ -168,7 +168,7 @@ Eleven versioned suites, each with a recorded baseline and an explicit merge gat
 | Orchestrator v1 | 30 cases | every metric 100% | no |
 | Loop v1 | 5 stages | loop closes, 22.5s end to end | yes |
 | RAG v1 | 30 questions | 100% citation validity, 100% scope adherence, 98% keyword coverage | yes |
-| Quiz v1 | 30 scenarios | 96.7% generation success, 100% topic coverage | yes |
+| Quiz v1 | 30 scenarios | 96.7% expected-outcome success (including correct rejections); 27/28 requested generations succeeded | yes |
 | Grading v1 | 10 × 3 bands × 3 runs | every metric 100% | yes |
 | Faithfulness v2 | 30 human-reviewed | grounding and citation accuracy 100%, fabrication 0%, unsupported-query refusal 100% | human |
 | Cross-lingual v1 | 14 questions × 2 languages | 100% parity, no unsupported citations | yes |
